@@ -40,7 +40,7 @@ typedef struct {
     int col;
     TokenType type;
     union {
-        ShortStr value;
+        ShortStr string;
         Keyword keyword;
         Operator operator;
     };
@@ -52,14 +52,11 @@ typedef struct {
     unsigned int current_col;
 } Lexer;
 
-#define OVERFLOW_CHECK_SHORT_STR(str, lex_ptr)                                           \
+#define OVERFLOW_CHECK_TOK(tok)                                                          \
     do {                                                                                 \
-        if (str.length >= SHORT_STR_CAP - 1) {                                           \
+        if (tok.string.length >= SHORT_STR_CAP - 1) {                                    \
             fprintf(                                                                     \
-                stderr,                                                                  \
-                "ERROR: short string overflow at %u:%u\n",                               \
-                lex_ptr->current_line + 1,                                               \
-                lex_ptr->current_col + 1                                                 \
+                stderr, "ERROR: short string overflow at %u:%u\n", tok.line, tok.col     \
             );                                                                           \
             exit(1);                                                                     \
         }                                                                                \

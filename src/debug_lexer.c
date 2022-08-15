@@ -22,7 +22,7 @@ print_token(Token tok)
     }
     else if (tok.type == NAME || tok.type == NUMBER || tok.type == STRING) {
         printf(": ");
-        printf("%s", tok.value.buffer);
+        printf("%s", tok.string.buffer);
     }
     printf("\n");
 }

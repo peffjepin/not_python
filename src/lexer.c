@@ -38,6 +38,12 @@ static bool IS_OP_TABLE[255] = {
         ungetc(c, lex_ptr->srcfile);                                                     \
     } while (0)
 
+#define TOK_APPEND(tok, c)                                                               \
+    do {                                                                                 \
+        OVERFLOW_CHECK_TOK(tok);                                                         \
+        tok.string.buffer[tok.string.length++] = c;                                      \
+    } while (0)
+
 static char
 peek(Lexer* lex)
 {
@@ -49,14 +55,12 @@ peek(Lexer* lex)
 Token
 next_token(Lexer* lex)
 {
-    ShortStr string = {0};
-    Token tok = {.value = string};
+    Token tok = {0};
     char c;
-    char next;
 
     // skip whitespace
-    while (string.length == 0) {
-        switch (c = fgetc(lex->srcfile)) {
+    while (tok.string.length == 0) {
+        switch (c = GETC(lex)) {
             case ' ':
                 break;
             case '\t':
@@ -64,28 +68,26 @@ next_token(Lexer* lex)
             case EOF:
                 return tok;
             default:
-                string.buffer[string.length++] = c;
+                TOK_APPEND(tok, c);
         }
-        lex->current_col++;
     }
 
     // skip comments by advancing to newline token
     if (c == '#') {
-        do {
-            c = fgetc(lex->srcfile);
-            lex->current_col++;
-        } while (c != '\n' && c != EOF);
+        for (c = GETC(lex); c != '\n' && c != EOF; c = GETC(lex))
+            ;
         if (c == EOF) {
             return tok;
         }
-        string.buffer[0] = c;
+        // replace '#' with the newline
+        tok.string.buffer[0] = c;
     }
 
     tok.line = lex->current_line + 1;
     tok.col = lex->current_col;
 
     // handle single char tokens
-    switch (string.buffer[0]) {
+    switch (tok.string.buffer[0]) {
         case '\n':
             tok.type = NEWLINE;
             lex->current_line++;
@@ -116,8 +118,7 @@ next_token(Lexer* lex)
             tok.type = COMMA;
             return tok;
         case '.':
-            next = peek(lex);
-            if (IS_ALPHA(next)) {
+            if (IS_ALPHA(peek(lex))) {
                 tok.type = DOT;
                 return tok;
             }
@@ -125,18 +126,15 @@ next_token(Lexer* lex)
 
     // token is the name of something (function, variable ...)
     if (IS_ALPHA(c)) {
-        for (c = GETC(lex); IS_ALPHA(c) || IS_NUMERIC(c); c = GETC(lex)) {
-            OVERFLOW_CHECK_SHORT_STR(string, lex);
-            string.buffer[string.length++] = c;
-        }
+        for (c = GETC(lex); IS_ALPHA(c) || IS_NUMERIC(c); c = GETC(lex))
+            TOK_APPEND(tok, c);
         UNGETC(c, lex);
-        Keyword kw = is_keyword(string.buffer);
-        if (kw) {
+        Keyword kw;
+        if ((kw = is_keyword(tok.string.buffer))) {
             tok.keyword = kw;
             tok.type = KEYWORD;
         }
         else {
-            tok.value = string;
             tok.type = NAME;
         }
     }
@@ -144,29 +142,26 @@ next_token(Lexer* lex)
     // token is a numeric constant
     else if (IS_NUMERIC(c) || c == '.') {
         for (c = GETC(lex); IS_NUMERIC(c) || c == '.' || c == '_'; c = GETC(lex)) {
-            OVERFLOW_CHECK_SHORT_STR(string, lex);
-            if (c != '_') string.buffer[string.length++] = c;
+            if (c == '_') continue;
+            TOK_APPEND(tok, c);
         }
         UNGETC(c, lex);
         tok.type = NUMBER;
-        tok.value = string;
     }
 
     // token is a string literal
     else if (c == '\'' || c == '"') {
         char opening_quote = c;
-        string.buffer[0] = '\0';
-        string.length = 0;
+        tok.string.buffer[--tok.string.length] = '\0';  // mask off surrounding quotes
         for (c = GETC(lex);
-             c != opening_quote || string.buffer[string.length - 1] == '\\';
+             c != opening_quote || tok.string.buffer[tok.string.length - 1] == '\\';
              c = GETC(lex)) {
             if (c == EOF) SYNTAX_ERROR(tok, "unterminated string literal");
             if (c == opening_quote)
-                string.buffer[string.length - 1] = c;  // overwrite '\'
+                tok.string.buffer[tok.string.length - 1] = c;  // overwrite '\'
             else
-                string.buffer[string.length++] = c;
+                TOK_APPEND(tok, c);
         }
-        tok.value = string;
         tok.type = STRING;
     }
 
@@ -174,11 +169,10 @@ next_token(Lexer* lex)
     else {
         assert(IS_OPERATOR(c));
         for (c = GETC(lex); IS_OPERATOR(c); c = GETC(lex)) {
-            OVERFLOW_CHECK_SHORT_STR(string, lex);
-            string.buffer[string.length++] = c;
+            TOK_APPEND(tok, c);
         }
         UNGETC(c, lex);
-        tok.operator= op_from_cstr(string.buffer);
+        tok.operator= op_from_cstr(tok.string.buffer);
         tok.type = OPERATOR;
     }
     return tok;
