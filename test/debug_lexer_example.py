@@ -17,3 +17,4 @@ y = 1  # comment at end of line
 string = "hello, world"
 string = '"hello, world"'
 empty = ""
+string_with_escaped_quotes = "\"hello!\""

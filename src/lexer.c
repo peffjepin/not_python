@@ -19,6 +19,7 @@ static bool IS_OP_TABLE[255] = {
     ['/'] = true,
     ['|'] = true,
     ['&'] = true,
+    ['%'] = true,
     ['='] = true,
     ['<'] = true,
     ['>'] = true,
@@ -156,9 +157,14 @@ next_token(Lexer* lex)
         char opening_quote = c;
         string.buffer[0] = '\0';
         string.length = 0;
-        for (c = GETC(lex); c != opening_quote; c = GETC(lex)) {
+        for (c = GETC(lex);
+             c != opening_quote || string.buffer[string.length - 1] == '\\';
+             c = GETC(lex)) {
             if (c == EOF) SYNTAX_ERROR(tok, "unterminated string literal");
-            string.buffer[string.length++] = c;
+            if (c == opening_quote)
+                string.buffer[string.length - 1] = c;  // overwrite '\'
+            else
+                string.buffer[string.length++] = c;
         }
         tok.value = string;
         tok.type = STRING;
