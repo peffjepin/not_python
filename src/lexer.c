@@ -130,6 +130,7 @@ next_token(Lexer* lex)
         }
         ungetc(c, lex->srcfile);
         tok.type = NUMBER;
+        tok.value = string;
     }
     else {
         assert(IS_OPERATOR(c));

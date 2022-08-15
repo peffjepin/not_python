@@ -277,7 +277,7 @@ print_token(Token tok)
         printf(": ");
         print_keyword(tok.keyword);
     }
-    else if (tok.type == NAME) {
+    else if (tok.type == NAME || tok.type == NUMBER) {
         printf(": ");
         printf("%s", tok.value.buffer);
     }
