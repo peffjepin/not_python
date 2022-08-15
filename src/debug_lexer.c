@@ -3,6 +3,49 @@
 
 #include "lexer.h"
 
+void print_token_type(TokenType type);
+void print_operator_enum(Operator op);
+void print_keyword(Keyword kw);
+
+void
+print_token(Token tok)
+{
+    printf("%u:%u\t", tok.line, tok.col);
+    print_token_type(tok.type);
+    if (tok.type == OPERATOR) {
+        printf(": ");
+        print_operator_enum(tok.operator);
+    }
+    else if (tok.type == KEYWORD) {
+        printf(": ");
+        print_keyword(tok.keyword);
+    }
+    else if (tok.type == NAME || tok.type == NUMBER || tok.type == STRING) {
+        printf(": ");
+        printf("%s", tok.value.buffer);
+    }
+    printf("\n");
+}
+
+int
+main(int argc, char** argv)
+{
+    assert(argc == 2 && "useage './main [filename]'");
+    FILE* testfile = fopen(argv[1], "r");
+    if (!testfile) {
+        fprintf(stderr, "failed to open file: %s\n", argv[1]);
+        exit(1);
+    }
+    Lexer lex = {.srcfile = testfile};
+    Token tok = next_token(&lex);
+    do {
+        print_token(tok);
+        tok = next_token(&lex);
+    } while (tok.type != NULL_TOKEN);
+    fclose(testfile);
+    return 0;
+}
+
 void
 print_token_type(TokenType type)
 {
@@ -262,43 +305,4 @@ print_keyword(Keyword kw)
             printf("KW_YIELD");
             break;
     }
-}
-
-void
-print_token(Token tok)
-{
-    printf("%u:%u\t", tok.line, tok.col);
-    print_token_type(tok.type);
-    if (tok.type == OPERATOR) {
-        printf(": ");
-        print_operator_enum(tok.operator);
-    }
-    else if (tok.type == KEYWORD) {
-        printf(": ");
-        print_keyword(tok.keyword);
-    }
-    else if (tok.type == NAME || tok.type == NUMBER) {
-        printf(": ");
-        printf("%s", tok.value.buffer);
-    }
-    printf("\n");
-}
-
-int
-main(int argc, char** argv)
-{
-    assert(argc == 2 && "useage './main [filename]'");
-    FILE* testfile = fopen(argv[1], "r");
-    if (!testfile) {
-        fprintf(stderr, "failed to open file: %s\n", argv[1]);
-        exit(1);
-    }
-    Lexer lex = {.srcfile = testfile};
-    Token tok = next_token(&lex);
-    do {
-        print_token(tok);
-        tok = next_token(&lex);
-    } while (tok.type != NULL_TOKEN);
-    fclose(testfile);
-    return 0;
 }
