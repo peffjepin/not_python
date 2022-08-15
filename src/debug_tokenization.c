@@ -12,15 +12,15 @@ print_token(Token tok)
 {
     printf("%u:%u\t", tok.line, tok.col);
     print_token_type(tok.type);
-    if (tok.type == OPERATOR) {
+    if (tok.type == TOK_OPERATOR) {
         printf(": ");
         print_operator_enum(tok.operator);
     }
-    else if (tok.type == KEYWORD) {
+    else if (tok.type == TOK_KEYWORD) {
         printf(": ");
         print_keyword(tok.keyword);
     }
-    else if (tok.type == NAME || tok.type == NUMBER || tok.type == STRING) {
+    else if (tok.type == TOK_NAME || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
         printf("%s", tok.string.buffer);
     }
@@ -53,55 +53,55 @@ print_token_type(TokenType type)
         case NULL_TOKEN:
             printf("NULL_TOKEN");
             break;
-        case COMMA:
+        case TOK_COMMA:
             printf("COMMA");
             break;
-        case KEYWORD:
+        case TOK_KEYWORD:
             printf("KEYWORD");
             break;
-        case COLON:
+        case TOK_COLON:
             printf("COLON");
             break;
-        case STRING:
+        case TOK_STRING:
             printf("STRING");
             break;
-        case NUMBER:
+        case TOK_NUMBER:
             printf("NUMBER");
             break;
-        case OPERATOR:
+        case TOK_OPERATOR:
             printf("OPERATOR");
             break;
-        case NEWLINE:
+        case TOK_NEWLINE:
             printf("NEWLINE");
             break;
-        case BLOCK_BEGIN:
+        case TOK_BLOCK_BEGIN:
             printf("BLOCK_BEGIN");
             break;
-        case BLOCK_END:
+        case TOK_BLOCK_END:
             printf("BLOCK_END");
             break;
-        case OPEN_PARENS:
+        case TOK_OPEN_PARENS:
             printf("OPEN_PARENS");
             break;
-        case CLOSE_PARENS:
+        case TOK_CLOSE_PARENS:
             printf("CLOSE_PARENS");
             break;
-        case OPEN_SQUARE:
+        case TOK_OPEN_SQUARE:
             printf("OPEN_SQUARE");
             break;
-        case CLOSE_SQUARE:
+        case TOK_CLOSE_SQUARE:
             printf("CLOSE_SQUARE");
             break;
-        case OPEN_CURLY:
+        case TOK_OPEN_CURLY:
             printf("OPEN_CURLY");
             break;
-        case CLOSE_CURLY:
+        case TOK_CLOSE_CURLY:
             printf("CLOSE_CURLY");
             break;
-        case NAME:
+        case TOK_NAME:
             printf("NAME");
             break;
-        case DOT:
+        case TOK_DOT:
             printf("DOT");
             break;
     }
@@ -111,100 +111,100 @@ void
 print_operator_enum(Operator op)
 {
     switch (op) {
-        case PLUS:
+        case OP_PLUS:
             printf("PLUS");
             break;
-        case MINUS:
+        case OP_MINUS:
             printf("MINUS");
             break;
-        case MULT:
+        case OP_MULT:
             printf("MULT");
             break;
-        case DIV:
+        case OP_DIV:
             printf("DIV");
             break;
-        case MOD:
+        case OP_MOD:
             printf("MOD");
             break;
-        case POW:
+        case OP_POW:
             printf("POW");
             break;
-        case FLOORDIV:
+        case OP_FLOORDIV:
             printf("FLOORDIV");
             break;
-        case ASSIGNMENT:
+        case OP_ASSIGNMENT:
             printf("ASSIGNMENT");
             break;
-        case PLUS_ASSIGNMENT:
+        case OP_PLUS_ASSIGNMENT:
             printf("PLUS_ASSIGNMENT");
             break;
-        case MINUS_ASSIGNMENT:
+        case OP_MINUS_ASSIGNMENT:
             printf("MINUS_ASSIGNMENT");
             break;
-        case MULT_ASSIGNMENT:
+        case OP_MULT_ASSIGNMENT:
             printf("MULT_ASSIGNMENT");
             break;
-        case DIV_ASSIGNMENT:
+        case OP_DIV_ASSIGNMENT:
             printf("DIV_ASSIGNMENT");
             break;
-        case MOD_ASSIGNMENT:
+        case OP_MOD_ASSIGNMENT:
             printf("MOD_ASSIGNMENT");
             break;
-        case FLOORDIV_ASSIGNMENT:
+        case OP_FLOORDIV_ASSIGNMENT:
             printf("FLOORDIV_ASSIGNMENT");
             break;
-        case POW_ASSIGNMENT:
+        case OP_POW_ASSIGNMENT:
             printf("POW_ASSIGNMENT");
             break;
-        case AND_ASSIGNMENT:
+        case OP_AND_ASSIGNMENT:
             printf("AND_ASSIGNMENT");
             break;
-        case OR_ASSIGNMENT:
+        case OP_OR_ASSIGNMENT:
             printf("OR_ASSIGNMENT");
             break;
-        case XOR_ASSIGNMENT:
+        case OP_XOR_ASSIGNMENT:
             printf("XOR_ASSIGNMENT");
             break;
-        case RSHIFT_ASSIGNMENT:
+        case OP_RSHIFT_ASSIGNMENT:
             printf("RSHIFT_ASSIGNMENT");
             break;
-        case LSHIFT_ASSIGNMENT:
+        case OP_LSHIFT_ASSIGNMENT:
             printf("LSHIFT_ASSIGNMENT");
             break;
-        case EQUAL:
+        case OP_EQUAL:
             printf("EQUAL");
             break;
-        case NOT_EQUAL:
+        case OP_NOT_EQUAL:
             printf("NOT_EQUAL");
             break;
-        case GREATER:
+        case OP_GREATER:
             printf("GREATER");
             break;
-        case LESS:
+        case OP_LESS:
             printf("LESS");
             break;
-        case GREATER_EQUAL:
+        case OP_GREATER_EQUAL:
             printf("GREATER_EQUAL");
             break;
-        case LESS_EQUAL:
+        case OP_LESS_EQUAL:
             printf("LESS_EQUAL");
             break;
-        case BITWISE_AND:
+        case OP_BITWISE_AND:
             printf("BITWISE_AND");
             break;
-        case BITWISE_OR:
+        case OP_BITWISE_OR:
             printf("BITWISE_OR");
             break;
-        case BITWISE_XOR:
+        case OP_BITWISE_XOR:
             printf("BITWISE_XOR");
             break;
-        case BITWISE_NOT:
+        case OP_BITWISE_NOT:
             printf("BITWISE_NOT");
             break;
-        case LSHIFT:
+        case OP_LSHIFT:
             printf("LSHIFT");
             break;
-        case RSHIFT:
+        case OP_RSHIFT:
             printf("RSHIFT");
             break;
     }

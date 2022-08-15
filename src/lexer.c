@@ -89,37 +89,37 @@ next_token(Lexer* lex)
     // handle single char tokens
     switch (tok.string.buffer[0]) {
         case '\n':
-            tok.type = NEWLINE;
+            tok.type = TOK_NEWLINE;
             lex->current_line++;
             lex->current_col = 0;
             return tok;
         case '(':
-            tok.type = OPEN_PARENS;
+            tok.type = TOK_OPEN_PARENS;
             return tok;
         case ')':
-            tok.type = CLOSE_PARENS;
+            tok.type = TOK_CLOSE_PARENS;
             return tok;
         case '[':
-            tok.type = OPEN_SQUARE;
+            tok.type = TOK_OPEN_SQUARE;
             return tok;
         case ']':
-            tok.type = CLOSE_SQUARE;
+            tok.type = TOK_CLOSE_SQUARE;
             return tok;
         case '{':
-            tok.type = OPEN_CURLY;
+            tok.type = TOK_OPEN_CURLY;
             return tok;
         case '}':
-            tok.type = CLOSE_CURLY;
+            tok.type = TOK_CLOSE_CURLY;
             return tok;
         case ':':
-            tok.type = COLON;
+            tok.type = TOK_COLON;
             return tok;
         case ',':
-            tok.type = COMMA;
+            tok.type = TOK_COMMA;
             return tok;
         case '.':
             if (IS_ALPHA(peek(lex))) {
-                tok.type = DOT;
+                tok.type = TOK_DOT;
                 return tok;
             }
     }
@@ -132,10 +132,10 @@ next_token(Lexer* lex)
         Keyword kw;
         if ((kw = is_keyword(tok.string.buffer))) {
             tok.keyword = kw;
-            tok.type = KEYWORD;
+            tok.type = TOK_KEYWORD;
         }
         else {
-            tok.type = NAME;
+            tok.type = TOK_NAME;
         }
     }
 
@@ -146,7 +146,7 @@ next_token(Lexer* lex)
             TOK_APPEND(tok, c);
         }
         UNGETC(c, lex);
-        tok.type = NUMBER;
+        tok.type = TOK_NUMBER;
     }
 
     // token is a string literal
@@ -162,7 +162,7 @@ next_token(Lexer* lex)
             else
                 TOK_APPEND(tok, c);
         }
-        tok.type = STRING;
+        tok.type = TOK_STRING;
     }
 
     // token is an operator
@@ -173,7 +173,7 @@ next_token(Lexer* lex)
         }
         UNGETC(c, lex);
         tok.operator= op_from_cstr(tok.string.buffer);
-        tok.type = OPERATOR;
+        tok.type = TOK_OPERATOR;
     }
     return tok;
 }
