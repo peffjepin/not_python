@@ -10,6 +10,7 @@
 typedef enum {
     NULL_TOKEN,
     KEYWORD,
+    COMMA,
     COLON,
     STRING,
     NUMBER,

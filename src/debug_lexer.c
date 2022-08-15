@@ -53,6 +53,9 @@ print_token_type(TokenType type)
         case NULL_TOKEN:
             printf("NULL_TOKEN");
             break;
+        case COMMA:
+            printf("COMMA");
+            break;
         case KEYWORD:
             printf("KEYWORD");
             break;

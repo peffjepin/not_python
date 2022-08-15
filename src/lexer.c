@@ -111,6 +111,9 @@ next_token(Lexer* lex)
         case ':':
             tok.type = COLON;
             return tok;
+        case ',':
+            tok.type = COMMA;
+            return tok;
         case '.':
             next = peek(lex);
             if (IS_ALPHA(next)) {
