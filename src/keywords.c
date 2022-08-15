@@ -23,7 +23,6 @@ kw_hash(char* kw)
     return hash % 145;
 }
 
-#include <stdio.h>
 Keyword
 is_keyword(char* word)
 {

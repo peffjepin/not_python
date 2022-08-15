@@ -107,7 +107,7 @@ next_token(Lexer* lex)
             tok.type = NAME;
         }
     }
-    else if (IS_NUMERIC(c)) {
+    else if (IS_NUMERIC(c) || c == '.') {
         c = fgetc(lex->srcfile);
         while (IS_NUMERIC(c) || c == '.' || c == '_') {
             OVERFLOW_CHECK_SHORT_STR(string, lex);

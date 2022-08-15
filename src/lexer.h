@@ -47,7 +47,6 @@ typedef struct {
 
 typedef struct {
     FILE* srcfile;
-    Token prev;
     unsigned int current_line;
     unsigned int current_col;
 } Lexer;
