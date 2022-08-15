@@ -47,6 +47,18 @@ next_token(Lexer* lex)
         lex->current_col++;
     }
 
+    // skip comments by advancing to newline token
+    if (c == '#') {
+        do {
+            c = fgetc(lex->srcfile);
+            lex->current_col++;
+        } while (c != '\n' && c != EOF);
+        if (c == EOF) {
+            return tok;
+        }
+        string.buffer[0] = c;
+    }
+
     tok.line = lex->current_line + 1;
     tok.col = lex->current_col;
 
