@@ -104,6 +104,7 @@ next_token(Lexer* lex)
             tok.type = KEYWORD;
         }
         else {
+            tok.value = string;
             tok.type = NAME;
         }
     }
