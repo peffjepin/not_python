@@ -32,11 +32,12 @@ main(int argc, char** argv)
 {
     assert(argc == 2 && "useage './main [filename]'");
     Lexer lex = lex_open(argv[1]);
-    Token tok = next_token(&lex.scanner);
+    scan_to_token_stream(&lex.scanner);
+    Token tok;
     do {
+        tok = token_stream_consume(&lex.scanner.ts);
         print_token(tok);
-        tok = next_token(&lex.scanner);
-    } while (tok.type != NULL_TOKEN);
+    } while (tok.type != TOK_EOF);
     lex_close(&lex);
     return 0;
 }
@@ -47,6 +48,9 @@ print_token_type(TokenType type)
     switch (type) {
         case NULL_TOKEN:
             printf("NULL_TOKEN");
+            break;
+        case TOK_EOF:
+            printf("EOF");
             break;
         case TOK_COMMA:
             printf("COMMA");

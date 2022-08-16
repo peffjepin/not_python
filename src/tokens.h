@@ -23,6 +23,7 @@ typedef enum {
     TOK_CLOSE_CURLY,
     TOK_NAME,
     TOK_DOT,
+    TOK_EOF,
 } TokenType;
 
 #define SHORT_STR_CAP 128
@@ -42,6 +43,19 @@ typedef struct {
         Operator operator;
     };
 } Token;
+
+#define TOKEN_STREAM_CAPACITY 1024
+
+typedef struct {
+    size_t read_head;
+    size_t write_head;
+    Token tokens[TOKEN_STREAM_CAPACITY];
+} TokenStream;
+
+int token_stream_write(TokenStream* ts, Token tok);
+Token token_stream_consume(TokenStream* ts);
+Token token_stream_peek(TokenStream* ts);
+Token token_stream_peekn(TokenStream* ts, size_t n);
 
 #define OVERFLOW_CHECK_TOK(tok)                                                          \
     do {                                                                                 \

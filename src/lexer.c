@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "instructions.h"
+#include "tokens.h"
 
 #define UNIMPLEMENTED() assert(0 && "unimplemented")
 
@@ -99,6 +99,9 @@ next_token(Scanner* scanner)
             case '\t':
                 break;
             case EOF:
+                tok.type = TOK_EOF;
+                tok.line = scanner->current_line + 1;
+                tok.col = scanner->current_col;
                 return tok;
             case '\n':
                 if (!SCANNER_TOKENIZING_NEWLINES(scanner)) {
@@ -119,6 +122,9 @@ next_token(Scanner* scanner)
         for (c = GETC(scanner); c != '\n' && c != EOF; c = GETC(scanner))
             ;
         if (c == EOF) {
+            tok.type = TOK_EOF;
+            tok.line = scanner->current_line + 1;
+            tok.col = scanner->current_col;
             return tok;
         }
         // replace '#' with the newline
@@ -228,4 +234,16 @@ next_token(Scanner* scanner)
         tok.type = TOK_OPERATOR;
     }
     return tok;
+}
+
+void
+scan_to_token_stream(Scanner* scanner)
+{
+    Token tok;
+    do {
+        tok = next_token(scanner);
+        if (token_stream_write(&scanner->ts, tok)) {
+            UNIMPLEMENTED();
+        };
+    } while (tok.type != TOK_EOF);
 }

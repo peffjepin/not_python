@@ -8,6 +8,7 @@
 
 typedef struct {
     FILE* srcfile;
+    TokenStream ts;
     unsigned int current_line;
     unsigned int current_col;
     unsigned int open_parens;
@@ -21,6 +22,8 @@ typedef struct {
 } Lexer;
 
 Token next_token(Scanner* scanner);
+void scan_to_token_stream(Scanner* scanner);
+
 Lexer lex_open(char* filepath);
 void lex_close(Lexer* lexer);
 
