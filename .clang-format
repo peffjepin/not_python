@@ -1,0 +1,18 @@
+BasedOnStyle: google
+
+IndentWidth: 4
+ColumnLimit: 90
+
+PointerAlignment: Left
+AlignAfterOpenBracket: BlockIndent
+AlignEscapedNewlines: Right
+AlignTrailingComments: true
+
+BinPackArguments: false
+BinPackParameters: false
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterFunction: true
+    BeforeElse: true
+AlwaysBreakAfterReturnType: TopLevelDefinitions
