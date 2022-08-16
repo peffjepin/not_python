@@ -1,4 +1,5 @@
 .ccls-cache
-debug_token
+debug_instructions
+debug_tokens
 main
 __pycache__

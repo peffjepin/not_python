@@ -7,14 +7,14 @@
 int
 main(int argc, char** argv)
 {
-    assert(argc == 2 && "useage './main [filename]'");
+    assert(argc == 2 && "useage './debug_inst [filename]'");
     Lexer lex = lex_open(argv[1]);
     scan_to_token_stream(&lex.scanner);
-    Token tok;
+    Instruction inst;
     do {
-        tok = token_stream_consume(&lex.scanner.ts);
-        print_token(tok);
-    } while (tok.type != TOK_EOF);
+        inst = next_instruction(&lex);
+        print_instruction(inst);
+    } while (inst.type != INST_EOF);
     lex_close(&lex);
     return 0;
 }

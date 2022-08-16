@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "instructions.h"
 #include "tokens.h"
 
 typedef struct {
@@ -21,10 +22,12 @@ typedef struct {
     Scanner scanner;
 } Lexer;
 
+Lexer lex_open(char* filepath);
+void lex_close(Lexer* lexer);
+
 Token next_token(Scanner* scanner);
 void scan_to_token_stream(Scanner* scanner);
 
-Lexer lex_open(char* filepath);
-void lex_close(Lexer* lexer);
+Instruction next_instruction(Lexer* lex);
 
 #endif

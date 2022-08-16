@@ -2,6 +2,46 @@
 
 #include <stdio.h>
 
+static void print_statement(Statement stmt);
+
+void
+print_instruction(Instruction inst)
+{
+    switch (inst.type) {
+        case NULL_INST:
+            printf("NULL INST");
+            break;
+        case INST_EOF:
+            printf("EOF");
+            break;
+        case INST_FOR_LOOP:
+            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it.buffer);
+            print_statement(inst.for_loop.iterable_stmt);
+            break;
+    }
+    printf("\n");
+}
+
+static void
+print_statement(Statement stmt)
+{
+    for (size_t i = 0; i < stmt.length; i++) {
+        Token tok = stmt.tokens[i];
+        if (i > 0) printf(" ");
+        if (tok.type == TOK_OPERATOR) {
+            print_operator_enum(tok.operator);
+        }
+        else if (tok.type == TOK_KEYWORD) {
+            print_keyword(tok.keyword);
+        }
+        else if (tok.type == TOK_NAME || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
+            printf("%s", tok.string.buffer);
+        }
+        else
+            print_token_type(tok.type);
+    }
+}
+
 void
 print_token(Token tok)
 {
@@ -19,6 +59,7 @@ print_token(Token tok)
         printf(": ");
         printf("%s", tok.string.buffer);
     }
+    printf("\n");
 }
 
 void

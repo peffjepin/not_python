@@ -236,6 +236,69 @@ next_token(Scanner* scanner)
     return tok;
 }
 
+static Statement
+parse_statement(TokenStream* ts)
+{
+    Statement stmt = {0};
+    do {
+        // TODO: implement a real statement parser
+        stmt.tokens[stmt.length++] = token_stream_consume(ts);
+        if (stmt.length == STATEMENT_TOKEN_CAPACITY) UNIMPLEMENTED();
+    } while (token_stream_peek(ts).type != TOK_COLON);
+    return stmt;
+}
+
+static Instruction
+parse_for_loop_instruction(TokenStream* ts)
+{
+    Instruction inst = {.type = INST_FOR_LOOP};
+    // consume for token
+    Token tok = token_stream_consume(ts);
+
+    tok = token_stream_consume(ts);
+    SYNTAX_ASSERT(tok.type == TOK_NAME, tok, "expected identifier token");
+    inst.for_loop.it = tok.string;
+
+    tok = token_stream_consume(ts);
+    SYNTAX_ASSERT(tok.keyword == KW_IN, tok, "expected keyword 'in'");
+
+    inst.for_loop.iterable_stmt = parse_statement(ts);
+    return inst;
+}
+
+static Instruction
+parse_unknown_instruction(TokenStream* ts)
+{
+    Instruction inst = {.type = NULL_INST};
+    (void)token_stream_consume(ts);
+    return inst;
+}
+
+Instruction
+next_instruction(Lexer* lex)
+{
+    Instruction inst = {.type = NULL_INST};
+    // TODO: token_stream_peek_type would be nice, as long as
+    // consumed tokens in the stream have their type set to NULL_TOK
+    // then it wont even require bounds checking and could just be a macro
+    Token first_token = token_stream_peek(&lex->scanner.ts);
+    if (first_token.type == TOK_KEYWORD) {
+        switch (first_token.keyword) {
+            case KW_FOR:
+                return parse_for_loop_instruction(&lex->scanner.ts);
+            default:
+                return parse_unknown_instruction(&lex->scanner.ts);
+        }
+    }
+    else if (first_token.type == TOK_EOF) {
+        (void)token_stream_consume(&lex->scanner.ts);
+        inst.type = INST_EOF;
+        return inst;
+    }
+    else
+        return parse_unknown_instruction(&lex->scanner.ts);
+}
+
 void
 scan_to_token_stream(Scanner* scanner)
 {
