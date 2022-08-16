@@ -18,3 +18,30 @@ string = "hello, world"
 string = '"hello, world"'
 empty = ""
 string_with_escaped_quotes = "\"hello!\""
+
+no_newlines_between_parens = (
+    1,
+    2,
+    3,
+)
+no_newlines_between_square = [
+    1,
+    2,
+    3,
+]
+no_newlines_between_curly = {
+    1: 1,
+    2: 2,
+    3: 3,
+}
+no_newlines_nested = (
+    [
+        1,
+        2,
+        3
+    ],
+    {
+        1: 1,
+        2: 2,
+    },
+)

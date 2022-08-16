@@ -31,18 +31,13 @@ int
 main(int argc, char** argv)
 {
     assert(argc == 2 && "useage './main [filename]'");
-    FILE* testfile = fopen(argv[1], "r");
-    if (!testfile) {
-        fprintf(stderr, "failed to open file: %s\n", argv[1]);
-        exit(1);
-    }
-    Lexer lex = {.srcfile = testfile};
-    Token tok = next_token(&lex);
+    Lexer lex = lex_open(argv[1]);
+    Token tok = next_token(&lex.scanner);
     do {
         print_token(tok);
-        tok = next_token(&lex);
+        tok = next_token(&lex.scanner);
     } while (tok.type != NULL_TOKEN);
-    fclose(testfile);
+    lex_close(&lex);
     return 0;
 }
 

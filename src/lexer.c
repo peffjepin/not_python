@@ -1,9 +1,15 @@
 #include "lexer.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "instructions.h"
+
+#define UNIMPLEMENTED() assert(0 && "unimplemented")
 
 #define SYNTAX_ERROR(token, message)                                                     \
     do {                                                                                 \
@@ -31,11 +37,11 @@ static bool IS_OP_TABLE[255] = {
 #define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || c == '_')
 #define IS_NUMERIC(c) (((c) >= '0' && (c) <= '9'))
 
-#define GETC(lex_ptr) (lex_ptr->current_col++, fgetc(lex_ptr->srcfile))
-#define UNGETC(c, lex_ptr)                                                               \
+#define GETC(scanner) (scanner->current_col++, fgetc(scanner->srcfile))
+#define UNGETC(c, scanner)                                                               \
     do {                                                                                 \
-        lex_ptr->current_col--;                                                          \
-        ungetc(c, lex_ptr->srcfile);                                                     \
+        scanner->current_col--;                                                          \
+        ungetc(c, scanner->srcfile);                                                     \
     } while (0)
 
 #define TOK_APPEND(tok, c)                                                               \
@@ -44,29 +50,65 @@ static bool IS_OP_TABLE[255] = {
         tok.string.buffer[tok.string.length++] = c;                                      \
     } while (0)
 
-static char
-peek(Lexer* lex)
+#define SYNTAX_ASSERT(cond, tok, message)                                                \
+    if (!(cond)) SYNTAX_ERROR(tok, message)
+
+#define SCANNER_TOKENIZING_NEWLINES(scanner)                                             \
+    (scanner->open_parens == 0 && scanner->open_square == 0 && scanner->open_curly == 0)
+
+Lexer
+lex_open(char* filepath)
 {
-    char c = fgetc(lex->srcfile);
-    ungetc(c, lex->srcfile);
+    FILE* file = fopen(filepath, "r");
+    if (!file) {
+        fprintf(stderr, "ERROR: failed to open file -- %s\n", strerror(errno));
+        exit(1);
+    }
+    Lexer lex = {.filepath = filepath, .scanner.srcfile = file};
+    return lex;
+}
+
+void
+lex_close(Lexer* lexptr)
+{
+    FILE* file;
+    if ((file = lexptr->scanner.srcfile)) {
+        fclose(file);
+    }
+}
+
+static char
+peek(Scanner* scanner)
+{
+    char c = fgetc(scanner->srcfile);
+    ungetc(c, scanner->srcfile);
     return c;
 }
 
 Token
-next_token(Lexer* lex)
+next_token(Scanner* scanner)
 {
     Token tok = {0};
     char c;
 
     // skip whitespace
     while (tok.string.length == 0) {
-        switch (c = GETC(lex)) {
+        switch (c = GETC(scanner)) {
             case ' ':
                 break;
             case '\t':
                 break;
             case EOF:
                 return tok;
+            case '\n':
+                if (!SCANNER_TOKENIZING_NEWLINES(scanner)) {
+                    scanner->current_line++;
+                    scanner->current_col = 0;
+                    break;
+                }
+                // TODO: put this behind a compiler check or disable implicit fallthrough
+                // warning
+                __attribute__((fallthrough));
             default:
                 TOK_APPEND(tok, c);
         }
@@ -74,7 +116,7 @@ next_token(Lexer* lex)
 
     // skip comments by advancing to newline token
     if (c == '#') {
-        for (c = GETC(lex); c != '\n' && c != EOF; c = GETC(lex))
+        for (c = GETC(scanner); c != '\n' && c != EOF; c = GETC(scanner))
             ;
         if (c == EOF) {
             return tok;
@@ -83,32 +125,41 @@ next_token(Lexer* lex)
         tok.string.buffer[0] = c;
     }
 
-    tok.line = lex->current_line + 1;
-    tok.col = lex->current_col;
+    tok.line = scanner->current_line + 1;
+    tok.col = scanner->current_col;
 
     // handle single char tokens
     switch (tok.string.buffer[0]) {
         case '\n':
             tok.type = TOK_NEWLINE;
-            lex->current_line++;
-            lex->current_col = 0;
+            scanner->current_line++;
+            scanner->current_col = 0;
             return tok;
         case '(':
+            scanner->open_parens++;
             tok.type = TOK_OPEN_PARENS;
             return tok;
         case ')':
+            SYNTAX_ASSERT(scanner->open_parens > 0, tok, "no matching '('");
+            scanner->open_parens--;
             tok.type = TOK_CLOSE_PARENS;
             return tok;
         case '[':
+            scanner->open_square++;
             tok.type = TOK_OPEN_SQUARE;
             return tok;
         case ']':
+            SYNTAX_ASSERT(scanner->open_square > 0, tok, "no matching '['");
+            scanner->open_square--;
             tok.type = TOK_CLOSE_SQUARE;
             return tok;
         case '{':
+            scanner->open_curly++;
             tok.type = TOK_OPEN_CURLY;
             return tok;
         case '}':
+            SYNTAX_ASSERT(scanner->open_curly > 0, tok, "no matching '{'");
+            scanner->open_curly--;
             tok.type = TOK_CLOSE_CURLY;
             return tok;
         case ':':
@@ -118,7 +169,7 @@ next_token(Lexer* lex)
             tok.type = TOK_COMMA;
             return tok;
         case '.':
-            if (IS_ALPHA(peek(lex))) {
+            if (IS_ALPHA(peek(scanner))) {
                 tok.type = TOK_DOT;
                 return tok;
             }
@@ -126,9 +177,9 @@ next_token(Lexer* lex)
 
     // token is the name of something (function, variable ...)
     if (IS_ALPHA(c)) {
-        for (c = GETC(lex); IS_ALPHA(c) || IS_NUMERIC(c); c = GETC(lex))
+        for (c = GETC(scanner); IS_ALPHA(c) || IS_NUMERIC(c); c = GETC(scanner))
             TOK_APPEND(tok, c);
-        UNGETC(c, lex);
+        UNGETC(c, scanner);
         Keyword kw;
         if ((kw = is_keyword(tok.string.buffer))) {
             tok.keyword = kw;
@@ -141,11 +192,12 @@ next_token(Lexer* lex)
 
     // token is a numeric constant
     else if (IS_NUMERIC(c) || c == '.') {
-        for (c = GETC(lex); IS_NUMERIC(c) || c == '.' || c == '_'; c = GETC(lex)) {
+        for (c = GETC(scanner); IS_NUMERIC(c) || c == '.' || c == '_';
+             c = GETC(scanner)) {
             if (c == '_') continue;
             TOK_APPEND(tok, c);
         }
-        UNGETC(c, lex);
+        UNGETC(c, scanner);
         tok.type = TOK_NUMBER;
     }
 
@@ -153,9 +205,9 @@ next_token(Lexer* lex)
     else if (c == '\'' || c == '"') {
         char opening_quote = c;
         tok.string.buffer[--tok.string.length] = '\0';  // mask off surrounding quotes
-        for (c = GETC(lex);
+        for (c = GETC(scanner);
              c != opening_quote || tok.string.buffer[tok.string.length - 1] == '\\';
-             c = GETC(lex)) {
+             c = GETC(scanner)) {
             if (c == EOF) SYNTAX_ERROR(tok, "unterminated string literal");
             if (c == opening_quote)
                 tok.string.buffer[tok.string.length - 1] = c;  // overwrite '\'
@@ -168,10 +220,10 @@ next_token(Lexer* lex)
     // token is an operator
     else {
         assert(IS_OPERATOR(c));
-        for (c = GETC(lex); IS_OPERATOR(c); c = GETC(lex)) {
+        for (c = GETC(scanner); IS_OPERATOR(c); c = GETC(scanner)) {
             TOK_APPEND(tok, c);
         }
-        UNGETC(c, lex);
+        UNGETC(c, scanner);
         tok.operator= op_from_cstr(tok.string.buffer);
         tok.type = TOK_OPERATOR;
     }
