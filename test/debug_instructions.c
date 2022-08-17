@@ -1,20 +1,20 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/lexer.h"
 #include "debug_common.h"
-#include "lexer.h"
 
 int
 main(int argc, char** argv)
 {
     assert(argc == 2 && "useage './debug_inst [filename]'");
-    Lexer lex = lex_open(argv[1]);
-    scan_to_token_stream(&lex.scanner);
+    Lexer lexer = lexer_open(argv[1]);
+    lexer_tokenize(&lexer);
     Instruction inst;
     do {
-        inst = next_instruction(&lex);
+        inst = next_instruction(&lexer);
         print_instruction(inst);
     } while (inst.type != INST_EOF);
-    lex_close(&lex);
+    lexer_close(&lexer);
     return 0;
 }

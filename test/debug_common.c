@@ -3,10 +3,10 @@
 #include <stdio.h>
 
 void
-print_statement(Statement stmt)
+print_expression(Expression expr)
 {
-    for (size_t i = 0; i < stmt.length; i++) {
-        Token tok = stmt.tokens[i];
+    for (size_t i = 0; i < expr.length; i++) {
+        Token tok = expr.tokens[i];
         if (i > 0) printf(" ");
         if (tok.type == TOK_OPERATOR) {
             print_operator_enum(tok.operator);
@@ -14,7 +14,7 @@ print_statement(Statement stmt)
         else if (tok.type == TOK_KEYWORD) {
             print_keyword(tok.keyword);
         }
-        else if (tok.type == TOK_NAME || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
+        else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
             printf("%s", tok.string.buffer);
         }
         else
@@ -32,13 +32,13 @@ print_instruction(Instruction inst)
         case INST_EOF:
             printf("EOF");
             break;
-        case INST_STMT:
-            printf("STMT: ");
-            print_statement(inst.stmt);
+        case INST_EXPR:
+            printf("EXPR: ");
+            print_expression(inst.expr);
             break;
         case INST_FOR_LOOP:
             printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it.buffer);
-            print_statement(inst.for_loop.iterable_stmt);
+            print_expression(inst.for_loop.iterable_expr);
             break;
     }
     printf("\n");
@@ -47,7 +47,7 @@ print_instruction(Instruction inst)
 void
 print_token(Token tok)
 {
-    printf("%4u:%-4u", tok.line, tok.col);
+    printf("%s:%u:%u ", tok.loc.filename, tok.loc.line, tok.loc.col);
     print_token_type(tok.type);
     if (tok.type == TOK_OPERATOR) {
         printf(": ");
@@ -57,7 +57,7 @@ print_token(Token tok)
         printf(": ");
         print_keyword(tok.keyword);
     }
-    else if (tok.type == TOK_NAME || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
+    else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
         printf("%s", tok.string.buffer);
     }
@@ -119,8 +119,8 @@ print_token_type(TokenType type)
         case TOK_CLOSE_CURLY:
             printf("CLOSE_CURLY");
             break;
-        case TOK_NAME:
-            printf("NAME");
+        case TOK_IDENTIFIER:
+            printf("IDENTIFIER");
             break;
         case TOK_DOT:
             printf("DOT");
