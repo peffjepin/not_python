@@ -78,7 +78,7 @@ def main():
     for op_name, op_value in OPS.items():
         if "ASSIGNMENT" not in op_name:
             continue
-        print(f"    [{op_name}] = {op_hash(op_value, redundancy)},")
+        print(f"    [{op_name}] = true,")
     print("};")
     return 0
 
