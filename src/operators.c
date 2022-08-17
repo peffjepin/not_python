@@ -3,19 +3,19 @@
 #include <stddef.h>
 
 const bool IS_ASSIGNMENT_OP[70] = {
-    [OP_ASSIGNMENT] = true,
-    [OP_PLUS_ASSIGNMENT] = true,
-    [OP_MINUS_ASSIGNMENT] = true,
-    [OP_MULT_ASSIGNMENT] = true,
-    [OP_DIV_ASSIGNMENT] = true,
-    [OP_MOD_ASSIGNMENT] = true,
-    [OP_FLOORDIV_ASSIGNMENT] = true,
-    [OP_POW_ASSIGNMENT] = true,
-    [OP_AND_ASSIGNMENT] = true,
-    [OP_OR_ASSIGNMENT] = true,
-    [OP_XOR_ASSIGNMENT] = true,
-    [OP_RSHIFT_ASSIGNMENT] = true,
-    [OP_LSHIFT_ASSIGNMENT] = true,
+    [OPERATOR_ASSIGNMENT] = true,
+    [OPERATOR_PLUS_ASSIGNMENT] = true,
+    [OPERATOR_MINUS_ASSIGNMENT] = true,
+    [OPERATOR_MULT_ASSIGNMENT] = true,
+    [OPERATOR_DIV_ASSIGNMENT] = true,
+    [OPERATOR_MOD_ASSIGNMENT] = true,
+    [OPERATOR_FLOORDIV_ASSIGNMENT] = true,
+    [OPERATOR_POW_ASSIGNMENT] = true,
+    [OPERATOR_AND_ASSIGNMENT] = true,
+    [OPERATOR_OR_ASSIGNMENT] = true,
+    [OPERATOR_XOR_ASSIGNMENT] = true,
+    [OPERATOR_RSHIFT_ASSIGNMENT] = true,
+    [OPERATOR_LSHIFT_ASSIGNMENT] = true,
 };
 
 Operator

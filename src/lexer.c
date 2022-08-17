@@ -17,7 +17,7 @@
         exit(1);                                                                         \
     } while (0)
 
-static bool IS_OP_TABLE[sizeof(unsigned char) * 256] = {
+static bool IS_OPERATOR_TABLE[sizeof(unsigned char) * 256] = {
     ['-'] = true,
     ['!'] = true,
     ['+'] = true,
@@ -33,7 +33,7 @@ static bool IS_OP_TABLE[sizeof(unsigned char) * 256] = {
     ['~'] = true,
 };
 
-#define IS_OPERATOR(c) IS_OP_TABLE[(unsigned char)(c)]
+#define IS_OPERATOR(c) IS_OPERATOR_TABLE[(unsigned char)(c)]
 #define IS_ALPHA(c) (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || c == '_')
 #define IS_NUMERIC(c) (((c) >= '0' && (c) <= '9'))
 

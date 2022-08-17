@@ -132,100 +132,100 @@ void
 print_operator_enum(Operator op)
 {
     switch (op) {
-        case OP_PLUS:
+        case OPERATOR_PLUS:
             printf("PLUS");
             break;
-        case OP_MINUS:
+        case OPERATOR_MINUS:
             printf("MINUS");
             break;
-        case OP_MULT:
+        case OPERATOR_MULT:
             printf("MULT");
             break;
-        case OP_DIV:
+        case OPERATOR_DIV:
             printf("DIV");
             break;
-        case OP_MOD:
+        case OPERATOR_MOD:
             printf("MOD");
             break;
-        case OP_POW:
+        case OPERATOR_POW:
             printf("POW");
             break;
-        case OP_FLOORDIV:
+        case OPERATOR_FLOORDIV:
             printf("FLOORDIV");
             break;
-        case OP_ASSIGNMENT:
+        case OPERATOR_ASSIGNMENT:
             printf("ASSIGNMENT");
             break;
-        case OP_PLUS_ASSIGNMENT:
+        case OPERATOR_PLUS_ASSIGNMENT:
             printf("PLUS_ASSIGNMENT");
             break;
-        case OP_MINUS_ASSIGNMENT:
+        case OPERATOR_MINUS_ASSIGNMENT:
             printf("MINUS_ASSIGNMENT");
             break;
-        case OP_MULT_ASSIGNMENT:
+        case OPERATOR_MULT_ASSIGNMENT:
             printf("MULT_ASSIGNMENT");
             break;
-        case OP_DIV_ASSIGNMENT:
+        case OPERATOR_DIV_ASSIGNMENT:
             printf("DIV_ASSIGNMENT");
             break;
-        case OP_MOD_ASSIGNMENT:
+        case OPERATOR_MOD_ASSIGNMENT:
             printf("MOD_ASSIGNMENT");
             break;
-        case OP_FLOORDIV_ASSIGNMENT:
+        case OPERATOR_FLOORDIV_ASSIGNMENT:
             printf("FLOORDIV_ASSIGNMENT");
             break;
-        case OP_POW_ASSIGNMENT:
+        case OPERATOR_POW_ASSIGNMENT:
             printf("POW_ASSIGNMENT");
             break;
-        case OP_AND_ASSIGNMENT:
+        case OPERATOR_AND_ASSIGNMENT:
             printf("AND_ASSIGNMENT");
             break;
-        case OP_OR_ASSIGNMENT:
+        case OPERATOR_OR_ASSIGNMENT:
             printf("OR_ASSIGNMENT");
             break;
-        case OP_XOR_ASSIGNMENT:
+        case OPERATOR_XOR_ASSIGNMENT:
             printf("XOR_ASSIGNMENT");
             break;
-        case OP_RSHIFT_ASSIGNMENT:
+        case OPERATOR_RSHIFT_ASSIGNMENT:
             printf("RSHIFT_ASSIGNMENT");
             break;
-        case OP_LSHIFT_ASSIGNMENT:
+        case OPERATOR_LSHIFT_ASSIGNMENT:
             printf("LSHIFT_ASSIGNMENT");
             break;
-        case OP_EQUAL:
+        case OPERATOR_EQUAL:
             printf("EQUAL");
             break;
-        case OP_NOT_EQUAL:
+        case OPERATOR_NOT_EQUAL:
             printf("NOT_EQUAL");
             break;
-        case OP_GREATER:
+        case OPERATOR_GREATER:
             printf("GREATER");
             break;
-        case OP_LESS:
+        case OPERATOR_LESS:
             printf("LESS");
             break;
-        case OP_GREATER_EQUAL:
+        case OPERATOR_GREATER_EQUAL:
             printf("GREATER_EQUAL");
             break;
-        case OP_LESS_EQUAL:
+        case OPERATOR_LESS_EQUAL:
             printf("LESS_EQUAL");
             break;
-        case OP_BITWISE_AND:
+        case OPERATOR_BITWISE_AND:
             printf("BITWISE_AND");
             break;
-        case OP_BITWISE_OR:
+        case OPERATOR_BITWISE_OR:
             printf("BITWISE_OR");
             break;
-        case OP_BITWISE_XOR:
+        case OPERATOR_BITWISE_XOR:
             printf("BITWISE_XOR");
             break;
-        case OP_BITWISE_NOT:
+        case OPERATOR_BITWISE_NOT:
             printf("BITWISE_NOT");
             break;
-        case OP_LSHIFT:
+        case OPERATOR_LSHIFT:
             printf("LSHIFT");
             break;
-        case OP_RSHIFT:
+        case OPERATOR_RSHIFT:
             printf("RSHIFT");
             break;
     }
