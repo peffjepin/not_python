@@ -2,27 +2,7 @@
 
 #include <stdio.h>
 
-static void print_statement(Statement stmt);
-
 void
-print_instruction(Instruction inst)
-{
-    switch (inst.type) {
-        case NULL_INST:
-            printf("NULL INST");
-            break;
-        case INST_EOF:
-            printf("EOF");
-            break;
-        case INST_FOR_LOOP:
-            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it.buffer);
-            print_statement(inst.for_loop.iterable_stmt);
-            break;
-    }
-    printf("\n");
-}
-
-static void
 print_statement(Statement stmt)
 {
     for (size_t i = 0; i < stmt.length; i++) {
@@ -40,6 +20,28 @@ print_statement(Statement stmt)
         else
             print_token_type(tok.type);
     }
+}
+
+void
+print_instruction(Instruction inst)
+{
+    switch (inst.type) {
+        case NULL_INST:
+            printf("NULL INST");
+            break;
+        case INST_EOF:
+            printf("EOF");
+            break;
+        case INST_STMT:
+            printf("STMT: ");
+            print_statement(inst.stmt);
+            break;
+        case INST_FOR_LOOP:
+            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it.buffer);
+            print_statement(inst.for_loop.iterable_stmt);
+            break;
+    }
+    printf("\n");
 }
 
 void

@@ -73,6 +73,13 @@ def main():
     print(r"    for (size_t i = 0; op[i] != '\0'; i++) hash += op[i];")
     print(f"    return (Operator) hash % {total_length};")
     print("}")
+    print("")
+    print(f"const bool IS_ASSIGNMENT_OP[{total_length}] = {{")
+    for op_name, op_value in OPS.items():
+        if "ASSIGNMENT" not in op_name:
+            continue
+        print(f"    [{op_name}] = {op_hash(op_value, redundancy)},")
+    print("};")
     return 0
 
 

@@ -17,7 +17,7 @@
         exit(1);                                                                         \
     } while (0)
 
-static bool IS_OP_TABLE[255] = {
+static bool IS_OP_TABLE[sizeof(unsigned char) * 256] = {
     ['-'] = true,
     ['!'] = true,
     ['+'] = true,
@@ -236,15 +236,39 @@ next_token(Scanner* scanner)
     return tok;
 }
 
+static bool
+is_end_of_statement(TokenStream* ts, bool in_square_brackets)
+{
+    switch (token_stream_peek_type(ts)) {
+        case TOK_OPERATOR:
+            return (IS_ASSIGNMENT_OP[token_stream_peek_unsafe(ts).operator]);
+        case TOK_COLON:
+            return (!in_square_brackets);
+        case TOK_NEWLINE:
+            return true;
+        case TOK_KEYWORD:
+            // TODO: there are some keywords that are actually operators
+            // like `and` `or` etc. We should probably scan those in as ops
+            // in the tokenizer
+            return true;
+        case TOK_EOF:
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
 static Statement
 parse_statement(TokenStream* ts)
 {
     Statement stmt = {0};
     do {
-        // TODO: implement a real statement parser
-        stmt.tokens[stmt.length++] = token_stream_consume(ts);
+        Token tok = token_stream_consume(ts);
+        if (tok.type == NULL_TOKEN) UNIMPLEMENTED();
+        stmt.tokens[stmt.length++] = tok;
         if (stmt.length == STATEMENT_TOKEN_CAPACITY) UNIMPLEMENTED();
-    } while (token_stream_peek(ts).type != TOK_COLON);
+    } while (!is_end_of_statement(ts, false));
     return stmt;
 }
 
@@ -260,9 +284,15 @@ parse_for_loop_instruction(TokenStream* ts)
     inst.for_loop.it = tok.string;
 
     tok = token_stream_consume(ts);
-    SYNTAX_ASSERT(tok.keyword == KW_IN, tok, "expected keyword 'in'");
+    SYNTAX_ASSERT(
+        tok.type == TOK_KEYWORD && tok.keyword == KW_IN, tok, "expected keyword `in`"
+    );
 
     inst.for_loop.iterable_stmt = parse_statement(ts);
+
+    tok = token_stream_consume(ts);
+    SYNTAX_ASSERT(tok.type == TOK_COLON, tok, "expected `:`");
+
     return inst;
 }
 
@@ -278,25 +308,28 @@ Instruction
 next_instruction(Lexer* lex)
 {
     Instruction inst = {.type = NULL_INST};
-    // TODO: token_stream_peek_type would be nice, as long as
-    // consumed tokens in the stream have their type set to NULL_TOK
-    // then it wont even require bounds checking and could just be a macro
-    Token first_token = token_stream_peek(&lex->scanner.ts);
+    TokenStream* ts = &lex->scanner.ts;
+
+    while (token_stream_peek_type(ts) == TOK_NEWLINE) (void)token_stream_consume(ts);
+
+    Token first_token = token_stream_peek(ts);
     if (first_token.type == TOK_KEYWORD) {
         switch (first_token.keyword) {
             case KW_FOR:
-                return parse_for_loop_instruction(&lex->scanner.ts);
+                return parse_for_loop_instruction(ts);
             default:
-                return parse_unknown_instruction(&lex->scanner.ts);
+                return parse_unknown_instruction(ts);
         }
     }
     else if (first_token.type == TOK_EOF) {
-        (void)token_stream_consume(&lex->scanner.ts);
+        (void)token_stream_consume(ts);
         inst.type = INST_EOF;
         return inst;
     }
-    else
-        return parse_unknown_instruction(&lex->scanner.ts);
+
+    inst.type = INST_STMT;
+    inst.stmt = parse_statement(ts);
+    return inst;
 }
 
 void

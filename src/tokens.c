@@ -23,8 +23,10 @@ token_stream_consume(TokenStream* ts)
 {
     Token tok = {0};
     if (ts->read_head == ts->write_head) return tok;
-    tok = ts->tokens[ts->read_head++];
-    if (ts->read_head == TOKEN_STREAM_CAPACITY) ts->read_head = 0;
+    tok = ts->tokens[ts->read_head];
+    ts->tokens[ts->read_head].type = NULL_TOKEN;
+    if (ts->read_head == TOKEN_STREAM_CAPACITY - 1) ts->read_head = 0;
+    else ts->read_head++;
     return tok;
 }
 

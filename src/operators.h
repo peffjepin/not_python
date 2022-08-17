@@ -1,6 +1,8 @@
 #ifndef OPERATORS_H
 #define OPERATORS_H
 
+#include <stdbool.h>
+
 typedef enum {
     OP_PLUS = 16,
     OP_MINUS = 20,
@@ -36,6 +38,7 @@ typedef enum {
     OP_RSHIFT = 46,
 } Operator;
 
+extern const bool IS_ASSIGNMENT_OP[70];
 Operator op_from_cstr(char* op);
 
 #endif

@@ -12,6 +12,7 @@ typedef struct {
 
 typedef enum {
     NULL_INST,
+    INST_STMT,
     INST_FOR_LOOP,
     INST_EOF,
 } InstructionType;
@@ -25,6 +26,7 @@ typedef struct {
     InstructionType type;
     union {
         ForLoopInstruction for_loop;
+        Statement stmt;
     };
 } Instruction;
 

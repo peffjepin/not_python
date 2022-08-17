@@ -57,6 +57,14 @@ Token token_stream_consume(TokenStream* ts);
 Token token_stream_peek(TokenStream* ts);
 Token token_stream_peekn(TokenStream* ts, size_t n);
 
+#define token_stream_peek_type(tsptr) ((tsptr)->tokens[(tsptr)->read_head].type)
+#define token_stream_peekn_type(tsptr, n)                                                \
+    ((tsptr)->tokens[((tsptr)->read_head + (n)) % TOKEN_STREAM_CAPACITY].type)
+
+// if you know the next token is valid (through peeking type for instance)
+// then you might want to peek the token without bounds checks
+#define token_stream_peek_unsafe(tsptr) ((tsptr)->tokens[(tsptr)->read_head])
+
 #define OVERFLOW_CHECK_TOK(tok)                                                          \
     do {                                                                                 \
         if (tok.string.length >= SHORT_STR_CAP - 1) {                                    \
