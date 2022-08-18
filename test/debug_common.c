@@ -1,25 +1,139 @@
 #include "debug_common.h"
 
+#include <assert.h>
 #include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    char data[1024];
+    size_t length;
+} StringBuffer;
+
+typedef struct {
+    StringBuffer* buf;
+} StringRef;
+
+static StringBuffer render_expr(Expression expr);
+static const char* operator_enum_to_cstr(Operator op);
+
+static void
+render_operand(StringBuffer* strbuf, Operand op)
+{
+    switch (op.kind) {
+        case OPERAND_CONSTANT:
+            memcpy(
+                strbuf->data + strbuf->length,
+                op.constant.value.buffer,
+                op.constant.value.length
+            );
+            strbuf->length += op.constant.value.length;
+            break;
+        case OPERAND_STORAGE:
+            memcpy(
+                strbuf->data + strbuf->length,
+                op.storage.identifier.buffer,
+                op.storage.identifier.length
+            );
+            strbuf->length += op.storage.identifier.length;
+            break;
+        case OPERAND_EXPRESSION: {
+            StringBuffer rendered_expr = render_expr(*op.expression);
+            memcpy(
+                strbuf->data + strbuf->length, rendered_expr.data, rendered_expr.length
+            );
+            strbuf->length += rendered_expr.length;
+            break;
+        }
+        default:
+            assert(0 && "not implemented");
+    }
+}
+
+// NOTE: assumes 1024 char buffer is sufficient
+static StringBuffer
+render_expr(Expression expr)
+{
+    // static memory to not use malloc
+    StringRef saved_references[expr.n_operations];
+    StringBuffer rendered_operations[expr.n_operations];
+
+    // keep track of existing groups and update which buffers they point to when necessary
+    StringRef* rendered_groups[EXPRESSION_CAPACITY] = {0};
+
+    if (expr.n_operations == 0) {
+        StringBuffer buf = {0};
+        render_operand(&buf, expr.operands[0]);
+        return buf;
+    }
+
+    for (size_t i = 0; i < expr.n_operations; i++) {
+        Operation this_op = expr.operations[i];
+        StringBuffer this_render = {0};
+        this_render.data[this_render.length++] = '(';
+
+        StringRef* left_group = rendered_groups[this_op.left];
+        if (left_group) {
+            memcpy(
+                this_render.data + this_render.length,
+                left_group->buf->data,
+                left_group->buf->length
+            );
+            this_render.length += left_group->buf->length;
+        }
+        else {
+            render_operand(&this_render, expr.operands[this_op.left]);
+        }
+
+        this_render.data[this_render.length++] = ' ';
+
+        const char* opstr = operator_enum_to_cstr(this_op.op_type);
+        size_t len = strlen(opstr);
+        memcpy(this_render.data + this_render.length, opstr, len);
+        this_render.length += len;
+
+        this_render.data[this_render.length++] = ' ';
+
+        StringRef* right_group = rendered_groups[this_op.right];
+        if (right_group) {
+            memcpy(
+                this_render.data + this_render.length,
+                right_group->buf->data,
+                right_group->buf->length
+            );
+            this_render.length += right_group->buf->length;
+        }
+        else {
+            render_operand(&this_render, expr.operands[this_op.right]);
+        }
+
+        this_render.data[this_render.length++] = ')';
+        rendered_operations[i] = this_render;
+
+        // if existing StringRefs were used to make this render then we need to replace
+        // the buffer that those refs point to with this new buffer
+        // this is why we need to save the render from each stage in rendered_operations[]
+        StringRef* ref = &saved_references[i];
+        ref->buf = rendered_operations + i;
+        if (left_group) {
+            left_group->buf = rendered_operations + i;
+        }
+        else
+            rendered_groups[this_op.left] = ref;
+        if (right_group) {
+            right_group->buf = rendered_operations + i;
+        }
+        else
+            rendered_groups[this_op.right] = ref;
+    }
+
+    return rendered_operations[expr.n_operations - 1];
+}
 
 void
 print_expression(Expression expr)
 {
-    for (size_t i = 0; i < expr.length; i++) {
-        Token tok = expr.tokens[i];
-        if (i > 0) printf(" ");
-        if (tok.type == TOK_OPERATOR) {
-            print_operator_enum(tok.operator);
-        }
-        else if (tok.type == TOK_KEYWORD) {
-            print_keyword(tok.keyword);
-        }
-        else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
-            printf("%s", tok.string.buffer);
-        }
-        else
-            print_token_type(tok.type);
-    }
+    StringBuffer buf = render_expr(expr);
+    printf("%s", buf.data);
 }
 
 void
@@ -128,107 +242,82 @@ print_token_type(TokenType type)
     }
 }
 
-void
-print_operator_enum(Operator op)
+static const char*
+operator_enum_to_cstr(Operator op)
 {
     switch (op) {
         case OPERATOR_PLUS:
-            printf("PLUS");
-            break;
+            return "PLUS";
         case OPERATOR_MINUS:
-            printf("MINUS");
-            break;
+            return "MINUS";
         case OPERATOR_MULT:
-            printf("MULT");
-            break;
+            return "MULT";
         case OPERATOR_DIV:
-            printf("DIV");
-            break;
+            return "DIV";
         case OPERATOR_MOD:
-            printf("MOD");
-            break;
+            return "MOD";
         case OPERATOR_POW:
-            printf("POW");
-            break;
+            return "POW";
         case OPERATOR_FLOORDIV:
-            printf("FLOORDIV");
-            break;
+            return "FLOORDIV";
         case OPERATOR_ASSIGNMENT:
-            printf("ASSIGNMENT");
-            break;
+            return "ASSIGNMENT";
         case OPERATOR_PLUS_ASSIGNMENT:
-            printf("PLUS_ASSIGNMENT");
-            break;
+            return "PLUS_ASSIGNMENT";
         case OPERATOR_MINUS_ASSIGNMENT:
-            printf("MINUS_ASSIGNMENT");
-            break;
+            return "MINUS_ASSIGNMENT";
         case OPERATOR_MULT_ASSIGNMENT:
-            printf("MULT_ASSIGNMENT");
-            break;
+            return "MULT_ASSIGNMENT";
         case OPERATOR_DIV_ASSIGNMENT:
-            printf("DIV_ASSIGNMENT");
-            break;
+            return "DIV_ASSIGNMENT";
         case OPERATOR_MOD_ASSIGNMENT:
-            printf("MOD_ASSIGNMENT");
-            break;
+            return "MOD_ASSIGNMENT";
         case OPERATOR_FLOORDIV_ASSIGNMENT:
-            printf("FLOORDIV_ASSIGNMENT");
-            break;
+            return "FLOORDIV_ASSIGNMENT";
         case OPERATOR_POW_ASSIGNMENT:
-            printf("POW_ASSIGNMENT");
-            break;
+            return "POW_ASSIGNMENT";
         case OPERATOR_AND_ASSIGNMENT:
-            printf("AND_ASSIGNMENT");
-            break;
+            return "AND_ASSIGNMENT";
         case OPERATOR_OR_ASSIGNMENT:
-            printf("OR_ASSIGNMENT");
-            break;
+            return "OR_ASSIGNMENT";
         case OPERATOR_XOR_ASSIGNMENT:
-            printf("XOR_ASSIGNMENT");
-            break;
+            return "XOR_ASSIGNMENT";
         case OPERATOR_RSHIFT_ASSIGNMENT:
-            printf("RSHIFT_ASSIGNMENT");
-            break;
+            return "RSHIFT_ASSIGNMENT";
         case OPERATOR_LSHIFT_ASSIGNMENT:
-            printf("LSHIFT_ASSIGNMENT");
-            break;
+            return "LSHIFT_ASSIGNMENT";
         case OPERATOR_EQUAL:
-            printf("EQUAL");
-            break;
+            return "EQUAL";
         case OPERATOR_NOT_EQUAL:
-            printf("NOT_EQUAL");
-            break;
+            return "NOT_EQUAL";
         case OPERATOR_GREATER:
-            printf("GREATER");
-            break;
+            return "GREATER";
         case OPERATOR_LESS:
-            printf("LESS");
-            break;
+            return "LESS";
         case OPERATOR_GREATER_EQUAL:
-            printf("GREATER_EQUAL");
-            break;
+            return "GREATER_EQUAL";
         case OPERATOR_LESS_EQUAL:
-            printf("LESS_EQUAL");
-            break;
+            return "LESS_EQUAL";
         case OPERATOR_BITWISE_AND:
-            printf("BITWISE_AND");
-            break;
+            return "BITWISE_AND";
         case OPERATOR_BITWISE_OR:
-            printf("BITWISE_OR");
-            break;
+            return "BITWISE_OR";
         case OPERATOR_BITWISE_XOR:
-            printf("BITWISE_XOR");
-            break;
+            return "BITWISE_XOR";
         case OPERATOR_BITWISE_NOT:
-            printf("BITWISE_NOT");
-            break;
+            return "BITWISE_NOT";
         case OPERATOR_LSHIFT:
-            printf("LSHIFT");
-            break;
+            return "LSHIFT";
         case OPERATOR_RSHIFT:
-            printf("RSHIFT");
-            break;
+            return "RSHIFT";
     }
+    return "UNKNOWN";
+}
+
+void
+print_operator_enum(Operator op)
+{
+    printf("%s", operator_enum_to_cstr(op));
 }
 
 void

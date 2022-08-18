@@ -242,17 +242,57 @@ is_end_of_expression(TokenStream* ts, bool in_square_brackets)
     return false;
 }
 
+#define INTERMEDIATE_TABLE_MAX EXPRESSION_CAPACITY
+typedef struct {
+    Operation operations[INTERMEDIATE_TABLE_MAX];
+    size_t length;
+} IntermediateOperationTableEntry;
+
 static Expression
 parse_expression(TokenStream* ts)
 {
+    const unsigned int POW_PREC = PRECENDENCE_TABLE[OPERATOR_POW];
+    IntermediateOperationTableEntry by_prec[MAX_PRECEDENCE + 1] = {0};
     Expression expr = {0};
+    size_t operand_index = 0;
+
     do {
         Token tok = token_stream_consume(ts);
         if (tok.type == NULL_TOKEN) UNIMPLEMENTED("token stream empty");
-        expr.tokens[expr.length++] = tok;
-        if (expr.length == STATEMENT_TOKEN_CAPACITY)
-            UNIMPLEMENTED("expression length exceeded");
+        switch (tok.type) {
+            case TOK_OPERATOR: {
+                // FIXME: the right side operand is yet to be parsed so we
+                // need to add some assertation that it will be parsed
+                unsigned int prec = PRECENDENCE_TABLE[tok.operator];
+                Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
+                operation->left = operand_index - 1;
+                operation->right = operand_index;
+                operation->op_type = tok.operator;
+                break;
+            }
+            case TOK_NUMBER:
+                expr.operands[operand_index].kind = OPERAND_CONSTANT;
+                expr.operands[operand_index++].constant.value = tok.string;
+                break;
+            case TOK_STRING:
+                expr.operands[operand_index].kind = OPERAND_CONSTANT;
+                expr.operands[operand_index++].constant.value = tok.string;
+                break;
+            default:
+                UNIMPLEMENTED("no implementation for token");
+        };
+        assert(operand_index != EXPRESSION_CAPACITY);
     } while (!is_end_of_expression(ts, false));
+
+    for (int prec = MAX_PRECEDENCE; prec >= 0; prec--) {
+        IntermediateOperationTableEntry entry = by_prec[prec];
+        if (entry.length == 0) continue;
+        for (size_t i = 0; i < entry.length; i++) {
+            size_t index = ((unsigned)prec == POW_PREC) ? entry.length - 1 - i : i;
+            expr.operations[expr.n_operations++] = entry.operations[index];
+        }
+    }
+
     return expr;
 }
 

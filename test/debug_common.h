@@ -1,7 +1,7 @@
 #ifndef DEBUG_COMMON_H
 #define DEBUG_COMMON_H
 
-#include "../src/instructions.h"
+#include "../src/compiler_types.h"
 #include "../src/lexer_types.h"
 
 void print_token(Token tok);

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "instructions.h"
+#include "compiler_types.h"
 #include "lexer_types.h"
 
 typedef struct {

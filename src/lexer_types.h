@@ -76,6 +76,9 @@ typedef enum {
     OPERATOR_RSHIFT = 46,
 } Operator;
 
+#define MAX_PRECEDENCE 14
+extern const unsigned int PRECENDENCE_TABLE[70];
+
 extern const bool IS_ASSIGNMENT_OP[70];
 Operator op_from_cstr(char* op);
 
