@@ -4,44 +4,52 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef struct {
-    char data[1024];
-    size_t length;
-} StringBuffer;
+#define STRING_BUFFER_CAPACITY 1024
 
 typedef struct {
-    StringBuffer* buf;
-} StringRef;
+    char data[STRING_BUFFER_CAPACITY];
+    size_t length;
+} StringBuffer;
 
 static StringBuffer render_expr(Expression expr);
 static const char* operator_enum_to_cstr(Operator op);
 
 static void
-render_operand(StringBuffer* strbuf, Operand op)
+str_append_char(StringBuffer* str, char c)
+{
+    str->data[str->length++] = c;
+}
+
+static void
+str_concat(StringBuffer* str1, StringBuffer* str2)
+{
+    assert(str1->length + str2->length <= STRING_BUFFER_CAPACITY);
+    memcpy(str1->data + str1->length, str2->data, str2->length);
+    str1->length += str2->length;
+}
+
+static void
+str_concat_cstr(StringBuffer* str1, char* cstr)
+{
+    size_t length = strlen(cstr);
+    assert(str1->length + length <= STRING_BUFFER_CAPACITY);
+    memcpy(str1->data + str1->length, cstr, length);
+    str1->length += length;
+}
+
+static void
+render_operand(StringBuffer* str, Operand op)
 {
     switch (op.kind) {
         case OPERAND_CONSTANT:
-            memcpy(
-                strbuf->data + strbuf->length,
-                op.constant.value.buffer,
-                op.constant.value.length
-            );
-            strbuf->length += op.constant.value.length;
+            str_concat_cstr(str, op.constant.value.buffer);
             break;
         case OPERAND_STORAGE:
-            memcpy(
-                strbuf->data + strbuf->length,
-                op.storage.identifier.buffer,
-                op.storage.identifier.length
-            );
-            strbuf->length += op.storage.identifier.length;
+            str_concat_cstr(str, op.storage.identifier.buffer);
             break;
         case OPERAND_EXPRESSION: {
             StringBuffer rendered_expr = render_expr(*op.expression);
-            memcpy(
-                strbuf->data + strbuf->length, rendered_expr.data, rendered_expr.length
-            );
-            strbuf->length += rendered_expr.length;
+            str_concat(str, &rendered_expr);
             break;
         }
         default:
@@ -49,16 +57,12 @@ render_operand(StringBuffer* strbuf, Operand op)
     }
 }
 
-// NOTE: assumes 1024 char buffer is sufficient
+static StringBuffer string_mem[EXPRESSION_CAPACITY] = {0};
+
 static StringBuffer
 render_expr(Expression expr)
 {
-    // static memory to not use malloc
-    StringRef saved_references[expr.n_operations];
-    StringBuffer rendered_operations[expr.n_operations];
-
-    // keep track of existing groups and update which buffers they point to when necessary
-    StringRef* rendered_groups[EXPRESSION_CAPACITY] = {0};
+    StringBuffer* already_rendered_chunks[EXPRESSION_CAPACITY] = {0};
 
     if (expr.n_operations == 0) {
         StringBuffer buf = {0};
@@ -67,66 +71,40 @@ render_expr(Expression expr)
     }
 
     for (size_t i = 0; i < expr.n_operations; i++) {
-        Operation this_op = expr.operations[i];
-        StringBuffer this_render = {0};
-        this_render.data[this_render.length++] = '(';
+        Operation operation = expr.operations[i];
+        StringBuffer this_operation_rendered = {0};
 
-        StringRef* left_group = rendered_groups[this_op.left];
-        if (left_group) {
-            memcpy(
-                this_render.data + this_render.length,
-                left_group->buf->data,
-                left_group->buf->length
-            );
-            this_render.length += left_group->buf->length;
-        }
-        else {
-            render_operand(&this_render, expr.operands[this_op.left]);
-        }
+        str_append_char(&this_operation_rendered, '(');
+        StringBuffer* left_ref = already_rendered_chunks[operation.left];
+        if (left_ref)
+            str_concat(&this_operation_rendered, left_ref);
+        else
+            render_operand(&this_operation_rendered, expr.operands[operation.left]);
+        str_append_char(&this_operation_rendered, ' ');
+        str_concat_cstr(
+            &this_operation_rendered, (char*)operator_enum_to_cstr(operation.op_type)
+        );
+        str_append_char(&this_operation_rendered, ' ');
+        StringBuffer* right_ref = already_rendered_chunks[operation.right];
+        if (right_ref)
+            str_concat(&this_operation_rendered, right_ref);
+        else
+            render_operand(&this_operation_rendered, expr.operands[operation.right]);
+        str_append_char(&this_operation_rendered, ')');
 
-        this_render.data[this_render.length++] = ' ';
-
-        const char* opstr = operator_enum_to_cstr(this_op.op_type);
-        size_t len = strlen(opstr);
-        memcpy(this_render.data + this_render.length, opstr, len);
-        this_render.length += len;
-
-        this_render.data[this_render.length++] = ' ';
-
-        StringRef* right_group = rendered_groups[this_op.right];
-        if (right_group) {
-            memcpy(
-                this_render.data + this_render.length,
-                right_group->buf->data,
-                right_group->buf->length
-            );
-            this_render.length += right_group->buf->length;
-        }
-        else {
-            render_operand(&this_render, expr.operands[this_op.right]);
-        }
-
-        this_render.data[this_render.length++] = ')';
-        rendered_operations[i] = this_render;
-
-        // if existing StringRefs were used to make this render then we need to replace
-        // the buffer that those refs point to with this new buffer
-        // this is why we need to save the render from each stage in rendered_operations[]
-        StringRef* ref = &saved_references[i];
-        ref->buf = rendered_operations + i;
-        if (left_group) {
-            left_group->buf = rendered_operations + i;
+        string_mem[i] = this_operation_rendered;
+        if (left_ref)
+            *left_ref = string_mem[i];
+        else
+            already_rendered_chunks[operation.left] = string_mem + i;
+        if (right_ref) {
+            *right_ref = string_mem[i];
         }
         else
-            rendered_groups[this_op.left] = ref;
-        if (right_group) {
-            right_group->buf = rendered_operations + i;
-        }
-        else
-            rendered_groups[this_op.right] = ref;
+            already_rendered_chunks[operation.right] = string_mem + i;
     }
 
-    return rendered_operations[expr.n_operations - 1];
+    return string_mem[expr.n_operations - 1];
 }
 
 void
