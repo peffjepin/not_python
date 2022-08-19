@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 for filename in $2/*; do
     echo ""
     echo file: $filename

@@ -7,7 +7,7 @@ clean:
 	-@rm debug_tokens
 	-@rm debug_instructions
 
-debug: build_debug_tokens build_debug_instructions
+debug: debug_tokens debug_instructions
 
 debug_tokens: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_tokenization.c
 	$(CC) $(CFLAGS) -o $@ $^
