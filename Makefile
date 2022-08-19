@@ -17,8 +17,16 @@ debug_instructions: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_instructions
 
 test: test_tokens test_instructions
 
+test_update: test_tokens_interactive test_instructions_interactive
+
 test_tokens: debug_tokens
-	./scripts/run_program_across_samples.sh ./debug_tokens ./test/samples/tokenization
+	./scripts/test.py ./debug_tokens ./test/samples/tokenization
+
+test_tokens_interactive: debug_tokens
+	./scripts/test.py ./debug_tokens ./test/samples/tokenization -i
 
 test_instructions: debug_instructions
-	./scripts/run_program_across_samples.sh ./debug_instructions ./test/samples/instructions
+	./scripts/test.py ./debug_instructions ./test/samples/instructions
+
+test_instructions_interactive: debug_instructions
+	./scripts/test.py ./debug_instructions ./test/samples/instructions -i
