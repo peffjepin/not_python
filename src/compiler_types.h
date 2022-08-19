@@ -16,7 +16,7 @@ typedef enum {
 } OperandKind;
 
 typedef struct {
-    ShortStr identifier;
+    char* identifier;
 } Storage;
 
 // something like x = [1, 2, 3]
@@ -25,12 +25,12 @@ typedef struct {
 } InlineStorage;
 
 typedef struct {
-    ShortStr value;
+    char* value;
 } Constant;
 
 #define ARGUMENTS_CAPACITY 10
 typedef struct {
-    ShortStr name;
+    char* name;
     Expression* args[ARGUMENTS_CAPACITY];
 } FunctionCall;
 
@@ -65,7 +65,7 @@ typedef enum {
 } InstructionType;
 
 typedef struct {
-    ShortStr it;
+    char* it;
     Expression iterable_expr;
 } ForLoopInstruction;
 

@@ -104,13 +104,6 @@ typedef enum {
     TOK_EOF,
 } TokenType;
 
-#define SHORT_STR_CAP 128
-
-typedef struct {
-    char buffer[SHORT_STR_CAP];
-    size_t length;
-} ShortStr;
-
 typedef struct {
     const char* filename;
     unsigned int col;
@@ -120,46 +113,8 @@ typedef struct {
 typedef struct {
     Location loc;
     TokenType type;
-    union {
-        ShortStr string;
-        Keyword keyword;
-        Operator operator;
-    };
+    size_t id;
+    size_t value_ref;
 } Token;
-
-#define OVERFLOW_CHECK_TOK(tok)                                                          \
-    do {                                                                                 \
-        if (tok.string.length >= SHORT_STR_CAP - 1) {                                    \
-            fprintf(                                                                     \
-                stderr,                                                                  \
-                "%s:%u:%u (ERROR) short string overflow\n",                              \
-                tok.loc.filename,                                                        \
-                tok.loc.line,                                                            \
-                tok.loc.col                                                              \
-            );                                                                           \
-            exit(1);                                                                     \
-        }                                                                                \
-    } while (0)
-
-#define TOKEN_STREAM_CAPACITY 1024
-
-typedef struct {
-    size_t read_head;
-    size_t write_head;
-    Token tokens[TOKEN_STREAM_CAPACITY];
-} TokenStream;
-
-int token_stream_write(TokenStream* ts, Token tok);
-Token token_stream_consume(TokenStream* ts);
-Token token_stream_peek(TokenStream* ts);
-Token token_stream_peekn(TokenStream* ts, size_t n);
-
-#define token_stream_peek_type(ts_ptr) ((ts_ptr)->tokens[(ts_ptr)->read_head].type)
-#define token_stream_peekn_type(ts_ptr, n)                                               \
-    ((ts_ptr)->tokens[((ts_ptr)->read_head + (n)) % TOKEN_STREAM_CAPACITY].type)
-
-// if you know the next token is valid (through peeking type for instance)
-// then you might want to peek the token without bounds checks
-#define token_stream_peek_unsafe(ts_ptr) ((ts_ptr)->tokens[(ts_ptr)->read_head])
 
 #endif

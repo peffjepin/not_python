@@ -4,6 +4,9 @@
 #include "compiler_types.h"
 #include "lexer_types.h"
 
+#define ARENA_STRUCT_CHUNK_SIZE 256
+#define ARENA_STRING_CHUNK_SIZE 4096
+
 typedef struct {
     Token* tokens;
     size_t tokens_capacity;

@@ -6,6 +6,14 @@
 
 #define STRING_BUFFER_CAPACITY 1024
 
+Arena* arena;
+
+void
+debugger_use_arena(Arena* a)
+{
+    arena = a;
+}
+
 typedef struct {
     char data[STRING_BUFFER_CAPACITY];
     size_t length;
@@ -42,10 +50,10 @@ render_operand(StringBuffer* str, Operand op)
 {
     switch (op.kind) {
         case OPERAND_CONSTANT:
-            str_concat_cstr(str, op.constant.value.buffer);
+            str_concat_cstr(str, op.constant.value);
             break;
         case OPERAND_STORAGE:
-            str_concat_cstr(str, op.storage.identifier.buffer);
+            str_concat_cstr(str, op.storage.identifier);
             break;
         case OPERAND_EXPRESSION: {
             StringBuffer rendered_expr = render_expr(*op.expression);
@@ -129,7 +137,7 @@ print_instruction(Instruction inst)
             print_expression(inst.expr);
             break;
         case INST_FOR_LOOP:
-            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it.buffer);
+            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it);
             print_expression(inst.for_loop.iterable_expr);
             break;
     }
@@ -143,15 +151,15 @@ print_token(Token tok)
     print_token_type(tok.type);
     if (tok.type == TOK_OPERATOR) {
         printf(": ");
-        print_operator_enum(tok.operator);
+        print_operator_enum(tok.value_ref);
     }
     else if (tok.type == TOK_KEYWORD) {
         printf(": ");
-        print_keyword(tok.keyword);
+        print_keyword(tok.value_ref);
     }
     else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
-        printf("%s", tok.string.buffer);
+        printf("%s", arena_get_string(arena, tok.value_ref));
     }
     printf("\n");
 }

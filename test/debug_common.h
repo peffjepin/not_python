@@ -2,8 +2,10 @@
 #define DEBUG_COMMON_H
 
 #include "../src/compiler_types.h"
+#include "../src/lexer.h"
 #include "../src/lexer_types.h"
 
+void debugger_use_arena(Arena* arena);
 void print_token(Token tok);
 void print_token_type(TokenType type);
 void print_operator_enum(Operator op);

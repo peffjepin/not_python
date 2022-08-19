@@ -34,10 +34,12 @@
 
 typedef struct {
     FILE* srcfile;
-    TokenStream* ts;
+    Arena* arena;
     Token token;
-    char c;
     Location loc;
+    char buf[ARENA_STRING_CHUNK_SIZE];
+    size_t buflen;
+    char c;
     bool finished;
 } Scanner;
 
@@ -45,30 +47,24 @@ static inline void
 scanner_getc(Scanner* scanner)
 {
     scanner->c = fgetc(scanner->srcfile);
+    scanner->buf[scanner->buflen++] = scanner->c;
     scanner->loc.col++;
+    scanner->buf[scanner->buflen] = '\0';
 }
 
 static inline void
 scanner_ungetc(Scanner* scanner)
 {
     scanner->loc.col--;
-    ungetc(scanner->c, scanner->srcfile);
+    ungetc(scanner->buf[--scanner->buflen], scanner->srcfile);
 }
 
 static inline char
-scanner_peek_char(Scanner* scanner)
+scanner_peekc(Scanner* scanner)
 {
     char c = fgetc(scanner->srcfile);
     ungetc(c, scanner->srcfile);
     return c;
-}
-
-static inline void
-scanner_write_token(Scanner* scanner)
-{
-    if (token_stream_write(scanner->ts, scanner->token)) {
-        UNIMPLEMENTED("token stream full");
-    };
 }
 
 static bool CHAR_IS_OPERATOR_TABLE[sizeof(unsigned char) * 256] = {
@@ -101,21 +97,23 @@ static bool CHAR_IS_OPERATOR_TABLE[sizeof(unsigned char) * 256] = {
 static inline void
 scanner_skip_whitespace(Scanner* scanner)
 {
-    while (scanner->token.string.length == 0) {
+    while (scanner->buflen == 0) {
         scanner_getc(scanner);
         switch (scanner->c) {
             case ' ':
+                scanner->buflen--;
                 break;
             case '\t':
+                scanner->buflen--;
                 break;
             case EOF:
                 scanner->token.type = TOK_EOF;
                 scanner->token.loc = scanner->loc;
                 scanner->finished = true;
-                scanner_write_token(scanner);
+                arena_put_token(scanner->arena, scanner->token);
                 return;
             default:
-                TOKEN_APPEND_CHAR(scanner->token, scanner->c);
+                break;
         }
     }
 }
@@ -132,10 +130,11 @@ scanner_skip_comments(Scanner* scanner)
             scanner->token.type = TOK_EOF;
             scanner->token.loc = scanner->loc;
             scanner->finished = true;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return;
         }
         // replace '#' with the newline
+        scanner->buf[scanner->buflen] = '\n';
         scanner->c = '\n';
     }
 }
@@ -148,44 +147,44 @@ scanner_handle_single_char_tokens(Scanner* scanner)
             scanner->token.type = TOK_NEWLINE;
             scanner->loc.line++;
             scanner->loc.col = 0;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '(':
             scanner->token.type = TOK_OPEN_PARENS;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ')':
             scanner->token.type = TOK_CLOSE_PARENS;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '[':
             scanner->token.type = TOK_OPEN_SQUARE;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ']':
             scanner->token.type = TOK_CLOSE_SQUARE;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '{':
             scanner->token.type = TOK_OPEN_CURLY;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '}':
             scanner->token.type = TOK_CLOSE_CURLY;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ':':
             scanner->token.type = TOK_COLON;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ',':
             scanner->token.type = TOK_COMMA;
-            scanner_write_token(scanner);
+            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '.':
-            if (CHAR_IS_ALPHA(scanner_peek_char(scanner))) {
+            if (CHAR_IS_ALPHA(scanner_peekc(scanner))) {
                 scanner->token.type = TOK_DOT;
-                scanner_write_token(scanner);
+                arena_put_token(scanner->arena, scanner->token);
                 return true;
             }
             return false;
@@ -200,14 +199,16 @@ scanner_tokenize_word(Scanner* scanner)
 {
     for (scanner_getc(scanner); CHAR_IS_ALPHA(scanner->c) || CHAR_IS_NUMERIC(scanner->c);
          scanner_getc(scanner))
-        TOKEN_APPEND_CHAR(scanner->token, scanner->c);
+        ;
     scanner_ungetc(scanner);
+    scanner->buf[scanner->buflen] = '\0';
     Keyword kw;
-    if ((kw = is_keyword(scanner->token.string.buffer))) {
-        scanner->token.keyword = kw;
+    if ((kw = is_keyword(scanner->buf))) {
+        scanner->token.value_ref = kw;
         scanner->token.type = TOK_KEYWORD;
     }
     else {
+        scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf);
         scanner->token.type = TOK_IDENTIFIER;
     }
 }
@@ -218,10 +219,11 @@ scanner_tokenize_numeric(Scanner* scanner)
     for (scanner_getc(scanner);
          CHAR_IS_NUMERIC(scanner->c) || scanner->c == '.' || scanner->c == '_';
          scanner_getc(scanner)) {
-        if (scanner->c == '_') continue;
-        TOKEN_APPEND_CHAR(scanner->token, scanner->c);
+        if (scanner->c == '_') scanner->buflen--;  // skip `_` such as in `1_000_000`
     }
     scanner_ungetc(scanner);
+    scanner->buf[scanner->buflen] = '\0';
+    scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf);
     scanner->token.type = TOK_NUMBER;
 }
 
@@ -229,20 +231,19 @@ static inline void
 scanner_tokenize_string_literal(Scanner* scanner)
 {
     char opening_quote = scanner->c;
-    scanner->token.string.buffer[--(scanner->token.string.length)] =
-        '\0';  // mask off surrounding quotes
     for (scanner_getc(scanner);
-         scanner->c != opening_quote ||
-         scanner->token.string.buffer[scanner->token.string.length - 1] == '\\';
+         scanner->c != opening_quote || scanner->buf[scanner->buflen - 2] == '\\';
          scanner_getc(scanner)) {
         if (scanner->c == EOF)
             SYNTAX_ERROR(scanner->token.loc, "unterminated string literal");
-        if (scanner->c == opening_quote)
-            scanner->token.string.buffer[scanner->token.string.length - 1] =
-                scanner->c;  // overwrite '\'
-        else
-            TOKEN_APPEND_CHAR(scanner->token, scanner->c);
+        if (scanner->c == opening_quote) {
+            // an escaped version of starting quote
+            // we should overwrite the preceding `\` with this quote
+            scanner->buf[--scanner->buflen - 1] = scanner->c;
+        }
     }
+    scanner->buf[scanner->buflen - 1] = '\0';
+    scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf + 1);
     scanner->token.type = TOK_STRING;
 }
 
@@ -250,17 +251,18 @@ static inline void
 scanner_tokenize_operator(Scanner* scanner)
 {
     assert(CHAR_IS_OPERATOR(scanner->c));
-    for (scanner_getc(scanner); CHAR_IS_OPERATOR(scanner->c); scanner_getc(scanner)) {
-        TOKEN_APPEND_CHAR(scanner->token, scanner->c);
-    }
+    for (scanner_getc(scanner); CHAR_IS_OPERATOR(scanner->c); scanner_getc(scanner))
+        ;
     scanner_ungetc(scanner);
-    scanner->token.operator= op_from_cstr(scanner->token.string.buffer);
+    scanner->buf[scanner->buflen] = '\0';
+    scanner->token.value_ref = op_from_cstr(scanner->buf);
     scanner->token.type = TOK_OPERATOR;
 }
 
 static void
 scan_token(Scanner* scanner)
 {
+    scanner->buflen = 0;
     memset(&scanner->token, 0, sizeof(Token));
 
     scanner_skip_whitespace(scanner);
@@ -282,22 +284,41 @@ scan_token(Scanner* scanner)
         scanner_tokenize_string_literal(scanner);
     else
         scanner_tokenize_operator(scanner);
-    scanner_write_token(scanner);
+
+    arena_put_token(scanner->arena, scanner->token);
 }
 
 typedef struct {
-    TokenStream* ts;
+    Arena* arena;
+    size_t current_token_index;
     unsigned int open_parens;
     unsigned int open_square;
     unsigned int open_curly;
 } Parser;
 
+static inline Token
+parser_get_next_token(Parser* parser)
+{
+    Token token = arena_get_token(parser->arena, parser->current_token_index++);
+    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
+    return token;
+}
+
+static inline Token
+parser_peek_next_token(Parser* parser)
+{
+    Token token = arena_get_token(parser->arena, parser->current_token_index);
+    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
+    return token;
+}
+
 static bool
 parser_is_end_of_expression(Parser* parser)
 {
-    switch (token_stream_peek_type(parser->ts)) {
+    Token token = parser_peek_next_token(parser);
+    switch (token.type) {
         case TOK_OPERATOR:
-            return (IS_ASSIGNMENT_OP[token_stream_peek_unsafe(parser->ts).operator]);
+            return (IS_ASSIGNMENT_OP[token.value_ref]);
         case TOK_COLON:
             return (parser->open_square == 0);
         case TOK_NEWLINE:
@@ -331,26 +352,28 @@ parse_expression(Parser* parser)
     size_t operand_index = 0;
 
     do {
-        Token tok = token_stream_consume(parser->ts);
-        if (tok.type == NULL_TOKEN) UNIMPLEMENTED("token stream empty");
+        Token tok = parser_get_next_token(parser);
+        if (tok.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
         switch (tok.type) {
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
-                unsigned int prec = PRECENDENCE_TABLE[tok.operator];
+                unsigned int prec = PRECENDENCE_TABLE[tok.value_ref];
                 Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
                 operation->left = operand_index - 1;
                 operation->right = operand_index;
-                operation->op_type = tok.operator;
+                operation->op_type = tok.value_ref;
                 break;
             }
             case TOK_NUMBER:
                 expr.operands[operand_index].kind = OPERAND_CONSTANT;
-                expr.operands[operand_index++].constant.value = tok.string;
+                expr.operands[operand_index++].constant.value =
+                    arena_get_string(parser->arena, tok.value_ref);
                 break;
             case TOK_STRING:
                 expr.operands[operand_index].kind = OPERAND_CONSTANT;
-                expr.operands[operand_index++].constant.value = tok.string;
+                expr.operands[operand_index++].constant.value =
+                    arena_get_string(parser->arena, tok.value_ref);
                 break;
             case TOK_OPEN_PARENS:
                 // TODO incomplete
@@ -407,8 +430,8 @@ static inline Token
 parser_expect_keyword(Parser* parser, Keyword kw)
 {
     // TODO: expose some keyword table to lookup a const char* given Keyword enum
-    Token tok = token_stream_consume(parser->ts);
-    if (tok.type != TOK_KEYWORD || tok.keyword != kw)
+    Token tok = parser_get_next_token(parser);
+    if (tok.type != TOK_KEYWORD || tok.value_ref != kw)
         SYNTAX_ERRORF(tok.loc, "expected keyword %i", kw);
     return tok;
 }
@@ -418,7 +441,7 @@ parser_expect_token_type(Parser* parser, TokenType type)
 {
     // TODO: expose some token type table to lookup a const char* given TokenType
     // enum
-    Token tok = token_stream_consume(parser->ts);
+    Token tok = parser_get_next_token(parser);
     if (tok.type != type) SYNTAX_ERRORF(tok.loc, "expected token type %i", type);
     return tok;
 }
@@ -431,7 +454,7 @@ parse_for_loop_instruction(Parser* parser)
     Token tok = parser_expect_keyword(parser, KW_FOR);
 
     tok = parser_expect_token_type(parser, TOK_IDENTIFIER);
-    inst.for_loop.it = tok.string;
+    inst.for_loop.it = arena_get_string(parser->arena, tok.value_ref);
 
     tok = parser_expect_keyword(parser, KW_IN);
     inst.for_loop.iterable_expr = parse_expression(parser);
@@ -445,7 +468,7 @@ static Instruction
 parse_unknown_instruction(Parser* parser)
 {
     Instruction inst = {.type = NULL_INST};
-    (void)token_stream_consume(parser->ts);
+    parser->current_token_index++;
     return inst;
 }
 
@@ -454,12 +477,12 @@ parser_next_instruction(Parser* parser)
 {
     Instruction inst = {.type = NULL_INST};
 
-    while (token_stream_peek_type(parser->ts) == TOK_NEWLINE)
-        (void)token_stream_consume(parser->ts);
+    while (parser_peek_next_token(parser).type == TOK_NEWLINE)
+        parser->current_token_index++;
 
-    Token first_token = token_stream_peek(parser->ts);
+    Token first_token = parser_peek_next_token(parser);
     if (first_token.type == TOK_KEYWORD) {
-        switch (first_token.keyword) {
+        switch (first_token.value_ref) {
             case KW_FOR:
                 return parse_for_loop_instruction(parser);
             default:
@@ -467,7 +490,7 @@ parser_next_instruction(Parser* parser)
         }
     }
     else if (first_token.type == TOK_EOF) {
-        (void)token_stream_consume(parser->ts);
+        parser->current_token_index++;
         inst.type = INST_EOF;
         return inst;
     }
@@ -514,23 +537,19 @@ lexer_tokenize(Lexer* lexer)
         .line = 1,
         .filename = lexer->filepath + filename_offset(lexer->filepath),
     };
-    Scanner scanner = {.loc = start, .ts = &lexer->ts, .srcfile = lexer->srcfile};
+    Scanner scanner = {.loc = start, .arena = &lexer->arena, .srcfile = lexer->srcfile};
     do {
         scan_token(&scanner);
     } while (!scanner.finished);
 }
 
-// temporary until arena is implemented
-Instruction instructions[100];
-
-Instruction*
+void
 lexer_parse_instructions(Lexer* lexer)
 {
-    memset(instructions, 0, sizeof(Instruction) * 100);
-    Parser parser = {.ts = &lexer->ts};
-    size_t index = 0;
+    Parser parser = {.arena = &lexer->arena};
+    Instruction inst;
     do {
-        instructions[index] = parser_next_instruction(&parser);
-    } while (instructions[index++].type != INST_EOF);
-    return instructions;
+        inst = parser_next_instruction(&parser);
+        arena_put_instruction(parser.arena, inst);
+    } while (inst.type != INST_EOF);
 }

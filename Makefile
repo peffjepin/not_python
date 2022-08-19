@@ -1,6 +1,6 @@
 CC = cc
 CFLAGS = -Wall -Wextra -Wpedantic -std=c11
-COMPILER_SOURCES = src/lexer_types.c src/lexer.c
+COMPILER_SOURCES = src/lexer_types.c src/lexer.c src/arena.c
 
 clean:
 	-@rm debug_tokens
