@@ -1,5 +1,6 @@
 #include "lexer_types.h"
 
+#include <assert.h>
 #include <string.h>
 
 static const char* kw_hashtable[145] = {
@@ -32,6 +33,12 @@ is_keyword(char* word)
     if (!kw) return NOT_A_KEYWORD;
     if (strcmp(word, kw) == 0) return hash;
     return NOT_A_KEYWORD;
+}
+
+const char*
+kw_to_cstr(Keyword kw)
+{
+    return kw_hashtable[kw];
 }
 
 const bool IS_ASSIGNMENT_OP[70] = {
@@ -85,10 +92,79 @@ const unsigned int PRECENDENCE_TABLE[70] = {
     [OPERATOR_RSHIFT] = 10,
 };
 
+const char* OP_TO_CSTR_TABLE[70] = {
+    [OPERATOR_PLUS] = "+",
+    [OPERATOR_MINUS] = "-",
+    [OPERATOR_MULT] = "*",
+    [OPERATOR_DIV] = "/",
+    [OPERATOR_MOD] = "%",
+    [OPERATOR_POW] = "**",
+    [OPERATOR_FLOORDIV] = "//",
+    [OPERATOR_ASSIGNMENT] = "=",
+    [OPERATOR_PLUS_ASSIGNMENT] = "+=",
+    [OPERATOR_MINUS_ASSIGNMENT] = "-=",
+    [OPERATOR_MULT_ASSIGNMENT] = "*=",
+    [OPERATOR_DIV_ASSIGNMENT] = "/=",
+    [OPERATOR_MOD_ASSIGNMENT] = "%=",
+    [OPERATOR_FLOORDIV_ASSIGNMENT] = "//=",
+    [OPERATOR_POW_ASSIGNMENT] = "**=",
+    [OPERATOR_AND_ASSIGNMENT] = "&=",
+    [OPERATOR_OR_ASSIGNMENT] = "|=",
+    [OPERATOR_XOR_ASSIGNMENT] = "^=",
+    [OPERATOR_RSHIFT_ASSIGNMENT] = ">>=",
+    [OPERATOR_LSHIFT_ASSIGNMENT] = "<<=",
+    [OPERATOR_EQUAL] = "==",
+    [OPERATOR_NOT_EQUAL] = "!=",
+    [OPERATOR_GREATER] = ">",
+    [OPERATOR_LESS] = "<",
+    [OPERATOR_GREATER_EQUAL] = ">=",
+    [OPERATOR_LESS_EQUAL] = "<=",
+    [OPERATOR_BITWISE_AND] = "&",
+    [OPERATOR_BITWISE_OR] = "|",
+    [OPERATOR_BITWISE_XOR] = "^",
+    [OPERATOR_BITWISE_NOT] = "~",
+    [OPERATOR_LSHIFT] = "<<",
+    [OPERATOR_RSHIFT] = ">>",
+};
+
 Operator
 op_from_cstr(char* op)
 {
     size_t hash = op[0];
     for (size_t i = 0; op[i] != '\0'; i++) hash += op[i];
     return (Operator)hash % 70;
+}
+
+const char*
+op_to_cstr(Operator op)
+{
+    return OP_TO_CSTR_TABLE[op];
+}
+
+const char* TOKEN_TYPE_TO_CSTR_TABLE[19] = {
+    [TOK_KEYWORD] = "keyword",
+    [TOK_COMMA] = ",",
+    [TOK_COLON] = ":",
+    [TOK_STRING] = "string",
+    [TOK_NUMBER] = "number",
+    [TOK_OPERATOR] = "operator",
+    [TOK_NEWLINE] = "\n",
+    [TOK_BLOCK_BEGIN] = "block begin",
+    [TOK_BLOCK_END] = "block end",
+    [TOK_OPEN_PARENS] = "(",
+    [TOK_CLOSE_PARENS] = ")",
+    [TOK_OPEN_SQUARE] = "[",
+    [TOK_CLOSE_SQUARE] = "]",
+    [TOK_OPEN_CURLY] = "{",
+    [TOK_CLOSE_CURLY] = "}",
+    [TOK_IDENTIFIER] = "identifier",
+    [TOK_DOT] = ".",
+    [TOK_EOF] = "EOF",
+};
+
+const char*
+token_type_to_cstr(TokenType type)
+{
+    assert(type < 19 && "token type not in table");
+    return TOKEN_TYPE_TO_CSTR_TABLE[type];
 }

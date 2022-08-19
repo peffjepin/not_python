@@ -429,20 +429,18 @@ parse_expression(Parser* parser)
 static inline Token
 parser_expect_keyword(Parser* parser, Keyword kw)
 {
-    // TODO: expose some keyword table to lookup a const char* given Keyword enum
     Token tok = parser_get_next_token(parser);
     if (tok.type != TOK_KEYWORD || tok.value_ref != kw)
-        SYNTAX_ERRORF(tok.loc, "expected keyword %i", kw);
+        SYNTAX_ERRORF(tok.loc, "expected keyword `%s`", kw_to_cstr(kw));
     return tok;
 }
 
 static inline Token
 parser_expect_token_type(Parser* parser, TokenType type)
 {
-    // TODO: expose some token type table to lookup a const char* given TokenType
-    // enum
     Token tok = parser_get_next_token(parser);
-    if (tok.type != type) SYNTAX_ERRORF(tok.loc, "expected token type %i", type);
+    if (tok.type != type)
+        SYNTAX_ERRORF(tok.loc, "expected token type `%s`", token_type_to_cstr(type));
     return tok;
 }
 

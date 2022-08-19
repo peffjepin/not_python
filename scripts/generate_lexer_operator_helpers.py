@@ -91,6 +91,11 @@ def main():
     print("};")
     print("")
     print(f"#define MAX_PRECEDENCE {max_precendence}")
+    print("")
+    print(f"const char* OP_TO_CSTR_TABLE[{total_length}] = {{")
+    for op_name, op_dict in OPS.items():
+        print(f"    [{op_name}] = \"{op_dict['value']}\",")
+    print("};")
     return 0
 
 

@@ -41,6 +41,8 @@ typedef enum {
 // returns either NOT_A_KEYWORD or KW_*
 Keyword is_keyword(char* word);
 
+const char* kw_to_cstr(Keyword kw);
+
 typedef enum {
     OPERATOR_PLUS = 16,
     OPERATOR_MINUS = 20,
@@ -80,7 +82,9 @@ typedef enum {
 extern const unsigned int PRECENDENCE_TABLE[70];
 
 extern const bool IS_ASSIGNMENT_OP[70];
+
 Operator op_from_cstr(char* op);
+const char* op_to_cstr(Operator op);
 
 typedef enum {
     NULL_TOKEN,
@@ -103,6 +107,8 @@ typedef enum {
     TOK_DOT,
     TOK_EOF,
 } TokenType;
+
+const char* token_type_to_cstr(TokenType type);
 
 typedef struct {
     const char* filename;
