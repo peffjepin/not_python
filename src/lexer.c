@@ -147,44 +147,34 @@ scanner_handle_single_char_tokens(Scanner* scanner)
             scanner->token.type = TOK_NEWLINE;
             scanner->loc.line++;
             scanner->loc.col = 0;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '(':
             scanner->token.type = TOK_OPEN_PARENS;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ')':
             scanner->token.type = TOK_CLOSE_PARENS;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '[':
             scanner->token.type = TOK_OPEN_SQUARE;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ']':
             scanner->token.type = TOK_CLOSE_SQUARE;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '{':
             scanner->token.type = TOK_OPEN_CURLY;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '}':
             scanner->token.type = TOK_CLOSE_CURLY;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ':':
             scanner->token.type = TOK_COLON;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case ',':
             scanner->token.type = TOK_COMMA;
-            arena_put_token(scanner->arena, scanner->token);
             return true;
         case '.':
             if (CHAR_IS_ALPHA(scanner_peekc(scanner))) {
                 scanner->token.type = TOK_DOT;
-                arena_put_token(scanner->arena, scanner->token);
                 return true;
             }
             return false;
