@@ -37,10 +37,10 @@ typedef struct {
     Arena* arena;
     Token token;
     Location loc;
-    char buf[ARENA_STRING_CHUNK_SIZE];
-    size_t buflen;
-    char c;
     bool finished;
+    char c;
+    size_t buflen;
+    char buf[ARENA_STRING_CHUNK_SIZE];
 } Scanner;
 
 static inline void
