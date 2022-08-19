@@ -17,6 +17,7 @@ Lexer lexer_open(const char* filepath);
 void lexer_close(Lexer* lexer);
 void lexer_tokenize(Lexer* lexer);
 
-Instruction next_instruction(Lexer* lexer);
+// temporary
+Instruction* lexer_parse_instructions(Lexer* lexer);
 
 #endif
