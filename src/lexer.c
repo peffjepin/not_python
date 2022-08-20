@@ -326,7 +326,7 @@ parser_is_end_of_expression(Parser* parser)
     return false;
 }
 
-#define INTERMEDIATE_TABLE_MAX EXPRESSION_CAPACITY
+#define INTERMEDIATE_TABLE_MAX EXPRESSION_MAX_OPERATIONS
 
 typedef struct {
     Operation operations[INTERMEDIATE_TABLE_MAX];
@@ -356,14 +356,12 @@ parse_expression(Parser* parser)
                 break;
             }
             case TOK_NUMBER:
-                expr.operands[operand_index].kind = OPERAND_CONSTANT;
-                expr.operands[operand_index++].constant.value =
-                    arena_get_string(parser->arena, tok.value_ref);
+                expr.operands[operand_index].kind = OPERAND_TOKEN;
+                expr.operands[operand_index++].token = tok;
                 break;
             case TOK_STRING:
-                expr.operands[operand_index].kind = OPERAND_CONSTANT;
-                expr.operands[operand_index++].constant.value =
-                    arena_get_string(parser->arena, tok.value_ref);
+                expr.operands[operand_index].kind = OPERAND_TOKEN;
+                expr.operands[operand_index++].token = tok;
                 break;
             case TOK_OPEN_PARENS:
                 // TODO incomplete
@@ -401,7 +399,7 @@ parse_expression(Parser* parser)
             default:
                 UNIMPLEMENTED("no implementation for token");
         };
-        assert(operand_index != EXPRESSION_CAPACITY);
+        assert(operand_index != EXPRESSION_MAX_OPERATIONS + 1);
     } while (!parser_is_end_of_expression(parser));
 
     for (int prec = MAX_PRECEDENCE; prec >= 0; prec--) {
@@ -434,36 +432,37 @@ parser_expect_token_type(Parser* parser, TokenType type)
     return tok;
 }
 
-static Instruction
+static Statement
 parse_for_loop_instruction(Parser* parser)
 {
-    Instruction inst = {.type = INST_FOR_LOOP};
+    Statement stmt = {.kind = STMT_FOR_LOOP};
     // consume for token
     Token tok = parser_expect_keyword(parser, KW_FOR);
 
     tok = parser_expect_token_type(parser, TOK_IDENTIFIER);
-    inst.for_loop.it = arena_get_string(parser->arena, tok.value_ref);
+    stmt.for_loop.it_ref = tok.value_ref;
 
     tok = parser_expect_keyword(parser, KW_IN);
-    inst.for_loop.iterable_expr = parse_expression(parser);
+    stmt.for_loop.expr_ref =
+        arena_put_expression(parser->arena, parse_expression(parser));
 
     tok = parser_expect_token_type(parser, TOK_COLON);
 
-    return inst;
+    return stmt;
 }
 
-static Instruction
+static Statement
 parse_unknown_instruction(Parser* parser)
 {
-    Instruction inst = {.type = NULL_INST};
+    Statement stmt = {.kind = NULL_STMT};
     parser->current_token_index++;
-    return inst;
+    return stmt;
 }
 
-Instruction
+Statement
 parser_next_instruction(Parser* parser)
 {
-    Instruction inst = {.type = NULL_INST};
+    Statement stmt = {.kind = NULL_STMT};
 
     while (parser_peek_next_token(parser).type == TOK_NEWLINE)
         parser->current_token_index++;
@@ -479,13 +478,14 @@ parser_next_instruction(Parser* parser)
     }
     else if (first_token.type == TOK_EOF) {
         parser->current_token_index++;
-        inst.type = INST_EOF;
-        return inst;
+        stmt.kind = STMT_EOF;
+        return stmt;
     }
 
-    inst.type = INST_EXPR;
-    inst.expr = parse_expression(parser);
-    return inst;
+    stmt.kind = STMT_EXPR;
+    Expression expr = parse_expression(parser);
+    stmt.expr_ref = arena_put_expression(parser->arena, expr);
+    return stmt;
 }
 
 Lexer
@@ -535,9 +535,9 @@ void
 lexer_parse_instructions(Lexer* lexer)
 {
     Parser parser = {.arena = &lexer->arena};
-    Instruction inst;
+    Statement stmt;
     do {
-        inst = parser_next_instruction(&parser);
-        arena_put_instruction(parser.arena, inst);
-    } while (inst.type != INST_EOF);
+        stmt = parser_next_instruction(&parser);
+        arena_put_statement(parser.arena, stmt);
+    } while (stmt.kind != STMT_EOF);
 }

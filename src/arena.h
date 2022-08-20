@@ -1,6 +1,7 @@
 #ifndef ARENA_H
 #define ARENA_H
 
+#include "aliases.h"
 #include "compiler_types.h"
 #include "lexer_types.h"
 
@@ -11,21 +12,27 @@ typedef struct {
     Token* tokens;
     size_t tokens_capacity;
     size_t tokens_count;
-    Instruction* instructions;
-    size_t instructions_capacity;
-    size_t instructions_count;
+    Statement* statements;
+    size_t statements_capacity;
+    size_t statements_count;
+    Expression* expressions;
+    size_t expressions_count;
+    size_t expressions_capacity;
     char* strings_buffer;
     size_t strings_buffer_capacity;
     size_t strings_buffer_write_head;
 } Arena;
 
-size_t arena_put_token(Arena* arena, Token token);
-Token arena_get_token(Arena* arena, size_t id);
+ArenaRef arena_put_token(Arena* arena, Token token);
+Token arena_get_token(Arena* arena, ArenaRef ref);
 
-size_t arena_put_instruction(Arena* arena, Instruction inst);
-Instruction arena_get_instruction(Arena* arena, size_t id);
+ArenaRef arena_put_statement(Arena* arena, Statement stmt);
+Statement arena_get_statement(Arena* arena, ArenaRef ref);
 
-size_t arena_put_string(Arena* arena, char* string);
-char* arena_get_string(Arena* arena, size_t id);
+ArenaRef arena_put_expression(Arena* arena, Expression expr);
+Expression arena_get_expression(Arena* arena, ArenaRef ref);
+
+ArenaRef arena_put_string(Arena* arena, char* string);
+char* arena_get_string(Arena* arena, ArenaRef ref);
 
 #endif

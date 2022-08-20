@@ -48,14 +48,11 @@ static void
 render_operand(StringBuffer* str, Operand op)
 {
     switch (op.kind) {
-        case OPERAND_CONSTANT:
-            str_concat_cstr(str, op.constant.value);
-            break;
-        case OPERAND_STORAGE:
-            str_concat_cstr(str, op.storage.identifier);
+        case OPERAND_TOKEN:
+            str_concat_cstr(str, arena_get_string(arena, op.token.value_ref));
             break;
         case OPERAND_EXPRESSION: {
-            StringBuffer rendered_expr = render_expr(*op.expression);
+            StringBuffer rendered_expr = render_expr(arena_get_expression(arena, op.ref));
             str_concat(str, &rendered_expr);
             break;
         }
@@ -64,12 +61,12 @@ render_operand(StringBuffer* str, Operand op)
     }
 }
 
-static StringBuffer string_mem[EXPRESSION_CAPACITY] = {0};
+static StringBuffer string_mem[EXPRESSION_MAX_OPERATIONS] = {0};
 
 static StringBuffer
 render_expr(Expression expr)
 {
-    StringBuffer* already_rendered_chunks[EXPRESSION_CAPACITY] = {0};
+    StringBuffer* already_rendered_chunks[EXPRESSION_MAX_OPERATIONS] = {0};
 
     if (expr.n_operations == 0) {
         StringBuffer buf = {0};
@@ -120,23 +117,21 @@ print_expression(Expression expr)
 }
 
 void
-print_instruction(Instruction inst)
+print_statement(Statement stmt)
 {
-    switch (inst.type) {
-        case NULL_INST:
-            printf("NULL INST");
+    switch (stmt.kind) {
+        case NULL_STMT:
+            printf("NULL STMT");
             break;
-        case INST_EOF:
+        case STMT_EOF:
             printf("EOF");
             break;
-        case INST_EXPR:
+        case STMT_EXPR:
             printf("EXPR: ");
-            print_expression(inst.expr);
+            print_expression(arena_get_expression(arena, stmt.expr_ref));
             break;
-        case INST_FOR_LOOP:
-            printf("FOR_LOOP: it=%s, iterable=", inst.for_loop.it);
-            print_expression(inst.for_loop.iterable_expr);
-            break;
+        default:
+            assert(0 && "unimplemented");
     }
     printf("\n");
 }

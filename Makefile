@@ -5,19 +5,19 @@ DEBUG_SOURCES = test/debug_common.c
 
 clean:
 	-@rm debug_tokens
-	-@rm debug_instructions
+	-@rm debug_statements
 
-debug: debug_tokens debug_instructions
+debug: debug_tokens debug_statements
 
 debug_tokens: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_tokenization.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-debug_instructions: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_instructions.c
+debug_statements: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_statements.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-test: test_tokens test_instructions
+test: test_tokens test_statements
 
-test_update: test_tokens_interactive test_instructions_interactive
+test_update: test_tokens_interactive test_statements_interactive
 
 test_tokens: debug_tokens
 	./scripts/test.py ./debug_tokens ./test/samples/tokenization
@@ -25,8 +25,8 @@ test_tokens: debug_tokens
 test_tokens_interactive: debug_tokens
 	./scripts/test.py ./debug_tokens ./test/samples/tokenization -i
 
-test_instructions: debug_instructions
-	./scripts/test.py ./debug_instructions ./test/samples/instructions
+test_statements: debug_statements
+	./scripts/test.py ./debug_statements ./test/samples/statements
 
-test_instructions_interactive: debug_instructions
-	./scripts/test.py ./debug_instructions ./test/samples/instructions -i
+test_statements_interactive: debug_statements
+	./scripts/test.py ./debug_statements ./test/samples/statements -i

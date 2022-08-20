@@ -1,47 +1,19 @@
 #ifndef COMPILER_TYPES_H
 #define COMPILER_TYPES_H
 
+#include "aliases.h"
 #include "lexer_types.h"
-
-#define EXPRESSION_CAPACITY 32
-
-typedef struct Expression Expression;
 
 typedef enum {
     OPERAND_EXPRESSION,
-    OPERAND_CONSTANT,
-    OPERAND_FUNCTION_CALL,
-    OPERAND_STORAGE,
-    OPERAND_INLINE_STORAGE,
+    OPERAND_TOKEN,
 } OperandKind;
-
-typedef struct {
-    char* identifier;
-} Storage;
-
-// something like x = [1, 2, 3]
-// not sure what this struct aught to look like yet
-typedef struct {
-} InlineStorage;
-
-typedef struct {
-    char* value;
-} Constant;
-
-#define ARGUMENTS_CAPACITY 10
-typedef struct {
-    char* name;
-    Expression* args[ARGUMENTS_CAPACITY];
-} FunctionCall;
 
 typedef struct {
     OperandKind kind;
     union {
-        Storage storage;
-        InlineStorage inline_storage;
-        Constant constant;
-        FunctionCall function_call;
-        Expression* expression;
+        Token token;
+        ArenaRef ref;
     };
 } Operand;
 
@@ -51,30 +23,32 @@ typedef struct {
     size_t right;
 } Operation;
 
-typedef struct Expression {
-    Operand operands[EXPRESSION_CAPACITY];
-    Operation operations[EXPRESSION_CAPACITY];
+#define EXPRESSION_MAX_OPERATIONS 10
+
+typedef struct {
     size_t n_operations;
+    Operand operands[EXPRESSION_MAX_OPERATIONS + 1];
+    Operation operations[EXPRESSION_MAX_OPERATIONS];
 } Expression;
 
 typedef enum {
-    NULL_INST,
-    INST_EXPR,
-    INST_FOR_LOOP,
-    INST_EOF,
-} InstructionType;
+    NULL_STMT,
+    STMT_EXPR,
+    STMT_FOR_LOOP,
+    STMT_EOF,
+} StatementKind;
 
 typedef struct {
-    char* it;
-    Expression iterable_expr;
-} ForLoopInstruction;
+    ArenaRef it_ref;
+    ArenaRef expr_ref;
+} ForLoopStatement;
 
 typedef struct {
-    InstructionType type;
+    StatementKind kind;
     union {
-        ForLoopInstruction for_loop;
-        Expression expr;
+        ForLoopStatement for_loop;
+        ArenaRef expr_ref;
     };
-} Instruction;
+} Statement;
 
 #endif

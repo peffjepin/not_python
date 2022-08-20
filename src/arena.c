@@ -7,6 +7,10 @@
 
 // TODO: some unit tests for this module would be nice
 
+// TODO: tokens probably don't need to be put into the arena memory,
+// rather the parser will parse tokens into appropriate structures
+// which will then be stored into the arena memory
+
 static inline void
 out_of_memory()
 {
@@ -14,15 +18,10 @@ out_of_memory()
     exit(1);
 }
 
-size_t
+ArenaRef
 arena_put_token(Arena* arena, Token token)
 {
-    if (arena->tokens_capacity == 0) {
-        arena->tokens_capacity += ARENA_STRUCT_CHUNK_SIZE;
-        arena->tokens = malloc(sizeof(Token) * arena->tokens_capacity);
-        if (!arena->tokens) out_of_memory();
-    }
-    else if (arena->tokens_count == arena->tokens_capacity) {
+    if (arena->tokens_count == arena->tokens_capacity) {
         arena->tokens_capacity += ARENA_STRUCT_CHUNK_SIZE;
         arena->tokens = realloc(arena->tokens, sizeof(Token) * (arena->tokens_capacity));
         if (!arena->tokens) out_of_memory();
@@ -32,54 +31,67 @@ arena_put_token(Arena* arena, Token token)
 }
 
 Token
-arena_get_token(Arena* arena, size_t id)
+arena_get_token(Arena* arena, ArenaRef ref)
 {
-    if (id >= arena->tokens_count) {
+    if (ref >= arena->tokens_count) {
         Token null_token = {.type = NULL_TOKEN};
         return null_token;
     }
-    return arena->tokens[id];
+    return arena->tokens[ref];
 }
 
-size_t
-arena_put_instruction(Arena* arena, Instruction inst)
+ArenaRef
+arena_put_statement(Arena* arena, Statement stmt)
 {
-    if (arena->instructions_capacity == 0) {
-        arena->instructions_capacity += ARENA_STRUCT_CHUNK_SIZE;
-        arena->instructions = malloc(sizeof(Instruction) * arena->instructions_capacity);
-        if (!arena->instructions) out_of_memory();
+    if (arena->statements_count == arena->statements_capacity) {
+        arena->statements_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->statements =
+            realloc(arena->statements, sizeof(Statement) * (arena->statements_capacity));
+        if (!arena->statements) out_of_memory();
     }
-    else if (arena->instructions_count == arena->instructions_capacity) {
-        arena->instructions_capacity += ARENA_STRUCT_CHUNK_SIZE;
-        arena->instructions = realloc(
-            arena->instructions, sizeof(Instruction) * (arena->instructions_capacity)
+    arena->statements[arena->statements_count] = stmt;
+    return arena->statements_count++;
+}
+
+Statement
+arena_get_statement(Arena* arena, ArenaRef ref)
+{
+    if (ref >= arena->statements_count) {
+        Statement null_stmt = {.kind = NULL_STMT};
+        return null_stmt;
+    }
+    return arena->statements[ref];
+}
+
+ArenaRef
+arena_put_expression(Arena* arena, Expression expr)
+{
+    if (arena->expressions_count == arena->expressions_capacity) {
+        arena->expressions_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->expressions = realloc(
+            arena->expressions, sizeof(Expression) * (arena->expressions_capacity)
         );
-        if (!arena->instructions) out_of_memory();
+        if (!arena->expressions) out_of_memory();
     }
-    arena->instructions[arena->instructions_count] = inst;
-    return arena->instructions_count++;
+    arena->expressions[arena->expressions_count] = expr;
+    return arena->expressions_count++;
 }
 
-Instruction
-arena_get_instruction(Arena* arena, size_t id)
+Expression
+arena_get_expression(Arena* arena, ArenaRef ref)
 {
-    if (id >= arena->instructions_count) {
-        Instruction null_inst = {.type = NULL_INST};
-        return null_inst;
+    if (ref >= arena->expressions_count) {
+        fprintf(stderr, "expression out of range\n");
+        exit(1);
     }
-    return arena->instructions[id];
+    return arena->expressions[ref];
 }
 
 // TODO: handle duplicate strings
 // TODO: often strlen is already known -- implement arena_put_stringl
-size_t
+ArenaRef
 arena_put_string(Arena* arena, char* string)
 {
-    if (arena->strings_buffer_capacity == 0) {
-        arena->strings_buffer_capacity += ARENA_STRING_CHUNK_SIZE;
-        arena->strings_buffer = malloc(arena->strings_buffer_capacity);
-        if (!arena->strings_buffer) out_of_memory();
-    }
     size_t string_length = strlen(string) + 1;  // counting null byte here
     assert(
         string_length <= ARENA_STRING_CHUNK_SIZE &&
@@ -101,8 +113,8 @@ arena_put_string(Arena* arena, char* string)
 }
 
 char*
-arena_get_string(Arena* arena, size_t id)
+arena_get_string(Arena* arena, ArenaRef ref)
 {
-    if (id >= arena->strings_buffer_write_head) return NULL;
-    return arena->strings_buffer + id;
+    if (ref >= arena->strings_buffer_write_head) return NULL;
+    return arena->strings_buffer + ref;
 }

@@ -10,6 +10,6 @@ void print_token(Token tok);
 void print_token_type(TokenType type);
 void print_operator_enum(Operator op);
 void print_keyword(Keyword kw);
-void print_instruction(Instruction inst);
+void print_statement(Statement stmt);
 
 #endif

@@ -12,13 +12,13 @@ main(int argc, char** argv)
     debugger_use_arena(&lexer.arena);
     lexer_tokenize(&lexer);
     lexer_parse_instructions(&lexer);
-    Instruction inst;
+    Statement stmt;
     do {
-        for (size_t i = 0; i < lexer.arena.instructions_count; i++) {
-            inst = arena_get_instruction(&lexer.arena, i);
-            print_instruction(inst);
+        for (size_t i = 0; i < lexer.arena.statements_count; i++) {
+            stmt = arena_get_statement(&lexer.arena, i);
+            print_statement(stmt);
         }
-    } while (inst.type != INST_EOF);
+    } while (stmt.kind != STMT_EOF);
     lexer_close(&lexer);
     return 0;
 }
