@@ -66,7 +66,7 @@ class VerifiedChecksums:
 
     @classmethod
     def verified_output_filepath(cls, test_key):
-        return VERIFIED_OUTPUT / test_key.sample_file.replace("/", "_")
+        return VERIFIED_OUTPUT / str(test_key).replace("/", "_").replace(" ", "__")
 
     @classmethod
     def dump(cls):
