@@ -45,6 +45,38 @@ str_concat_cstr(StringBuffer* str1, char* cstr)
 }
 
 static void
+render_enclosure_opening(StringBuffer* str, EnclosureType type)
+{
+    switch (type) {
+        case ENCLOSURE_DICT:
+            str_append_char(str, '{');
+            break;
+        case ENCLOSURE_LIST:
+            str_append_char(str, '[');
+            break;
+        case ENCLOSURE_TUPLE:
+            str_append_char(str, '(');
+            break;
+    }
+}
+
+static void
+render_enclosure_closing(StringBuffer* str, EnclosureType type)
+{
+    switch (type) {
+        case ENCLOSURE_DICT:
+            str_append_char(str, '}');
+            break;
+        case ENCLOSURE_LIST:
+            str_append_char(str, ']');
+            break;
+        case ENCLOSURE_TUPLE:
+            str_append_char(str, ')');
+            break;
+    }
+}
+
+static void
 render_operand(StringBuffer* str, Operand op)
 {
     switch (op.kind) {
@@ -56,6 +88,60 @@ render_operand(StringBuffer* str, Operand op)
             str_concat(str, &rendered_expr);
             break;
         }
+        case OPERAND_ENCLOSURE_LITERAL: {
+            Enclosure enclosure = arena_get_enclosure(arena, op.ref);
+            bool is_map = (enclosure.type == ENCLOSURE_DICT);
+            render_enclosure_opening(str, enclosure.type);
+            for (ArenaRef ref = enclosure.first_expr; ref <= enclosure.last_expr; ref++) {
+                if (is_map) {
+                    if ((ref - enclosure.first_expr) % 2 == 1)
+                        str_concat_cstr(str, ": ");
+                    else if (ref > enclosure.first_expr)
+                        str_concat_cstr(str, ", ");
+                }
+                else if (ref > enclosure.first_expr)
+                    str_concat_cstr(str, ", ");
+                StringBuffer rendered_element =
+                    render_expr(arena_get_expression(arena, ref));
+                str_concat(str, &rendered_element);
+            }
+            render_enclosure_closing(str, enclosure.type);
+            break;
+        }
+        case OPERAND_COMPREHENSION: {
+            StringBuffer expr;
+            Comprehension comp = arena_get_comprehension(arena, op.ref);
+            bool is_map = (comp.type == ENCLOSURE_DICT);
+            str_append_char(str, '\n');
+            render_enclosure_opening(str, comp.type);
+            // initial (key: value) expression
+            if (is_map) {
+                expr = render_expr(arena_get_expression(arena, comp.mapped.key_expr));
+                str_concat(str, &expr);
+                str_concat_cstr(str, ": ");
+                expr = render_expr(arena_get_expression(arena, comp.mapped.val_expr));
+                str_concat(str, &expr);
+            }
+            // initial expression
+            else {
+                expr = render_expr(arena_get_expression(arena, comp.sequence.expr));
+                str_concat(str, &expr);
+            }
+            // for loop bodies
+            for (size_t i = 0; i < comp.body.nesting; i++) {
+                str_concat_cstr(str, "\n for ");
+                expr = render_expr(arena_get_expression(arena, comp.body.its[i]));
+                str_concat(str, &expr);
+                str_concat_cstr(str, " in ");
+                expr = render_expr(arena_get_expression(arena, comp.body.iterables[i]));
+                str_concat(str, &expr);
+            }
+            render_enclosure_closing(str, comp.type);
+            break;
+        }
+        case OPERAND_ARGUMENTS:
+            assert(0 && "debug print for arguments is not implemented");
+            break;
         default:
             assert(0 && "not implemented");
     }

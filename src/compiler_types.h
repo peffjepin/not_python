@@ -57,31 +57,23 @@ typedef enum {
 #define MAX_COMPREHENSION_NESTING 10
 
 typedef struct {
-    ArenaRef key_expr;
-    ArenaRef val_expr;
+    size_t nesting;
     ArenaRef its[MAX_COMPREHENSION_NESTING];
     ArenaRef iterables[MAX_COMPREHENSION_NESTING];
-    size_t nesting;
-    bool has_if;
-    bool has_else;
-    ArenaRef if_cond;
-    ArenaRef else_key_expr;
-    ArenaRef else_val_expr;
+} ComprehensionBody;
+
+typedef struct {
+    ArenaRef key_expr;
+    ArenaRef val_expr;
 } MappedComprehension;
 
 typedef struct {
     ArenaRef expr;
-    ArenaRef its[MAX_COMPREHENSION_NESTING];
-    ArenaRef iterables[MAX_COMPREHENSION_NESTING];
-    size_t nesting;
-    bool has_if;
-    bool has_else;
-    ArenaRef if_cond;
-    ArenaRef else_expr;
 } SequenceComprehension;
 
 typedef struct {
     EnclosureType type;
+    ComprehensionBody body;
     union {
         MappedComprehension mapped;
         SequenceComprehension sequence;
