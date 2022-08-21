@@ -16,8 +16,17 @@ typedef struct {
     size_t statements_capacity;
     size_t statements_count;
     Expression* expressions;
-    size_t expressions_count;
     size_t expressions_capacity;
+    size_t expressions_count;
+    Arguments* arguments;
+    size_t arguments_capacity;
+    size_t arguments_count;
+    Enclosure* enclosures;
+    size_t enclosures_capacity;
+    size_t enclosures_count;
+    Comprehension* comprehensions;
+    size_t comprehensions_capacity;
+    size_t comprehensions_count;
     char* strings_buffer;
     size_t strings_buffer_capacity;
     size_t strings_buffer_write_head;
@@ -31,6 +40,15 @@ Statement arena_get_statement(Arena* arena, ArenaRef ref);
 
 ArenaRef arena_put_expression(Arena* arena, Expression expr);
 Expression arena_get_expression(Arena* arena, ArenaRef ref);
+
+ArenaRef arena_put_arguments(Arena* arena, Arguments args);
+Arguments arena_get_arguments(Arena* arena, ArenaRef ref);
+
+ArenaRef arena_put_enclosure(Arena* arena, Enclosure enclosure);
+Enclosure arena_get_enclosure(Arena* arena, ArenaRef ref);
+
+ArenaRef arena_put_comprehension(Arena* arena, Comprehension comp);
+Comprehension arena_get_comprehension(Arena* arena, ArenaRef ref);
 
 ArenaRef arena_put_string(Arena* arena, char* string);
 char* arena_get_string(Arena* arena, ArenaRef ref);

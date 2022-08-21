@@ -11,6 +11,8 @@
 // rather the parser will parse tokens into appropriate structures
 // which will then be stored into the arena memory
 
+// TODO: lots of repitition in here could probably be handled better with some macros
+
 static inline void
 out_of_memory()
 {
@@ -81,10 +83,81 @@ Expression
 arena_get_expression(Arena* arena, ArenaRef ref)
 {
     if (ref >= arena->expressions_count) {
-        fprintf(stderr, "expression out of range\n");
+        fprintf(stderr, "expression ref out of range\n");
         exit(1);
     }
     return arena->expressions[ref];
+}
+
+ArenaRef
+arena_put_arguments(Arena* arena, Arguments args)
+{
+    if (arena->arguments_count == arena->arguments_capacity) {
+        arena->arguments_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->arguments =
+            realloc(arena->arguments, sizeof(Arguments) * (arena->arguments_capacity));
+        if (!arena->arguments) out_of_memory();
+    }
+    arena->arguments[arena->arguments_count] = args;
+    return arena->arguments_count++;
+}
+
+Arguments
+arena_get_arguments(Arena* arena, ArenaRef ref)
+{
+    if (ref >= arena->arguments_count) {
+        fprintf(stderr, "arguments ref out of range\n");
+        exit(1);
+    }
+    return arena->arguments[ref];
+}
+
+ArenaRef
+arena_put_enclosure(Arena* arena, Enclosure enclosure)
+{
+    if (arena->enclosures_count == arena->enclosures_capacity) {
+        arena->enclosures_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->enclosures =
+            realloc(arena->enclosures, sizeof(Enclosure) * (arena->enclosures_capacity));
+        if (!arena->enclosures) out_of_memory();
+    }
+    arena->enclosures[arena->enclosures_count] = enclosure;
+    return arena->enclosures_count++;
+}
+
+Enclosure
+arena_get_enclosure(Arena* arena, ArenaRef ref)
+{
+    if (ref >= arena->enclosures_count) {
+        fprintf(stderr, "enclosure ref out of range\n");
+        exit(1);
+    }
+    return arena->enclosures[ref];
+}
+
+ArenaRef
+arena_put_comprehension(Arena* arena, Comprehension comp)
+{
+    if (arena->comprehensions_count == arena->comprehensions_capacity) {
+        arena->comprehensions_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->comprehensions = realloc(
+            arena->comprehensions,
+            sizeof(Comprehension) * (arena->comprehensions_capacity)
+        );
+        if (!arena->comprehensions) out_of_memory();
+    }
+    arena->comprehensions[arena->comprehensions_count] = comp;
+    return arena->comprehensions_count++;
+}
+
+Comprehension
+arena_get_comprehension(Arena* arena, ArenaRef ref)
+{
+    if (ref >= arena->comprehensions_count) {
+        fprintf(stderr, "comprehension ref out of range\n");
+        exit(1);
+    }
+    return arena->comprehensions[ref];
 }
 
 // TODO: handle duplicate strings

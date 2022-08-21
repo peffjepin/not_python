@@ -6,7 +6,10 @@
 
 typedef enum {
     OPERAND_EXPRESSION,
+    OPERAND_ENCLOSURE_LITERAL,
+    OPERAND_COMPREHENSION,
     OPERAND_TOKEN,
+    OPERAND_ARGUMENTS
 } OperandKind;
 
 typedef struct {
@@ -30,6 +33,66 @@ typedef struct {
     Operand operands[EXPRESSION_MAX_OPERATIONS + 1];
     Operation operations[EXPRESSION_MAX_OPERATIONS];
 } Expression;
+
+#define MAX_ARGUMENTS 10
+
+typedef struct {
+    ArenaRef value_refs[MAX_ARGUMENTS];
+    Token kwds[MAX_ARGUMENTS];
+    size_t length;
+    size_t n_positional;
+} Arguments;
+
+typedef enum {
+    ENCLOSURE_LIST,
+    ENCLOSURE_DICT,
+    ENCLOSURE_TUPLE,
+} EnclosureType;
+
+typedef enum {
+    COMPREHENSION_MAPPED,
+    COMPREHENSION_SEQUENCE,
+} ComprehensionKind;
+
+#define MAX_COMPREHENSION_NESTING 10
+
+typedef struct {
+    ArenaRef key_expr;
+    ArenaRef val_expr;
+    ArenaRef its[MAX_COMPREHENSION_NESTING];
+    ArenaRef iterables[MAX_COMPREHENSION_NESTING];
+    size_t nesting;
+    bool has_if;
+    bool has_else;
+    ArenaRef if_cond;
+    ArenaRef else_key_expr;
+    ArenaRef else_val_expr;
+} MappedComprehension;
+
+typedef struct {
+    ArenaRef expr;
+    ArenaRef its[MAX_COMPREHENSION_NESTING];
+    ArenaRef iterables[MAX_COMPREHENSION_NESTING];
+    size_t nesting;
+    bool has_if;
+    bool has_else;
+    ArenaRef if_cond;
+    ArenaRef else_expr;
+} SequenceComprehension;
+
+typedef struct {
+    EnclosureType type;
+    union {
+        MappedComprehension mapped;
+        SequenceComprehension sequence;
+    };
+} Comprehension;
+
+typedef struct {
+    EnclosureType type;
+    ArenaRef first_expr;
+    ArenaRef last_expr;
+} Enclosure;
 
 typedef enum {
     NULL_STMT,

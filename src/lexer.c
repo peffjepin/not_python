@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <string.h>
 
+#include "lexer_types.h"
+
 #define UNIMPLEMENTED(msg) assert(0 && msg)
 
 #define SYNTAX_ERROR(loc, msg)                                                           \
@@ -280,6 +282,8 @@ scan_token(Scanner* scanner)
 
 typedef struct {
     Arena* arena;
+    Token previous;
+    Token token;
     size_t current_token_index;
     unsigned int open_parens;
     unsigned int open_square;
@@ -290,7 +294,42 @@ static inline Token
 parser_get_next_token(Parser* parser)
 {
     Token token = arena_get_token(parser->arena, parser->current_token_index++);
-    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
+    parser->previous = parser->token;
+    parser->token = token;
+    switch (token.type) {
+        case NULL_TOKEN:
+            UNIMPLEMENTED("waiting on tokenization");
+            break;
+        case TOK_OPEN_PARENS:
+            parser->open_parens++;
+            break;
+        case TOK_CLOSE_PARENS:
+            if (parser->open_parens == 0)
+                SYNTAX_ERROR(token.loc, "no matching `(`");
+            else
+                parser->open_parens--;
+            break;
+        case TOK_OPEN_SQUARE:
+            parser->open_square++;
+            break;
+        case TOK_CLOSE_SQUARE:
+            if (parser->open_square == 0)
+                SYNTAX_ERROR(token.loc, "no matching `[`");
+            else
+                parser->open_square--;
+            break;
+        case TOK_OPEN_CURLY:
+            parser->open_curly++;
+            break;
+        case TOK_CLOSE_CURLY:
+            if (parser->open_curly == 0)
+                SYNTAX_ERROR(token.loc, "no matching `{`");
+            else
+                parser->open_curly--;
+            break;
+        default:
+            break;
+    }
     return token;
 }
 
@@ -313,6 +352,20 @@ parser_is_end_of_expression(Parser* parser)
             return (parser->open_square == 0);
         case TOK_NEWLINE:
             return true;
+        case TOK_OPEN_PARENS:
+            return true;
+        case TOK_CLOSE_PARENS:
+            return true;
+        case TOK_OPEN_SQUARE:
+            return true;
+        case TOK_CLOSE_SQUARE:
+            return true;
+        case TOK_OPEN_CURLY:
+            return true;
+        case TOK_CLOSE_CURLY:
+            return true;
+        case TOK_COMMA:
+            return true;
         case TOK_KEYWORD:
             // TODO: there are some keywords that are actually operators
             // like `and` `or` etc. We should probably scan those in as ops
@@ -324,6 +377,328 @@ parser_is_end_of_expression(Parser* parser)
             break;
     }
     return false;
+}
+
+typedef struct {
+    Expression* buf;
+    size_t capacity;
+    size_t length;
+} ExpressionVector;
+
+static void
+expression_vector_append(ExpressionVector* vec, Expression expr)
+{
+    if (vec->length == vec->capacity) {
+        if (vec->capacity == 0)
+            vec->capacity = 8;
+        else
+            vec->capacity *= 2;
+        vec->buf = realloc(vec->buf, sizeof(Expression) * vec->capacity);
+        if (!vec->buf) {
+            fprintf(stderr, "ERROR: out of memory");
+            exit(1);
+        }
+    }
+    vec->buf[vec->length++] = expr;
+}
+
+static void
+expression_vector_free(ExpressionVector* vec)
+{
+    free(vec->buf);
+}
+
+static Expression parse_expression(Parser* parser);
+static inline Token parser_expect_token_type(Parser* parser, TokenType type);
+static inline Token parser_expect_keyword(Parser* parser, Keyword kw);
+
+static size_t
+parse_comprehension_loops(
+    Parser* parser, Location loc, ArenaRef* its, ArenaRef* iterables
+)
+{
+    Token next;
+    size_t nesting = 0;
+    do {
+        if (nesting == MAX_COMPREHENSION_NESTING) {
+            SYNTAX_ERRORF(
+                loc,
+                "maximum comprehension nesting (%u) exceeded",
+                MAX_COMPREHENSION_NESTING
+            );
+        }
+        // for
+        parser_expect_keyword(parser, KW_FOR);
+        // it
+        Expression it = parse_expression(parser);
+        its[nesting] = arena_put_expression(parser->arena, it);
+        // in
+        parser_expect_keyword(parser, KW_IN);
+        // some iterable
+        Expression iterable = parse_expression(parser);
+        iterables[nesting++] = arena_put_expression(parser->arena, iterable);
+        // potentially another nested for loop
+        next = parser_peek_next_token(parser);
+    } while (next.type == TOK_KEYWORD && next.value_ref == KW_FOR);
+    return nesting;
+}
+
+static Comprehension
+parse_dict_comprehension(
+    Parser* parser, Location loc, Expression first_key, Expression first_val
+)
+{
+    MappedComprehension mapped_comp = {
+        .key_expr = arena_put_expression(parser->arena, first_key),
+        .val_expr = arena_put_expression(parser->arena, first_val),
+    };
+    mapped_comp.nesting =
+        parse_comprehension_loops(parser, loc, mapped_comp.its, mapped_comp.iterables);
+
+    // maybe if
+    if (parser_peek_next_token(parser).type != TOK_CLOSE_CURLY) {
+        parser_expect_keyword(parser, KW_IF);
+        Expression if_cond = parse_expression(parser);
+        mapped_comp.has_if = true;
+        mapped_comp.if_cond = arena_put_expression(parser->arena, if_cond);
+        // maybe else
+        if (parser_peek_next_token(parser).type != TOK_CLOSE_CURLY) {
+            parser_expect_keyword(parser, KW_ELSE);
+            Expression else_key = parse_expression(parser);
+            parser_expect_token_type(parser, TOK_COLON);
+            Expression else_val = parse_expression(parser);
+            mapped_comp.has_else = true;
+            mapped_comp.else_key_expr = arena_put_expression(parser->arena, else_key);
+            mapped_comp.else_val_expr = arena_put_expression(parser->arena, else_val);
+        }
+    }
+    // pack up comprehension and return
+    parser_expect_token_type(parser, TOK_CLOSE_CURLY);
+    Comprehension comp = {.type = ENCLOSURE_DICT, .mapped = mapped_comp};
+    return comp;
+}
+
+static Operand
+parse_mapped_enclosure(Parser* parser)
+{
+    Location loc = parser->token.loc;
+    Expression first_key = parse_expression(parser);
+    parser_expect_token_type(parser, TOK_COLON);
+    Expression first_val = parse_expression(parser);
+    Token next_token = parser_get_next_token(parser);
+
+    if (next_token.type == TOK_CLOSE_CURLY) {
+        Enclosure enclosure = {
+            .type = ENCLOSURE_DICT,
+            .first_expr = arena_put_expression(parser->arena, first_key),
+            .last_expr = arena_put_expression(parser->arena, first_val)};
+        Operand op = {
+            .kind = OPERAND_ENCLOSURE_LITERAL,
+            .ref = arena_put_enclosure(parser->arena, enclosure)};
+        return op;
+    }
+
+    else if (next_token.type == TOK_KEYWORD) {
+        Comprehension comp = parse_dict_comprehension(parser, loc, first_key, first_val);
+        Operand op = {
+            .kind = OPERAND_COMPREHENSION,
+            .ref = arena_put_comprehension(parser->arena, comp)};
+        return op;
+    }
+
+    // continue parsing literal
+    else {
+        // enclosures are marked by their starting and ending expressions
+        // so we wont add any parsed expressions into the arena until we
+        // have parsed the entire dict literal
+        ExpressionVector vec = {0};
+        expression_vector_append(&vec, first_key);
+        expression_vector_append(&vec, first_val);
+        while (parser_peek_next_token(parser).type != TOK_CLOSE_CURLY) {
+            parser_expect_token_type(parser, TOK_COMMA);
+            // beware trailing comma
+            if (parser_peek_next_token(parser).type == TOK_CLOSE_CURLY) break;
+            // key
+            expression_vector_append(&vec, parse_expression(parser));
+            // :
+            parser_expect_token_type(parser, TOK_COLON);
+            // value
+            expression_vector_append(&vec, parse_expression(parser));
+        }
+        parser_expect_token_type(parser, TOK_CLOSE_CURLY);
+        Enclosure enclosure = {
+            .type = ENCLOSURE_DICT,
+            .first_expr = arena_put_expression(parser->arena, vec.buf[0])};
+        ArenaRef ref;
+        for (size_t i = 1; i < vec.length; i++)
+            ref = arena_put_expression(parser->arena, vec.buf[i]);
+        enclosure.last_expr = ref;
+        Operand op = {
+            .kind = OPERAND_ENCLOSURE_LITERAL,
+            .ref = arena_put_enclosure(parser->arena, enclosure)};
+        expression_vector_free(&vec);
+        return op;
+    }
+}
+
+static Comprehension
+parse_sequence_comprehension(
+    Parser* parser, Location loc, Expression expr, TokenType closing_token
+)
+{
+    SequenceComprehension seq_comp = {
+        .expr = arena_put_expression(parser->arena, expr),
+    };
+    seq_comp.nesting =
+        parse_comprehension_loops(parser, loc, seq_comp.its, seq_comp.iterables);
+
+    // maybe if
+    if (parser_peek_next_token(parser).type != closing_token) {
+        parser_expect_keyword(parser, KW_IF);
+        Expression if_cond = parse_expression(parser);
+        seq_comp.has_if = true;
+        seq_comp.if_cond = arena_put_expression(parser->arena, if_cond);
+        // maybe else
+        if (parser_peek_next_token(parser).type != TOK_CLOSE_CURLY) {
+            parser_expect_keyword(parser, KW_ELSE);
+            Expression else_expr = parse_expression(parser);
+            seq_comp.has_else = true;
+            seq_comp.else_expr = arena_put_expression(parser->arena, else_expr);
+        }
+    }
+    // pack up comprehension and return
+    parser_expect_token_type(parser, closing_token);
+    EnclosureType type =
+        (closing_token == TOK_CLOSE_PARENS) ? ENCLOSURE_TUPLE : ENCLOSURE_LIST;
+    Comprehension comp = {.type = type, .sequence = seq_comp};
+    return comp;
+}
+
+static Operand
+parse_sequence_enclosure(Parser* parser)
+{
+    Token opening_token = parser->token;
+    TokenType closing_token_type =
+        (opening_token.type == TOK_OPEN_PARENS) ? TOK_CLOSE_PARENS : TOK_CLOSE_SQUARE;
+    Expression first_expr = parse_expression(parser);
+    Token peek = parser_peek_next_token(parser);
+    if (peek.type == TOK_CLOSE_PARENS) {
+        // tuple with no comma resolves to plain expression
+        // ex: (1)  == 1
+        //     (1,) != 1
+        parser_expect_token_type(parser, TOK_CLOSE_PARENS);
+        Operand op = {
+            .kind = OPERAND_EXPRESSION,
+            .ref = arena_put_expression(parser->arena, first_expr)};
+        return op;
+    }
+    else if (peek.type == TOK_CLOSE_SQUARE) {
+        // single element list with no comma resolves to list
+        parser_expect_token_type(parser, TOK_CLOSE_SQUARE);
+        Enclosure enclosure = {
+            .type = ENCLOSURE_LIST,
+            .first_expr = arena_put_expression(parser->arena, first_expr),
+        };
+        enclosure.last_expr = enclosure.first_expr;
+        Operand op = {
+            .kind = OPERAND_ENCLOSURE_LITERAL,
+            .ref = arena_put_enclosure(parser->arena, enclosure),
+        };
+        return op;
+    }
+    else if (peek.type == TOK_KEYWORD && peek.value_ref == KW_FOR) {
+        Comprehension comp = parse_sequence_comprehension(
+            parser, opening_token.loc, first_expr, closing_token_type
+        );
+        Operand op = {
+            .kind = OPERAND_COMPREHENSION,
+            .ref = arena_put_comprehension(parser->arena, comp)};
+        return op;
+    }
+    // otherwise parse the rest of the enclosure literal
+    // accrue expressions in an intermediate vector so that the
+    // enclosure.first_expr and enclosure.last_expr ArenaRefs are contiguous
+    ExpressionVector vec = {0};
+    expression_vector_append(&vec, first_expr);
+    while (parser_peek_next_token(parser).type != closing_token_type) {
+        parser_expect_token_type(parser, TOK_COMMA);
+        // beware trailing comma
+        if (parser_peek_next_token(parser).type == closing_token_type) break;
+        expression_vector_append(&vec, parse_expression(parser));
+    }
+    parser_expect_token_type(parser, closing_token_type);
+    EnclosureType type =
+        (closing_token_type == TOK_CLOSE_PARENS) ? ENCLOSURE_TUPLE : ENCLOSURE_DICT;
+    Enclosure enclosure = {
+        .type = type, .first_expr = arena_put_expression(parser->arena, vec.buf[0])};
+    ArenaRef ref;
+    for (size_t i = 1; i < vec.length; i++)
+        ref = arena_put_expression(parser->arena, vec.buf[i]);
+    enclosure.last_expr = ref;
+    Operand op = {
+        .kind = OPERAND_ENCLOSURE_LITERAL,
+        .ref = arena_put_enclosure(parser->arena, enclosure)};
+    expression_vector_free(&vec);
+    return op;
+}
+
+static Operand
+parse_arguments(Parser* parser)
+{
+    Token begin_args = parser->token;
+    Arguments args = {0};
+    size_t n_kwds = 0;
+    while (true) {
+        Token token = parser_get_next_token(parser);
+        if (token.type == TOK_CLOSE_PARENS)
+            break;
+        else if (args.length == MAX_ARGUMENTS) {
+            SYNTAX_ERRORF(
+                begin_args.loc, "maximum arguments (%u) exceeded", MAX_ARGUMENTS
+            );
+        }
+        Token next = parser_peek_next_token(parser);
+        // keyword argument
+        if (next.type == TOK_OPERATOR && next.value_ref == OPERATOR_ASSIGNMENT) {
+            args.kwds[n_kwds++] = token;
+            parser_get_next_token(parser);  // consume assignment op
+            args.value_refs[args.length++] =
+                arena_put_expression(parser->arena, parse_expression(parser));
+        }
+        // positional argument
+        else {
+            args.value_refs[args.length++] =
+                arena_put_expression(parser->arena, parse_expression(parser));
+            args.n_positional++;
+        }
+    }
+    Operand op = {
+        .kind = OPERAND_ARGUMENTS, .ref = arena_put_arguments(parser->arena, args)};
+    return op;
+}
+
+static Operand
+parse_getitem_arguments(Parser* parser)
+{
+    UNIMPLEMENTED("getitem args parsing is not implemented");
+}
+
+static inline Token
+parser_expect_keyword(Parser* parser, Keyword kw)
+{
+    Token tok = parser_get_next_token(parser);
+    if (tok.type != TOK_KEYWORD || tok.value_ref != kw)
+        SYNTAX_ERRORF(tok.loc, "expected keyword `%s`", kw_to_cstr(kw));
+    return tok;
+}
+
+static inline Token
+parser_expect_token_type(Parser* parser, TokenType type)
+{
+    Token tok = parser_get_next_token(parser);
+    if (tok.type != type)
+        SYNTAX_ERRORF(tok.loc, "expected token type `%s`", token_type_to_cstr(type));
+    return tok;
 }
 
 #define INTERMEDIATE_TABLE_MAX EXPRESSION_MAX_OPERATIONS
@@ -363,40 +738,52 @@ parse_expression(Parser* parser)
                 expr.operands[operand_index].kind = OPERAND_TOKEN;
                 expr.operands[operand_index++].token = tok;
                 break;
-            case TOK_OPEN_PARENS:
-                // TODO incomplete
-                parser->open_parens++;
+            case TOK_IDENTIFIER:
+                expr.operands[operand_index].kind = OPERAND_TOKEN;
+                expr.operands[operand_index++].token = tok;
                 break;
-            case TOK_CLOSE_PARENS:
-                // TODO incomplete
-                if (parser->open_parens == 0)
-                    SYNTAX_ERROR(tok.loc, "no matching `(`");
-                else
-                    parser->open_parens--;
+            case TOK_OPEN_PARENS:
+                if (parser->previous.type == TOK_OPERATOR || operand_index == 0)
+                    expr.operands[operand_index++] = parse_sequence_enclosure(parser);
+                else {
+                    unsigned int prec = PRECENDENCE_TABLE[OPERATOR_CALL];
+                    Operation* operation =
+                        &by_prec[prec].operations[by_prec[prec].length++];
+                    operation->left = operand_index - 1;
+                    operation->right = operand_index;
+                    operation->op_type = OPERATOR_CALL;
+                    expr.operands[operand_index++] = parse_arguments(parser);
+                }
                 break;
             case TOK_OPEN_SQUARE:
-                // TODO incomplete
-                parser->open_square++;
-                break;
-            case TOK_CLOSE_SQUARE:
-                // TODO incomplete
-                if (parser->open_square == 0)
-                    SYNTAX_ERROR(tok.loc, "no matching `[`");
-                else
-                    parser->open_square--;
+                if (parser->previous.type == TOK_OPERATOR || operand_index == 0)
+                    expr.operands[operand_index++] = parse_sequence_enclosure(parser);
+                else {
+                    unsigned int prec = PRECENDENCE_TABLE[OPERATOR_GET_ITEM];
+                    Operation* operation =
+                        &by_prec[prec].operations[by_prec[prec].length++];
+                    operation->left = operand_index - 1;
+                    operation->right = operand_index;
+                    operation->op_type = OPERATOR_GET_ITEM;
+                    expr.operands[operand_index++] = parse_getitem_arguments(parser);
+                }
                 break;
             case TOK_OPEN_CURLY:
-                // TODO incomplete
-                parser->open_curly++;
+                expr.operands[operand_index++] = parse_mapped_enclosure(parser);
                 break;
-            case TOK_CLOSE_CURLY:
-                // TODO incomplete
-                if (parser->open_curly == 0)
-                    SYNTAX_ERROR(tok.loc, "no matching `{`");
-                else
-                    parser->open_curly--;
+            case TOK_DOT: {
+                unsigned int prec = PRECENDENCE_TABLE[OPERATOR_GET_ATTR];
+                Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
+                operation->left = operand_index - 1;
+                operation->right = operand_index;
+                operation->op_type = OPERATOR_GET_ITEM;
+                expr.operands[operand_index].kind = OPERAND_TOKEN;
+                expr.operands[operand_index++].token =
+                    parser_expect_token_type(parser, TOK_IDENTIFIER);
                 break;
+            }
             default:
+                fprintf(stderr, "token: %s\n", token_type_to_cstr(tok.type));
                 UNIMPLEMENTED("no implementation for token");
         };
         assert(operand_index != EXPRESSION_MAX_OPERATIONS + 1);
@@ -412,24 +799,6 @@ parse_expression(Parser* parser)
     }
 
     return expr;
-}
-
-static inline Token
-parser_expect_keyword(Parser* parser, Keyword kw)
-{
-    Token tok = parser_get_next_token(parser);
-    if (tok.type != TOK_KEYWORD || tok.value_ref != kw)
-        SYNTAX_ERRORF(tok.loc, "expected keyword `%s`", kw_to_cstr(kw));
-    return tok;
-}
-
-static inline Token
-parser_expect_token_type(Parser* parser, TokenType type)
-{
-    Token tok = parser_get_next_token(parser);
-    if (tok.type != type)
-        SYNTAX_ERRORF(tok.loc, "expected token type `%s`", token_type_to_cstr(type));
-    return tok;
 }
 
 static Statement

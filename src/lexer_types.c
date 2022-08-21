@@ -41,7 +41,7 @@ kw_to_cstr(Keyword kw)
     return kw_hashtable[kw];
 }
 
-const bool IS_ASSIGNMENT_OP[70] = {
+const bool IS_ASSIGNMENT_OP[OPERATOR_TABLE_MAX] = {
     [OPERATOR_ASSIGNMENT] = true,
     [OPERATOR_PLUS_ASSIGNMENT] = true,
     [OPERATOR_MINUS_ASSIGNMENT] = true,
@@ -57,7 +57,7 @@ const bool IS_ASSIGNMENT_OP[70] = {
     [OPERATOR_LSHIFT_ASSIGNMENT] = true,
 };
 
-const unsigned int PRECENDENCE_TABLE[70] = {
+const unsigned int PRECENDENCE_TABLE[OPERATOR_TABLE_MAX] = {
     [OPERATOR_PLUS] = 11,
     [OPERATOR_MINUS] = 11,
     [OPERATOR_MULT] = 12,
@@ -90,9 +90,12 @@ const unsigned int PRECENDENCE_TABLE[70] = {
     [OPERATOR_BITWISE_NOT] = 0,
     [OPERATOR_LSHIFT] = 10,
     [OPERATOR_RSHIFT] = 10,
+    [OPERATOR_CALL] = 16,
+    [OPERATOR_GET_ITEM] = 16,
+    [OPERATOR_GET_ATTR] = 16,
 };
 
-const char* OP_TO_CSTR_TABLE[70] = {
+const char* OP_TO_CSTR_TABLE[OPERATOR_TABLE_MAX] = {
     [OPERATOR_PLUS] = "+",
     [OPERATOR_MINUS] = "-",
     [OPERATOR_MULT] = "*",
@@ -125,6 +128,9 @@ const char* OP_TO_CSTR_TABLE[70] = {
     [OPERATOR_BITWISE_NOT] = "~",
     [OPERATOR_LSHIFT] = "<<",
     [OPERATOR_RSHIFT] = ">>",
+    [OPERATOR_CALL] = "__call__",
+    [OPERATOR_GET_ITEM] = "__getitem__",
+    [OPERATOR_GET_ATTR] = "__getattr__",
 };
 
 Operator
@@ -132,7 +138,7 @@ op_from_cstr(char* op)
 {
     size_t hash = op[0];
     for (size_t i = 0; op[i] != '\0'; i++) hash += op[i];
-    return (Operator)hash % 70;
+    return (Operator)hash % OPERATOR_TABLE_MAX;
 }
 
 const char*

@@ -33,6 +33,9 @@ OPS = {
     "OPERATOR_BITWISE_NOT": {"value": "~", "precedence": 0},
     "OPERATOR_LSHIFT": {"value": "<<", "precedence": 10},
     "OPERATOR_RSHIFT": {"value": ">>", "precedence": 10},
+    "OPERATOR_CALL": {"value": "__call__", "precedence": 16},
+    "OPERATOR_GET_ITEM": {"value": "__getitem__", "precedence": 16},
+    "OPERATOR_GET_ATTR": {"value": "__getattr__", "precedence": 16},
 }
 
 
@@ -67,6 +70,8 @@ def main():
         if dict_["precedence"] > max_precendence:
             max_precendence = dict_["precedence"]
 
+    print(f"#define OPERATOR_TABLE_MAX {total_length}")
+    print("")
     print("typedef enum {")
     for op_name, op_dict in OPS.items():
         print(f"    {op_name} = {op_hash(op_dict['value'], redundancy)},")
@@ -75,24 +80,24 @@ def main():
     print("Operator op_from_cstr(char* op) {")
     print("    size_t hash = op[0];")
     print(r"    for (size_t i = 0; op[i] != '\0'; i++) hash += op[i];")
-    print(f"    return (Operator) hash % {total_length};")
+    print("    return (Operator) hash % OPERATOR_TABLE_MAX;")
     print("}")
     print("")
-    print(f"const bool IS_ASSIGNMENT_OP[{total_length}] = {{")
+    print("const bool IS_ASSIGNMENT_OP[OPERATOR_TABLE_MAX] = {")
     for op_name, op_dict in OPS.items():
         if "ASSIGNMENT" not in op_name:
             continue
         print(f"    [{op_name}] = true,")
     print("};")
     print("")
-    print(f"const unsigned int PRECENDENCE_TABLE[{total_length}] = {{")
+    print("const unsigned int PRECENDENCE_TABLE[OPERATOR_TABLE_MAX] = {")
     for op_name, op_dict in OPS.items():
         print(f"    [{op_name}] = {op_dict['precedence']},")
     print("};")
     print("")
     print(f"#define MAX_PRECEDENCE {max_precendence}")
     print("")
-    print(f"const char* OP_TO_CSTR_TABLE[{total_length}] = {{")
+    print("const char* OP_TO_CSTR_TABLE[OPERATOR_TABLE_MAX] = {")
     for op_name, op_dict in OPS.items():
         print(f"    [{op_name}] = \"{op_dict['value']}\",")
     print("};")
