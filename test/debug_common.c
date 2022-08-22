@@ -79,6 +79,8 @@ render_enclosure_closing(StringBuffer* str, EnclosureType type)
 static void
 render_operand(StringBuffer* str, Operand op)
 {
+    StringBuffer expr;
+
     switch (op.kind) {
         case OPERAND_TOKEN:
             str_concat_cstr(str, arena_get_string(arena, op.token.value_ref));
@@ -109,7 +111,6 @@ render_operand(StringBuffer* str, Operand op)
             break;
         }
         case OPERAND_COMPREHENSION: {
-            StringBuffer expr;
             Comprehension comp = arena_get_comprehension(arena, op.ref);
             bool is_map = (comp.type == ENCLOSURE_DICT);
             str_append_char(str, '\n');
@@ -139,9 +140,29 @@ render_operand(StringBuffer* str, Operand op)
             render_enclosure_closing(str, comp.type);
             break;
         }
-        case OPERAND_ARGUMENTS:
-            assert(0 && "debug print for arguments is not implemented");
+        case OPERAND_ARGUMENTS: {
+            str_append_char(str, '(');
+            Arguments args = arena_get_arguments(arena, op.ref);
+            size_t positional = 0;
+            size_t kwds = 0;
+            for (size_t i = 0; i < args.length; i++) {
+                if (i > 0) str_concat_cstr(str, ", ");
+                if (positional++ < args.n_positional) {
+                    expr = render_expr(arena_get_expression(arena, args.value_refs[i]));
+                    str_concat(str, &expr);
+                }
+                else {
+                    str_concat_cstr(
+                        str, arena_get_string(arena, args.kwds[kwds++].value_ref)
+                    );
+                    str_append_char(str, '=');
+                    expr = render_expr(arena_get_expression(arena, args.value_refs[i]));
+                    str_concat(str, &expr);
+                }
+            }
+            str_append_char(str, ')');
             break;
+        }
         default:
             assert(0 && "not implemented");
     }

@@ -344,7 +344,19 @@ peek_next_token(Parser* parser)
     Token token = arena_get_token(parser->arena, parser->current_token_index);
     if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
     if (IS_WITHIN_ENCLOSURE(parser)) {
-        while (token.type == TOK_NEWLINE) token = arena_get_token(parser->arena, index++);
+        while (token.type == TOK_NEWLINE) token = arena_get_token(parser->arena, ++index);
+    }
+    return token;
+}
+
+static inline Token
+peek_forward_n_tokens(Parser* parser, size_t n)
+{
+    ArenaRef index = parser->current_token_index + n;
+    Token token = arena_get_token(parser->arena, index);
+    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
+    if (IS_WITHIN_ENCLOSURE(parser)) {
+        while (token.type == TOK_NEWLINE) token = arena_get_token(parser->arena, ++index);
     }
     return token;
 }
@@ -360,15 +372,9 @@ is_end_of_expression(Parser* parser)
             return (!parser->inside_getitem);
         case TOK_NEWLINE:
             return true;
-        case TOK_OPEN_PARENS:
-            return true;
         case TOK_CLOSE_PARENS:
             return true;
-        case TOK_OPEN_SQUARE:
-            return true;
         case TOK_CLOSE_SQUARE:
-            return true;
-        case TOK_OPEN_CURLY:
             return true;
         case TOK_CLOSE_CURLY:
             return true;
@@ -669,24 +675,33 @@ parse_arguments(Parser* parser)
     Arguments args = {0};
     size_t n_kwds = 0;
     while (true) {
-        Token token = get_next_token(parser);
-        if (token.type == TOK_CLOSE_PARENS)
+        if (peek_next_token(parser).type == TOK_CLOSE_PARENS) {
+            get_next_token(parser);
             break;
+        }
         else if (args.length == MAX_ARGUMENTS) {
             SYNTAX_ERRORF(
                 begin_args.loc, "maximum arguments (%u) exceeded", MAX_ARGUMENTS
             );
         }
-        Token next = peek_next_token(parser);
+        else if (args.length > 0)
+            expect_token_type(parser, TOK_COMMA);
+        Token next = peek_forward_n_tokens(parser, 1);
         // keyword argument
         if (next.type == TOK_OPERATOR && next.value_ref == OPERATOR_ASSIGNMENT) {
-            args.kwds[n_kwds++] = token;
+            args.kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
             get_next_token(parser);  // consume assignment op
             args.value_refs[args.length++] =
                 arena_put_expression(parser->arena, parse_expression(parser));
         }
         // positional argument
         else {
+            if (n_kwds > 0) {
+                SYNTAX_ERROR(
+                    get_next_token(parser).loc,
+                    "positional arguments must come before keyword arguments"
+                );
+            }
             args.value_refs[args.length++] =
                 arena_put_expression(parser->arena, parse_expression(parser));
             args.n_positional++;
@@ -799,7 +814,7 @@ parse_expression(Parser* parser)
                 Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
                 operation->left = operand_index - 1;
                 operation->right = operand_index;
-                operation->op_type = OPERATOR_GET_ITEM;
+                operation->op_type = OPERATOR_GET_ATTR;
                 expr.operands[operand_index].kind = OPERAND_TOKEN;
                 expr.operands[operand_index++].token =
                     expect_token_type(parser, TOK_IDENTIFIER);
