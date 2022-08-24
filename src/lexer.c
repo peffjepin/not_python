@@ -282,7 +282,6 @@ typedef struct {
     unsigned int open_parens;
     unsigned int open_square;
     unsigned int open_curly;
-    bool inside_getitem;
 } Parser;
 
 #define IS_WITHIN_ENCLOSURE(parser)                                                      \
@@ -369,7 +368,7 @@ is_end_of_expression(Parser* parser)
         case TOK_OPERATOR:
             return (IS_ASSIGNMENT_OP[token.value_ref]);
         case TOK_COLON:
-            return (!parser->inside_getitem);
+            return true;
         case TOK_NEWLINE:
             return true;
         case TOK_CLOSE_PARENS:
@@ -715,7 +714,81 @@ parse_arguments(Parser* parser)
 static Operand
 parse_getitem_arguments(Parser* parser)
 {
-    UNIMPLEMENTED("getitem args parsing is not implemented");
+    Slice slice = {0};
+    Operand op = {0};
+    Token peek = peek_next_token(parser);
+    Token next;
+    // []
+    if (peek.type == TOK_CLOSE_SQUARE)
+        SYNTAX_ERROR(peek.loc, "some argument is require for the getitem operator");
+    // [:...
+    else if (peek.type == TOK_COLON) {
+        get_next_token(parser);
+        slice.use_default_start = true;
+        goto slice_stop_expr;
+    }
+    // [expr1...
+    else {
+        Expression first_expr = parse_expression(parser);
+        next = get_next_token(parser);
+        // [expr1]
+        if (next.type == TOK_CLOSE_SQUARE) {
+            op.kind = OPERAND_EXPRESSION;
+            op.ref = arena_put_expression(parser->arena, first_expr);
+            return op;
+        }
+        // [expr1:...
+        else if (next.type == TOK_COLON) {
+            slice.start_expr_ref = arena_put_expression(parser->arena, first_expr);
+            goto slice_stop_expr;
+        }
+        else
+            SYNTAX_ERROR(next.loc, "expected either `:` or `]`");
+    }
+slice_stop_expr:
+    // [...:...
+    peek = peek_next_token(parser);
+    // [...:]
+    if (peek.type == TOK_CLOSE_SQUARE) {
+        get_next_token(parser);
+        slice.use_default_stop = true;
+        slice.use_default_step = true;
+        goto return_slice_operand;
+    }
+    // [...::...
+    if (peek.type == TOK_COLON) {
+        get_next_token(parser);
+        slice.use_default_stop = true;
+        goto slice_step_expr;
+    }
+    // [...:expr2...
+    slice.stop_expr_ref = arena_put_expression(parser->arena, parse_expression(parser));
+    next = get_next_token(parser);
+    // [...:expr2:...
+    if (next.type == TOK_COLON) goto slice_step_expr;
+    // [...:expr2]
+    else if (next.type == TOK_CLOSE_SQUARE) {
+        slice.use_default_step = true;
+        goto return_slice_operand;
+    }
+    else
+        SYNTAX_ERROR(next.loc, "expected either `:` or `]`");
+slice_step_expr:
+    // [...:...:...
+    peek = peek_next_token(parser);
+    // [...:...:]
+    if (peek.type == TOK_CLOSE_SQUARE) {
+        get_next_token(parser);
+        slice.use_default_step = true;
+        goto return_slice_operand;
+    }
+    // [...:...:expr3]
+    slice.step_expr_ref = arena_put_expression(parser->arena, parse_expression(parser));
+    expect_token_type(parser, TOK_CLOSE_SQUARE);
+return_slice_operand:
+    op.ref = arena_put_slice(parser->arena, slice);
+    op.kind = OPERAND_SLICE;
+    return op;
 }
 
 static inline Token
@@ -795,7 +868,6 @@ parse_expression(Parser* parser)
                 if (parser->previous.type == TOK_OPERATOR || operand_index == 0)
                     expr.operands[operand_index++] = parse_sequence_enclosure(parser);
                 else {
-                    parser->inside_getitem = true;
                     unsigned int prec = PRECENDENCE_TABLE[OPERATOR_GET_ITEM];
                     Operation* operation =
                         &by_prec[prec].operations[by_prec[prec].length++];
@@ -803,7 +875,6 @@ parse_expression(Parser* parser)
                     operation->right = operand_index;
                     operation->op_type = OPERATOR_GET_ITEM;
                     expr.operands[operand_index++] = parse_getitem_arguments(parser);
-                    parser->inside_getitem = false;
                 }
                 break;
             case TOK_OPEN_CURLY:

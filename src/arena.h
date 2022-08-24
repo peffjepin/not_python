@@ -27,6 +27,9 @@ typedef struct {
     Comprehension* comprehensions;
     size_t comprehensions_capacity;
     size_t comprehensions_count;
+    Slice* slices;
+    size_t slices_capacity;
+    size_t slices_count;
     char* strings_buffer;
     size_t strings_buffer_capacity;
     size_t strings_buffer_write_head;
@@ -49,6 +52,9 @@ Enclosure arena_get_enclosure(Arena* arena, ArenaRef ref);
 
 ArenaRef arena_put_comprehension(Arena* arena, Comprehension comp);
 Comprehension arena_get_comprehension(Arena* arena, ArenaRef ref);
+
+ArenaRef arena_put_slice(Arena* arena, Slice slice);
+Slice arena_get_slice(Arena* arena, ArenaRef ref);
 
 ArenaRef arena_put_string(Arena* arena, char* string);
 char* arena_get_string(Arena* arena, ArenaRef ref);

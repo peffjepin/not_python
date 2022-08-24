@@ -160,6 +160,28 @@ arena_get_comprehension(Arena* arena, ArenaRef ref)
     return arena->comprehensions[ref];
 }
 
+ArenaRef
+arena_put_slice(Arena* arena, Slice slice)
+{
+    if (arena->slices_count == arena->slices_capacity) {
+        arena->slices_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->slices = realloc(arena->slices, sizeof(Slice) * (arena->slices_capacity));
+        if (!arena->slices) out_of_memory();
+    }
+    arena->slices[arena->slices_count] = slice;
+    return arena->slices_count++;
+}
+
+Slice
+arena_get_slice(Arena* arena, ArenaRef ref)
+{
+    if (ref >= arena->slices_count) {
+        fprintf(stderr, "slice ref out of range\n");
+        exit(1);
+    }
+    return arena->slices[ref];
+}
+
 // TODO: handle duplicate strings
 // TODO: often strlen is already known -- implement arena_put_stringl
 ArenaRef

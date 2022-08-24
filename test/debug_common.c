@@ -163,6 +163,38 @@ render_operand(StringBuffer* str, Operand op)
             str_append_char(str, ')');
             break;
         }
+        case OPERAND_SLICE: {
+            str_concat_cstr(str, "slice(");
+            Slice slice = arena_get_slice(arena, op.ref);
+            bool need_comma = false;
+            if (!slice.use_default_start) {
+                str_concat_cstr(str, "start=");
+                expr = render_expr(arena_get_expression(arena, slice.start_expr_ref));
+                str_concat(str, &expr);
+                need_comma = true;
+            }
+            if (!slice.use_default_stop) {
+                if (need_comma) {
+                    str_concat_cstr(str, ", ");
+                    need_comma = false;
+                }
+                str_concat_cstr(str, "stop=");
+                expr = render_expr(arena_get_expression(arena, slice.stop_expr_ref));
+                str_concat(str, &expr);
+                need_comma = true;
+            }
+            if (!slice.use_default_step) {
+                if (need_comma) {
+                    str_concat_cstr(str, ", ");
+                }
+                str_concat_cstr(str, "step=");
+                expr = render_expr(arena_get_expression(arena, slice.step_expr_ref));
+                str_concat(str, &expr);
+                need_comma = true;
+            }
+            str_append_char(str, ')');
+            break;
+        }
         default:
             assert(0 && "not implemented");
     }

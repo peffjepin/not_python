@@ -9,9 +9,11 @@ typedef enum {
     OPERAND_ENCLOSURE_LITERAL,
     OPERAND_COMPREHENSION,
     OPERAND_TOKEN,
-    OPERAND_ARGUMENTS
+    OPERAND_ARGUMENTS,
+    OPERAND_SLICE,
 } OperandKind;
 
+// TODO: just use a reference for token
 typedef struct {
     OperandKind kind;
     union {
@@ -42,6 +44,17 @@ typedef struct {
     size_t length;
     size_t n_positional;
 } Arguments;
+
+typedef struct {
+    // either use default
+    bool use_default_start;
+    bool use_default_stop;
+    bool use_default_step;
+    // or provide a ref
+    ArenaRef start_expr_ref;
+    ArenaRef stop_expr_ref;
+    ArenaRef step_expr_ref;
+} Slice;
 
 typedef enum {
     ENCLOSURE_LIST,
