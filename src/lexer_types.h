@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "aliases.h"
+
 typedef enum {
     NOT_A_KEYWORD = 0,
     KW_AND = 17,
@@ -123,8 +125,10 @@ typedef struct {
 typedef struct {
     Location loc;
     TokenType type;
-    size_t id;
-    size_t value_ref;
+    union {
+        int value;
+        ArenaRef ref;
+    };
 } Token;
 
 #endif

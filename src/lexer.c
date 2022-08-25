@@ -202,11 +202,11 @@ tokenize_word(Scanner* scanner)
     scanner->buf[scanner->buflen] = '\0';
     Keyword kw;
     if ((kw = is_keyword(scanner->buf))) {
-        scanner->token.value_ref = kw;
+        scanner->token.value = kw;
         scanner->token.type = TOK_KEYWORD;
     }
     else {
-        scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf);
+        scanner->token.ref = arena_put_string(scanner->arena, scanner->buf);
         scanner->token.type = TOK_IDENTIFIER;
     }
 }
@@ -221,7 +221,7 @@ tokenize_numeric(Scanner* scanner)
     }
     scanner_ungetc(scanner);
     scanner->buf[scanner->buflen] = '\0';
-    scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf);
+    scanner->token.ref = arena_put_string(scanner->arena, scanner->buf);
     scanner->token.type = TOK_NUMBER;
 }
 
@@ -241,7 +241,7 @@ tokenize_string_literal(Scanner* scanner)
         }
     }
     scanner->buf[scanner->buflen - 1] = '\0';
-    scanner->token.value_ref = arena_put_string(scanner->arena, scanner->buf + 1);
+    scanner->token.ref = arena_put_string(scanner->arena, scanner->buf + 1);
     scanner->token.type = TOK_STRING;
 }
 
@@ -253,7 +253,7 @@ tokenize_operator(Scanner* scanner)
         ;
     scanner_ungetc(scanner);
     scanner->buf[scanner->buflen] = '\0';
-    scanner->token.value_ref = op_from_cstr(scanner->buf);
+    scanner->token.value = op_from_cstr(scanner->buf);
     scanner->token.type = TOK_OPERATOR;
 }
 
@@ -268,6 +268,9 @@ should_tokenize_newlines(Scanner* scanner)
 static void
 scan_token(Scanner* scanner)
 {
+    // TODO: when scanner finishes we should check that all `([{` have been closed
+    //       in addition we should probably have the location of the opening token
+    //       saved so that we can provide a decent syntax error message.
     scanner->buflen = 0;
     memset(&scanner->token, 0, sizeof(Token));
 
@@ -334,7 +337,7 @@ is_end_of_expression(Parser* parser)
     Token token = peek_next_token(parser);
     switch (token.type) {
         case TOK_OPERATOR:
-            return (IS_ASSIGNMENT_OP[token.value_ref]);
+            return (IS_ASSIGNMENT_OP[token.value]);
         case TOK_COLON:
             return true;
         case TOK_NEWLINE:
@@ -420,7 +423,7 @@ parse_comprehension_loops(
         iterables[nesting++] = arena_put_expression(parser->arena, iterable);
         // potentially another nested for loop
         next = peek_next_token(parser);
-    } while (next.type == TOK_KEYWORD && next.value_ref == KW_FOR);
+    } while (next.type == TOK_KEYWORD && next.value == KW_FOR);
     return nesting;
 }
 
@@ -597,7 +600,7 @@ parse_sequence_enclosure(Parser* parser)
         return op;
     }
 
-    else if (peek.type == TOK_KEYWORD && peek.value_ref == KW_FOR) {
+    else if (peek.type == TOK_KEYWORD && peek.value == KW_FOR) {
         Comprehension comp = parse_sequence_comprehension(
             parser, opening_token.loc, first_expr, closing_token_type
         );
@@ -655,7 +658,7 @@ parse_arguments(Parser* parser)
             expect_token_type(parser, TOK_COMMA);
         Token next = peek_forward_n_tokens(parser, 1);
         // keyword argument
-        if (next.type == TOK_OPERATOR && next.value_ref == OPERATOR_ASSIGNMENT) {
+        if (next.type == TOK_OPERATOR && next.value == OPERATOR_ASSIGNMENT) {
             args.kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
             get_next_token(parser);  // consume assignment op
             args.value_refs[args.length++] =
@@ -763,7 +766,7 @@ static inline Token
 expect_keyword(Parser* parser, Keyword kw)
 {
     Token tok = get_next_token(parser);
-    if (tok.type != TOK_KEYWORD || tok.value_ref != kw)
+    if (tok.type != TOK_KEYWORD || (Keyword)tok.value != kw)
         SYNTAX_ERRORF(tok.loc, "expected keyword `%s`", kw_to_cstr(kw));
     return tok;
 }
@@ -800,11 +803,11 @@ parse_expression(Parser* parser)
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
-                unsigned int prec = PRECENDENCE_TABLE[tok.value_ref];
+                unsigned int prec = PRECENDENCE_TABLE[tok.value];
                 Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
                 operation->left = operand_index - 1;
                 operation->right = operand_index;
-                operation->op_type = tok.value_ref;
+                operation->op_type = tok.value;
                 break;
             }
             case TOK_NUMBER:
@@ -888,7 +891,7 @@ parse_for_loop_instruction(Parser* parser)
     Token tok = expect_keyword(parser, KW_FOR);
 
     tok = expect_token_type(parser, TOK_IDENTIFIER);
-    stmt.for_loop.it_ref = tok.value_ref;
+    stmt.for_loop.it_ref = tok.ref;
 
     tok = expect_keyword(parser, KW_IN);
     stmt.for_loop.expr_ref =
@@ -916,7 +919,7 @@ parse_statement(Parser* parser)
 
     Token first_token = peek_next_token(parser);
     if (first_token.type == TOK_KEYWORD) {
-        switch (first_token.value_ref) {
+        switch (first_token.value) {
             case KW_FOR:
                 return parse_for_loop_instruction(parser);
             default:

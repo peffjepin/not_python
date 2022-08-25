@@ -83,7 +83,7 @@ render_operand(StringBuffer* str, Operand op)
 
     switch (op.kind) {
         case OPERAND_TOKEN:
-            str_concat_cstr(str, arena_get_string(arena, op.token.value_ref));
+            str_concat_cstr(str, arena_get_string(arena, op.token.ref));
             break;
         case OPERAND_EXPRESSION: {
             StringBuffer rendered_expr = render_expr(arena_get_expression(arena, op.ref));
@@ -152,9 +152,7 @@ render_operand(StringBuffer* str, Operand op)
                     str_concat(str, &expr);
                 }
                 else {
-                    str_concat_cstr(
-                        str, arena_get_string(arena, args.kwds[kwds++].value_ref)
-                    );
+                    str_concat_cstr(str, arena_get_string(arena, args.kwds[kwds++].ref));
                     str_append_char(str, '=');
                     expr = render_expr(arena_get_expression(arena, args.value_refs[i]));
                     str_concat(str, &expr);
@@ -281,14 +279,14 @@ print_token(Token tok)
     printf("%s:%u:%u ", tok.loc.filename, tok.loc.line, tok.loc.col);
     print_token_type(tok.type);
     if (tok.type == TOK_OPERATOR) {
-        printf(": %s", op_to_cstr(tok.value_ref));
+        printf(": %s", op_to_cstr(tok.value));
     }
     else if (tok.type == TOK_KEYWORD) {
-        printf(": %s", kw_to_cstr(tok.value_ref));
+        printf(": %s", kw_to_cstr(tok.value));
     }
     else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
-        printf("%s", arena_get_string(arena, tok.value_ref));
+        printf("%s", arena_get_string(arena, tok.ref));
     }
     printf("\n");
 }
