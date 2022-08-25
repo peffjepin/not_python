@@ -39,6 +39,9 @@ typedef struct {
     Arena* arena;
     Token token;
     Location loc;
+    unsigned int open_parens;
+    unsigned int open_curly;
+    unsigned int open_square;
     bool finished;
     char c;
     size_t buflen;
@@ -145,21 +148,30 @@ handle_single_char_tokens(Scanner* scanner)
             scanner->loc.col = 0;
             return true;
         case '(':
+            scanner->open_parens += 1;
             scanner->token.type = TOK_OPEN_PARENS;
             return true;
         case ')':
+            if (scanner->open_parens == 0) SYNTAX_ERROR(scanner->loc, "no matching `(`");
+            scanner->open_parens -= 1;
             scanner->token.type = TOK_CLOSE_PARENS;
             return true;
         case '[':
+            scanner->open_square += 1;
             scanner->token.type = TOK_OPEN_SQUARE;
             return true;
         case ']':
+            if (scanner->open_square == 0) SYNTAX_ERROR(scanner->loc, "no matching `[`");
+            scanner->open_square -= 1;
             scanner->token.type = TOK_CLOSE_SQUARE;
             return true;
         case '{':
+            scanner->open_curly += 1;
             scanner->token.type = TOK_OPEN_CURLY;
             return true;
         case '}':
+            if (scanner->open_curly == 0) SYNTAX_ERROR(scanner->loc, "no matching `{`");
+            scanner->open_curly -= 1;
             scanner->token.type = TOK_CLOSE_CURLY;
             return true;
         case ':':
@@ -245,6 +257,14 @@ tokenize_operator(Scanner* scanner)
     scanner->token.type = TOK_OPERATOR;
 }
 
+static inline bool
+should_tokenize_newlines(Scanner* scanner)
+{
+    return (
+        scanner->open_parens == 0 && scanner->open_square == 0 && scanner->open_curly == 0
+    );
+}
+
 static void
 scan_token(Scanner* scanner)
 {
@@ -256,6 +276,11 @@ scan_token(Scanner* scanner)
 
     skip_comments(scanner);
     if (scanner->finished) return;
+
+    if (scanner->c == '\n' && !should_tokenize_newlines(scanner)) {
+        scan_token(scanner);
+        return;
+    }
 
     // we're now at the start of a new token
     scanner->token.loc = scanner->loc;
@@ -279,13 +304,7 @@ typedef struct {
     Token previous;
     Token token;
     size_t current_token_index;
-    unsigned int open_parens;
-    unsigned int open_square;
-    unsigned int open_curly;
 } Parser;
-
-#define IS_WITHIN_ENCLOSURE(parser)                                                      \
-    (parser->open_parens != 0 || parser->open_curly != 0 || parser->open_square != 0)
 
 static inline Token
 get_next_token(Parser* parser)
@@ -293,71 +312,20 @@ get_next_token(Parser* parser)
     Token token = arena_get_token(parser->arena, parser->current_token_index++);
     parser->previous = parser->token;
     parser->token = token;
-    switch (token.type) {
-        case NULL_TOKEN:
-            UNIMPLEMENTED("waiting on tokenization");
-            break;
-        case TOK_OPEN_PARENS:
-            parser->open_parens++;
-            break;
-        case TOK_CLOSE_PARENS:
-            if (parser->open_parens == 0)
-                SYNTAX_ERROR(token.loc, "no matching `(`");
-            else
-                parser->open_parens--;
-            break;
-        case TOK_OPEN_SQUARE:
-            parser->open_square++;
-            break;
-        case TOK_CLOSE_SQUARE:
-            if (parser->open_square == 0)
-                SYNTAX_ERROR(token.loc, "no matching `[`");
-            else
-                parser->open_square--;
-            break;
-        case TOK_OPEN_CURLY:
-            parser->open_curly++;
-            break;
-        case TOK_CLOSE_CURLY:
-            if (parser->open_curly == 0)
-                SYNTAX_ERROR(token.loc, "no matching `{`");
-            else
-                parser->open_curly--;
-            break;
-        case TOK_NEWLINE:
-            if (IS_WITHIN_ENCLOSURE(parser)) {
-                // newlines are ignored within enclosures
-                return get_next_token(parser);
-            }
-            break;
-        default:
-            break;
-    }
     return token;
 }
 
 static inline Token
 peek_next_token(Parser* parser)
 {
-    ArenaRef index = parser->current_token_index;
-    Token token = arena_get_token(parser->arena, parser->current_token_index);
-    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
-    if (IS_WITHIN_ENCLOSURE(parser)) {
-        while (token.type == TOK_NEWLINE) token = arena_get_token(parser->arena, ++index);
-    }
-    return token;
+    return arena_get_token(parser->arena, parser->current_token_index);
 }
 
 static inline Token
 peek_forward_n_tokens(Parser* parser, size_t n)
 {
     ArenaRef index = parser->current_token_index + n;
-    Token token = arena_get_token(parser->arena, index);
-    if (token.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
-    if (IS_WITHIN_ENCLOSURE(parser)) {
-        while (token.type == TOK_NEWLINE) token = arena_get_token(parser->arena, ++index);
-    }
-    return token;
+    return arena_get_token(parser->arena, index);
 }
 
 static bool
