@@ -9,9 +9,6 @@
 #define ARENA_STRING_CHUNK_SIZE 4096
 
 typedef struct {
-    Token* tokens;
-    size_t tokens_capacity;
-    size_t tokens_count;
     Statement* statements;
     size_t statements_capacity;
     size_t statements_count;
@@ -33,10 +30,18 @@ typedef struct {
     char* strings_buffer;
     size_t strings_buffer_capacity;
     size_t strings_buffer_write_head;
+#if DEBUG
+    Token* tokens;
+    size_t tokens_capacity;
+    size_t tokens_count;
+#endif
 } Arena;
 
-ArenaRef arena_put_token(Arena* arena, Token token);
-Token arena_get_token(Arena* arena, ArenaRef ref);
+#if DEBUG
+void arena_put_token(Arena* arena, Token token);
+#endif
+
+void arena_free(Arena* arena);
 
 ArenaRef arena_put_statement(Arena* arena, Statement stmt);
 Statement arena_get_statement(Arena* arena, ArenaRef ref);

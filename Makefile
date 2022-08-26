@@ -10,10 +10,10 @@ clean:
 debug: debug_tokens debug_statements
 
 debug_tokens: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_tokenization.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -g $(CFLAGS) -DDEBUG=1 -o $@ $^ 
 
 debug_statements: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_statements.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) -g $(CFLAGS) -DDEBUG=1 -o $@ $^ -ggdb
 
 test: test_tokens test_statements
 

@@ -34,9 +34,48 @@
         exit(1);                                                                         \
     } while (0)
 
+void
+out_of_memory(void)
+{
+    fprintf(stderr, "ERROR: out of memory");
+    exit(1);
+}
+
+#define TOKEN_QUEUE_CAPACITY 8
+
+typedef struct {
+    size_t head;
+    size_t length;
+    Token tokens[TOKEN_QUEUE_CAPACITY];
+} TokenQueue;
+
+Token
+tq_peek(TokenQueue* tq, size_t offset)
+{
+    assert(tq->length && "peeking empty queue");
+    assert(tq->length > offset && "peeking past the end of queue");
+    return tq->tokens[(tq->head + offset) % TOKEN_QUEUE_CAPACITY];
+}
+
+Token
+tq_consume(TokenQueue* tq)
+{
+    assert(tq->length && "consuming empty queue");
+    tq->length -= 1;
+    return tq->tokens[tq->head++ % TOKEN_QUEUE_CAPACITY];
+}
+
+void
+tq_push(TokenQueue* tq, Token token)
+{
+    assert(tq->length < TOKEN_QUEUE_CAPACITY && "pushing to full queue");
+    tq->tokens[(tq->head + tq->length++) % TOKEN_QUEUE_CAPACITY] = token;
+}
+
 typedef struct {
     FILE* srcfile;
     Arena* arena;
+    TokenQueue* tq;
     Token token;
     Location loc;
     unsigned int open_parens;
@@ -109,7 +148,6 @@ skip_whitespace(Scanner* scanner)
                 scanner->token.type = TOK_EOF;
                 scanner->token.loc = scanner->loc;
                 scanner->finished = true;
-                arena_put_token(scanner->arena, scanner->token);
                 return;
             default:
                 break;
@@ -129,7 +167,6 @@ skip_comments(Scanner* scanner)
             scanner->token.type = TOK_EOF;
             scanner->token.loc = scanner->loc;
             scanner->finished = true;
-            arena_put_token(scanner->arena, scanner->token);
             return;
         }
         // replace '#' with the newline
@@ -268,19 +305,18 @@ should_tokenize_newlines(Scanner* scanner)
 static void
 scan_token(Scanner* scanner)
 {
-    // TODO: when scanner finishes we should check that all `([{` have been closed
-    //       in addition we should probably have the location of the opening token
-    //       saved so that we can provide a decent syntax error message.
     scanner->buflen = 0;
     memset(&scanner->token, 0, sizeof(Token));
 
     skip_whitespace(scanner);
-    if (scanner->finished) return;
+    if (scanner->finished) goto push_token;
 
     skip_comments(scanner);
-    if (scanner->finished) return;
+    if (scanner->finished) goto push_token;
 
     if (scanner->c == '\n' && !should_tokenize_newlines(scanner)) {
+        scanner->loc.line++;
+        scanner->loc.col = 0;
         scan_token(scanner);
         return;
     }
@@ -299,20 +335,26 @@ scan_token(Scanner* scanner)
     else
         tokenize_operator(scanner);
 
+push_token:
+    tq_push(scanner->tq, scanner->token);
+#if DEBUG
     arena_put_token(scanner->arena, scanner->token);
+#endif
 }
 
 typedef struct {
     Arena* arena;
+    Scanner* scanner;
+    TokenQueue* tq;
     Token previous;
     Token token;
-    size_t current_token_index;
 } Parser;
 
 static inline Token
 get_next_token(Parser* parser)
 {
-    Token token = arena_get_token(parser->arena, parser->current_token_index++);
+    if (!parser->tq->length) scan_token(parser->scanner);
+    Token token = tq_consume(parser->tq);
     parser->previous = parser->token;
     parser->token = token;
     return token;
@@ -321,14 +363,17 @@ get_next_token(Parser* parser)
 static inline Token
 peek_next_token(Parser* parser)
 {
-    return arena_get_token(parser->arena, parser->current_token_index);
+    if (!parser->tq->length) scan_token(parser->scanner);
+    return tq_peek(parser->tq, 0);
 }
 
 static inline Token
 peek_forward_n_tokens(Parser* parser, size_t n)
 {
-    ArenaRef index = parser->current_token_index + n;
-    return arena_get_token(parser->arena, index);
+    // TODO: should consider if we need a special case for trying to peek past EOF token
+    size_t required_scans = (n + 1) - parser->tq->length;
+    while (required_scans-- > 0) scan_token(parser->scanner);
+    return tq_peek(parser->tq, n);
 }
 
 static bool
@@ -378,10 +423,7 @@ expression_vector_append(ExpressionVector* vec, Expression expr)
         else
             vec->capacity *= 2;
         vec->buf = realloc(vec->buf, sizeof(Expression) * vec->capacity);
-        if (!vec->buf) {
-            fprintf(stderr, "ERROR: out of memory");
-            exit(1);
-        }
+        if (!vec->buf) out_of_memory();
     }
     vec->buf[vec->length++] = expr;
 }
@@ -396,10 +438,8 @@ static Expression parse_expression(Parser* parser);
 static inline Token expect_token_type(Parser* parser, TokenType type);
 static inline Token expect_keyword(Parser* parser, Keyword kw);
 
-static size_t
-parse_comprehension_loops(
-    Parser* parser, Location loc, ArenaRef* its, ArenaRef* iterables
-)
+static void
+parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
 {
     Token next;
     size_t nesting = 0;
@@ -415,16 +455,23 @@ parse_comprehension_loops(
         expect_keyword(parser, KW_FOR);
         // it
         Expression it = parse_expression(parser);
-        its[nesting] = arena_put_expression(parser->arena, it);
+        body->its[body->nesting] = arena_put_expression(parser->arena, it);
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
         Expression iterable = parse_expression(parser);
-        iterables[nesting++] = arena_put_expression(parser->arena, iterable);
+        body->iterables[body->nesting++] = arena_put_expression(parser->arena, iterable);
         // potentially another nested for loop
         next = peek_next_token(parser);
     } while (next.type == TOK_KEYWORD && next.value == KW_FOR);
-    return nesting;
+
+    // maybe has if condition at the eend
+    next = peek_next_token(parser);
+    if (next.type == TOK_KEYWORD && next.value == KW_IF) {
+        get_next_token(parser);
+        body->has_if = true;
+        body->if_expr = arena_put_expression(parser->arena, parse_expression(parser));
+    }
 }
 
 static Comprehension
@@ -437,7 +484,7 @@ parse_dict_comprehension(
         .val_expr = arena_put_expression(parser->arena, first_val),
     };
     ComprehensionBody body = {0};
-    body.nesting = parse_comprehension_loops(parser, loc, body.its, body.iterables);
+    parse_comprehension_body(parser, loc, &body);
 
     expect_token_type(parser, TOK_CLOSE_CURLY);
     Comprehension comp = {.type = ENCLOSURE_DICT, .body = body, .mapped = mapped_comp};
@@ -532,7 +579,7 @@ parse_sequence_comprehension(
         .expr = arena_put_expression(parser->arena, expr),
     };
     ComprehensionBody body = {0};
-    body.nesting = parse_comprehension_loops(parser, loc, body.its, body.iterables);
+    parse_comprehension_body(parser, loc, &body);
 
     expect_token_type(parser, closing_token);
     EnclosureType type =
@@ -906,7 +953,7 @@ static Statement
 parse_unknown_instruction(Parser* parser)
 {
     Statement stmt = {.kind = NULL_STMT};
-    parser->current_token_index++;
+    get_next_token(parser);
     return stmt;
 }
 
@@ -915,9 +962,12 @@ parse_statement(Parser* parser)
 {
     Statement stmt = {.kind = NULL_STMT};
 
-    while (peek_next_token(parser).type == TOK_NEWLINE) parser->current_token_index++;
-
     Token first_token = peek_next_token(parser);
+    while (first_token.type == TOK_NEWLINE) {
+        get_next_token(parser);
+        first_token = peek_next_token(parser);
+    }
+
     if (first_token.type == TOK_KEYWORD) {
         switch (first_token.value) {
             case KW_FOR:
@@ -927,7 +977,7 @@ parse_statement(Parser* parser)
         }
     }
     else if (first_token.type == TOK_EOF) {
-        parser->current_token_index++;
+        get_next_token(parser);
         stmt.kind = STMT_EOF;
         return stmt;
     }
@@ -936,24 +986,6 @@ parse_statement(Parser* parser)
     Expression expr = parse_expression(parser);
     stmt.expr_ref = arena_put_expression(parser->arena, expr);
     return stmt;
-}
-
-Lexer
-lexer_open(const char* filepath)
-{
-    FILE* file = fopen(filepath, "r");
-    if (!file) {
-        fprintf(stderr, "ERROR: failed to open file -- %s\n", strerror(errno));
-        exit(1);
-    }
-    Lexer lex = {.filepath = filepath, .srcfile = file};
-    return lex;
-}
-
-void
-lexer_close(Lexer* lexer)
-{
-    if ((lexer->srcfile)) fclose(lexer->srcfile);
 }
 
 // TODO: portability
@@ -968,26 +1000,48 @@ filename_offset(const char* filepath)
     return 0;
 }
 
-void
-lexer_tokenize(Lexer* lexer)
+#define LEXER_STATEMENTS_CHUNK_SIZE 64
+
+Lexer
+lex_file(const char* filepath)
 {
-    Location start = {
+    FILE* file = fopen(filepath, "r");
+    if (!file) {
+        fprintf(stderr, "ERROR: failed to open file -- %s\n", strerror(errno));
+        exit(1);
+    }
+    Lexer lexer = {0};
+    Location start_location = {
         .line = 1,
-        .filename = lexer->filepath + filename_offset(lexer->filepath),
+        .filename = filepath + filename_offset(filepath),
     };
-    Scanner scanner = {.loc = start, .arena = &lexer->arena, .srcfile = lexer->srcfile};
+    TokenQueue tq = {0};
+    Scanner scanner = {
+        .arena = &lexer.arena, .loc = start_location, .srcfile = file, .tq = &tq};
+    Parser parser = {.arena = &lexer.arena, .scanner = &scanner, .tq = &tq};
+
+    size_t statements_capacity = LEXER_STATEMENTS_CHUNK_SIZE;
+    lexer.statements = malloc(sizeof(Statement) * statements_capacity);
+    if (!lexer.statements) out_of_memory();
+
     do {
-        scan_token(&scanner);
-    } while (!scanner.finished);
+        if (lexer.n_statements >= statements_capacity) {
+            statements_capacity += LEXER_STATEMENTS_CHUNK_SIZE;
+            lexer.statements =
+                realloc(lexer.statements, sizeof(Statement) * statements_capacity);
+            if (!lexer.statements) out_of_memory();
+        }
+        lexer.statements[lexer.n_statements] = parse_statement(&parser);
+    } while (lexer.statements[lexer.n_statements++].kind != STMT_EOF);
+
+    fclose(file);
+
+    return lexer;
 }
 
 void
-lexer_parse_instructions(Lexer* lexer)
+lexer_free(Lexer* lexer)
 {
-    Parser parser = {.arena = &lexer->arena};
-    Statement stmt;
-    do {
-        stmt = parse_statement(&parser);
-        arena_put_statement(parser.arena, stmt);
-    } while (stmt.kind != STMT_EOF);
+    free(lexer->statements);
+    arena_free(&lexer->arena);
 }

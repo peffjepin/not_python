@@ -20,26 +20,24 @@ out_of_memory()
     exit(1);
 }
 
-ArenaRef
+#if DEBUG
+void
 arena_put_token(Arena* arena, Token token)
 {
     if (arena->tokens_count == arena->tokens_capacity) {
-        arena->tokens_capacity += ARENA_STRUCT_CHUNK_SIZE;
+        arena->tokens_capacity += 128;
         arena->tokens = realloc(arena->tokens, sizeof(Token) * (arena->tokens_capacity));
         if (!arena->tokens) out_of_memory();
     }
-    arena->tokens[arena->tokens_count] = token;
-    return arena->tokens_count++;
+    arena->tokens[arena->tokens_count++] = token;
 }
+#endif
 
-Token
-arena_get_token(Arena* arena, ArenaRef ref)
+void
+arena_free(Arena* arena)
 {
-    if (ref >= arena->tokens_count) {
-        Token null_token = {.type = NULL_TOKEN};
-        return null_token;
-    }
-    return arena->tokens[ref];
+    // TODO: implement after arena is reworked
+    (void)arena;
 }
 
 ArenaRef

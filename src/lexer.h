@@ -9,14 +9,12 @@
 #include "lexer_types.h"
 
 typedef struct {
-    const char* filepath;
-    FILE* srcfile;
     Arena arena;
+    size_t n_statements;
+    Statement* statements;
 } Lexer;
 
-Lexer lexer_open(const char* filepath);
-void lexer_close(Lexer* lexer);
-void lexer_tokenize(Lexer* lexer);
-void lexer_parse_instructions(Lexer* lexer);
+Lexer lex_file(const char* filepath);
+void lexer_free(Lexer* lexer);
 
 #endif

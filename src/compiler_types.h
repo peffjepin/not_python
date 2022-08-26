@@ -73,6 +73,8 @@ typedef struct {
     size_t nesting;
     ArenaRef its[MAX_COMPREHENSION_NESTING];
     ArenaRef iterables[MAX_COMPREHENSION_NESTING];
+    bool has_if;
+    ArenaRef if_expr;
 } ComprehensionBody;
 
 typedef struct {
