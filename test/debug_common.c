@@ -137,6 +137,11 @@ render_operand(StringBuffer* str, Operand op)
                 expr = render_expr(arena_get_expression(arena, comp.body.iterables[i]));
                 str_concat(str, &expr);
             }
+            if (comp.body.has_if) {
+                str_concat_cstr(str, "\n if ");
+                expr = render_expr(arena_get_expression(arena, comp.body.if_expr));
+                str_concat(str, &expr);
+            }
             render_enclosure_closing(str, comp.type);
             break;
         }
