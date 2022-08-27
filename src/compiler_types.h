@@ -1,7 +1,7 @@
 #ifndef COMPILER_TYPES_H
 #define COMPILER_TYPES_H
 
-#include "aliases.h"
+#include "forward.h"
 #include "lexer_types.h"
 
 typedef enum {
@@ -97,8 +97,7 @@ typedef struct {
 
 typedef struct {
     EnclosureType type;
-    ArenaRef first_expr;
-    ArenaRef last_expr;
+    ArenaArray expressions;
 } Enclosure;
 
 typedef enum {

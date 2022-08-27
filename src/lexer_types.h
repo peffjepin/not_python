@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "aliases.h"
+#include "forward.h"
 
 typedef enum {
     NOT_A_KEYWORD = 0,

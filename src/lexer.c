@@ -72,6 +72,8 @@ tq_push(TokenQueue* tq, Token token)
     tq->tokens[(tq->head + tq->length++) % TOKEN_QUEUE_CAPACITY] = token;
 }
 
+#define SCANNER_BUF_CAPACITY 4096
+
 typedef struct {
     FILE* srcfile;
     Arena* arena;
@@ -84,12 +86,13 @@ typedef struct {
     bool finished;
     char c;
     size_t buflen;
-    char buf[ARENA_STRING_CHUNK_SIZE];
+    char buf[SCANNER_BUF_CAPACITY];
 } Scanner;
 
 static inline void
 scanner_getc(Scanner* scanner)
 {
+    assert(scanner->buflen < SCANNER_BUF_CAPACITY && "scanner buffer overflow");
     scanner->c = fgetc(scanner->srcfile);
     scanner->buf[scanner->buflen++] = scanner->c;
     scanner->loc.col++;
@@ -99,6 +102,7 @@ scanner_getc(Scanner* scanner)
 static inline void
 scanner_ungetc(Scanner* scanner)
 {
+    assert(scanner->buflen && "ungetc from empty buffer");
     scanner->loc.col--;
     ungetc(scanner->buf[--scanner->buflen], scanner->srcfile);
 }
@@ -243,7 +247,8 @@ tokenize_word(Scanner* scanner)
         scanner->token.type = TOK_KEYWORD;
     }
     else {
-        scanner->token.ref = arena_put_string(scanner->arena, scanner->buf);
+        scanner->token.ref =
+            arena_put_memory(scanner->arena, scanner->buf, scanner->buflen + 1);
         scanner->token.type = TOK_IDENTIFIER;
     }
 }
@@ -258,7 +263,8 @@ tokenize_numeric(Scanner* scanner)
     }
     scanner_ungetc(scanner);
     scanner->buf[scanner->buflen] = '\0';
-    scanner->token.ref = arena_put_string(scanner->arena, scanner->buf);
+    scanner->token.ref =
+        arena_put_memory(scanner->arena, scanner->buf, scanner->buflen + 1);
     scanner->token.type = TOK_NUMBER;
 }
 
@@ -278,7 +284,8 @@ tokenize_string_literal(Scanner* scanner)
         }
     }
     scanner->buf[scanner->buflen - 1] = '\0';
-    scanner->token.ref = arena_put_string(scanner->arena, scanner->buf + 1);
+    scanner->token.ref =
+        arena_put_memory(scanner->arena, scanner->buf + 1, scanner->buflen - 1);
     scanner->token.type = TOK_STRING;
 }
 
@@ -455,12 +462,14 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
         expect_keyword(parser, KW_FOR);
         // it
         Expression it = parse_expression(parser);
-        body->its[body->nesting] = arena_put_expression(parser->arena, it);
+        body->its[body->nesting] =
+            arena_put_memory(parser->arena, &it, sizeof(Expression));
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
         Expression iterable = parse_expression(parser);
-        body->iterables[body->nesting++] = arena_put_expression(parser->arena, iterable);
+        body->iterables[body->nesting++] =
+            arena_put_memory(parser->arena, &iterable, sizeof(Expression));
         // potentially another nested for loop
         next = peek_next_token(parser);
     } while (next.type == TOK_KEYWORD && next.value == KW_FOR);
@@ -469,8 +478,9 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
     next = peek_next_token(parser);
     if (next.type == TOK_KEYWORD && next.value == KW_IF) {
         get_next_token(parser);
+        Expression expr = parse_expression(parser);
         body->has_if = true;
-        body->if_expr = arena_put_expression(parser->arena, parse_expression(parser));
+        body->if_expr = arena_put_memory(parser->arena, &expr, sizeof(Expression));
     }
 }
 
@@ -480,8 +490,8 @@ parse_dict_comprehension(
 )
 {
     MappedComprehension mapped_comp = {
-        .key_expr = arena_put_expression(parser->arena, first_key),
-        .val_expr = arena_put_expression(parser->arena, first_val),
+        .key_expr = arena_put_memory(parser->arena, &first_key, sizeof(Expression)),
+        .val_expr = arena_put_memory(parser->arena, &first_val, sizeof(Expression)),
     };
     ComprehensionBody body = {0};
     parse_comprehension_body(parser, loc, &body);
@@ -501,37 +511,39 @@ parse_mapped_enclosure(Parser* parser)
         get_next_token(parser);
         Enclosure enclosure = {
             .type = ENCLOSURE_DICT,
-            .first_expr = 1,
-            .last_expr = 0,
+            .expressions.length = 0,
         };
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
-            .ref = arena_put_enclosure(parser->arena, enclosure)};
+            .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure))};
         return op;
     }
 
-    Expression first_key = parse_expression(parser);
+    ExpressionVector vec = {0};
+    expression_vector_append(&vec, parse_expression(parser));
     expect_token_type(parser, TOK_COLON);
-    Expression first_val = parse_expression(parser);
+    expression_vector_append(&vec, parse_expression(parser));
     Token next_token = peek_next_token(parser);
 
     if (next_token.type == TOK_CLOSE_CURLY) {
         get_next_token(parser);  // consume token
         Enclosure enclosure = {
             .type = ENCLOSURE_DICT,
-            .first_expr = arena_put_expression(parser->arena, first_key),
-            .last_expr = arena_put_expression(parser->arena, first_val)};
+            .expressions.ref =
+                arena_put_memory(parser->arena, vec.buf, sizeof(Expression) * vec.length),
+            .expressions.length = vec.length};
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
-            .ref = arena_put_enclosure(parser->arena, enclosure)};
+            .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure))};
         return op;
     }
 
     else if (next_token.type == TOK_KEYWORD) {
-        Comprehension comp = parse_dict_comprehension(parser, loc, first_key, first_val);
+        Comprehension comp =
+            parse_dict_comprehension(parser, loc, vec.buf[0], vec.buf[1]);
         Operand op = {
             .kind = OPERAND_COMPREHENSION,
-            .ref = arena_put_comprehension(parser->arena, comp)};
+            .ref = arena_put_memory(parser->arena, &comp, sizeof(Comprehension))};
         return op;
     }
 
@@ -540,9 +552,6 @@ parse_mapped_enclosure(Parser* parser)
         // enclosures are marked by their starting and ending expressions
         // so we wont add any parsed expressions into the arena until we
         // have parsed the entire dict literal
-        ExpressionVector vec = {0};
-        expression_vector_append(&vec, first_key);
-        expression_vector_append(&vec, first_val);
         while (peek_next_token(parser).type != TOK_CLOSE_CURLY) {
             expect_token_type(parser, TOK_COMMA);
             // beware trailing comma
@@ -557,14 +566,12 @@ parse_mapped_enclosure(Parser* parser)
         expect_token_type(parser, TOK_CLOSE_CURLY);
         Enclosure enclosure = {
             .type = ENCLOSURE_DICT,
-            .first_expr = arena_put_expression(parser->arena, vec.buf[0])};
-        ArenaRef ref;
-        for (size_t i = 1; i < vec.length; i++)
-            ref = arena_put_expression(parser->arena, vec.buf[i]);
-        enclosure.last_expr = ref;
+            .expressions.ref =
+                arena_put_memory(parser->arena, vec.buf, sizeof(Expression) * vec.length),
+            .expressions.length = vec.length};
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
-            .ref = arena_put_enclosure(parser->arena, enclosure)};
+            .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure))};
         expression_vector_free(&vec);
         return op;
     }
@@ -576,7 +583,7 @@ parse_sequence_comprehension(
 )
 {
     SequenceComprehension seq_comp = {
-        .expr = arena_put_expression(parser->arena, expr),
+        .expr = arena_put_memory(parser->arena, &expr, sizeof(Expression)),
     };
     ComprehensionBody body = {0};
     parse_comprehension_body(parser, loc, &body);
@@ -608,12 +615,11 @@ parse_sequence_enclosure(Parser* parser)
         get_next_token(parser);
         Enclosure enclosure = {
             .type = enclosure_type,
-            .first_expr = 1,
-            .last_expr = 0,
+            .expressions.length = 0,
         };
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
-            .ref = arena_put_enclosure(parser->arena, enclosure),
+            .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure)),
         };
         return op;
     }
@@ -628,7 +634,7 @@ parse_sequence_enclosure(Parser* parser)
         expect_token_type(parser, TOK_CLOSE_PARENS);
         Operand op = {
             .kind = OPERAND_EXPRESSION,
-            .ref = arena_put_expression(parser->arena, first_expr)};
+            .ref = arena_put_memory(parser->arena, &first_expr, sizeof(Expression))};
         return op;
     }
 
@@ -637,12 +643,12 @@ parse_sequence_enclosure(Parser* parser)
         expect_token_type(parser, TOK_CLOSE_SQUARE);
         Enclosure enclosure = {
             .type = ENCLOSURE_LIST,
-            .first_expr = arena_put_expression(parser->arena, first_expr),
-        };
-        enclosure.last_expr = enclosure.first_expr;
+            .expressions.ref =
+                arena_put_memory(parser->arena, &first_expr, sizeof(Expression)),
+            .expressions.length = 1};
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
-            .ref = arena_put_enclosure(parser->arena, enclosure),
+            .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure)),
         };
         return op;
     }
@@ -653,7 +659,7 @@ parse_sequence_enclosure(Parser* parser)
         );
         Operand op = {
             .kind = OPERAND_COMPREHENSION,
-            .ref = arena_put_comprehension(parser->arena, comp)};
+            .ref = arena_put_memory(parser->arena, &comp, sizeof(Comprehension))};
         return op;
     }
 
@@ -673,14 +679,12 @@ parse_sequence_enclosure(Parser* parser)
     expect_token_type(parser, closing_token_type);
     Enclosure enclosure = {
         .type = enclosure_type,
-        .first_expr = arena_put_expression(parser->arena, vec.buf[0])};
-    ArenaRef ref = enclosure.first_expr;
-    for (size_t i = 1; i < vec.length; i++)
-        ref = arena_put_expression(parser->arena, vec.buf[i]);
-    enclosure.last_expr = ref;
+        .expressions.ref =
+            arena_put_memory(parser->arena, vec.buf, sizeof(Expression) * vec.length),
+        .expressions.length = vec.length};
     Operand op = {
         .kind = OPERAND_ENCLOSURE_LITERAL,
-        .ref = arena_put_enclosure(parser->arena, enclosure)};
+        .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure))};
     expression_vector_free(&vec);
     return op;
 }
@@ -689,6 +693,7 @@ static Operand
 parse_arguments(Parser* parser)
 {
     Token begin_args = parser->token;
+    Expression expr;
     Arguments args = {0};
     size_t n_kwds = 0;
     while (true) {
@@ -708,8 +713,9 @@ parse_arguments(Parser* parser)
         if (next.type == TOK_OPERATOR && next.value == OPERATOR_ASSIGNMENT) {
             args.kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
             get_next_token(parser);  // consume assignment op
+            expr = parse_expression(parser);
             args.value_refs[args.length++] =
-                arena_put_expression(parser->arena, parse_expression(parser));
+                arena_put_memory(parser->arena, &expr, sizeof(Expression));
         }
         // positional argument
         else {
@@ -719,13 +725,16 @@ parse_arguments(Parser* parser)
                     "positional arguments must come before keyword arguments"
                 );
             }
+            expr = parse_expression(parser);
             args.value_refs[args.length++] =
-                arena_put_expression(parser->arena, parse_expression(parser));
+                arena_put_memory(parser->arena, &expr, sizeof(Expression));
             args.n_positional++;
         }
     }
+
     Operand op = {
-        .kind = OPERAND_ARGUMENTS, .ref = arena_put_arguments(parser->arena, args)};
+        .kind = OPERAND_ARGUMENTS,
+        .ref = arena_put_memory(parser->arena, &args, sizeof(Arguments))};
     return op;
 }
 
@@ -752,12 +761,13 @@ parse_getitem_arguments(Parser* parser)
         // [expr1]
         if (next.type == TOK_CLOSE_SQUARE) {
             op.kind = OPERAND_EXPRESSION;
-            op.ref = arena_put_expression(parser->arena, first_expr);
+            op.ref = arena_put_memory(parser->arena, &first_expr, sizeof(Expression));
             return op;
         }
         // [expr1:...
         else if (next.type == TOK_COLON) {
-            slice.start_expr_ref = arena_put_expression(parser->arena, first_expr);
+            slice.start_expr_ref =
+                arena_put_memory(parser->arena, &first_expr, sizeof(Expression));
             goto slice_stop_expr;
         }
         else
@@ -780,7 +790,8 @@ slice_stop_expr:
         goto slice_step_expr;
     }
     // [...:expr2...
-    slice.stop_expr_ref = arena_put_expression(parser->arena, parse_expression(parser));
+    Expression stop_expr = parse_expression(parser);
+    slice.stop_expr_ref = arena_put_memory(parser->arena, &stop_expr, sizeof(Expression));
     next = get_next_token(parser);
     // [...:expr2:...
     if (next.type == TOK_COLON) goto slice_step_expr;
@@ -801,10 +812,11 @@ slice_step_expr:
         goto return_slice_operand;
     }
     // [...:...:expr3]
-    slice.step_expr_ref = arena_put_expression(parser->arena, parse_expression(parser));
+    Expression step_expr = parse_expression(parser);
+    slice.step_expr_ref = arena_put_memory(parser->arena, &step_expr, sizeof(Expression));
     expect_token_type(parser, TOK_CLOSE_SQUARE);
 return_slice_operand:
-    op.ref = arena_put_slice(parser->arena, slice);
+    op.ref = arena_put_memory(parser->arena, &slice, sizeof(Slice));
     op.kind = OPERAND_SLICE;
     return op;
 }
@@ -941,8 +953,8 @@ parse_for_loop_instruction(Parser* parser)
     stmt.for_loop.it_ref = tok.ref;
 
     tok = expect_keyword(parser, KW_IN);
-    stmt.for_loop.expr_ref =
-        arena_put_expression(parser->arena, parse_expression(parser));
+    Expression expr = parse_expression(parser);
+    stmt.for_loop.expr_ref = arena_put_memory(parser->arena, &expr, sizeof(Expression));
 
     tok = expect_token_type(parser, TOK_COLON);
 
@@ -984,7 +996,7 @@ parse_statement(Parser* parser)
 
     stmt.kind = STMT_EXPR;
     Expression expr = parse_expression(parser);
-    stmt.expr_ref = arena_put_expression(parser->arena, expr);
+    stmt.expr_ref = arena_put_memory(parser->arena, &expr, sizeof(Expression));
     return stmt;
 }
 
