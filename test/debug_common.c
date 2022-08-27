@@ -226,21 +226,25 @@ render_operand(StringBuffer* str, Operand op)
     }
 }
 
-static StringBuffer string_mem[EXPRESSION_MAX_OPERATIONS] = {0};
-
 static StringBuffer
 render_expr(Expression* expr)
 {
-    StringBuffer* already_rendered_chunks[EXPRESSION_MAX_OPERATIONS] = {0};
+    StringBuffer string_mem[expr->operations.length];
+    StringBuffer* already_rendered_chunks[expr->operands.length];
+    memset(already_rendered_chunks, 0, sizeof(StringBuffer*) * expr->operands.length);
+    memset(string_mem, 0, sizeof(StringBuffer) * expr->operations.length);
 
-    if (expr->n_operations == 0) {
+    Operand* operands = arena_get_memory(arena, expr->operands.ref);
+    Operation* operations = arena_get_memory(arena, expr->operations.ref);
+
+    if (expr->operations.length == 0) {
         StringBuffer buf = {0};
-        render_operand(&buf, expr->operands[0]);
+        render_operand(&buf, operands[0]);
         return buf;
     }
 
-    for (size_t i = 0; i < expr->n_operations; i++) {
-        Operation operation = expr->operations[i];
+    for (size_t i = 0; i < expr->operations.length; i++) {
+        Operation operation = operations[i];
         StringBuffer this_operation_rendered = {0};
 
         str_append_char(&this_operation_rendered, '(');
@@ -248,7 +252,7 @@ render_expr(Expression* expr)
         if (left_ref)
             str_concat(&this_operation_rendered, left_ref);
         else
-            render_operand(&this_operation_rendered, expr->operands[operation.left]);
+            render_operand(&this_operation_rendered, operands[operation.left]);
         str_append_char(&this_operation_rendered, ' ');
         str_concat_cstr(&this_operation_rendered, (char*)op_to_cstr(operation.op_type));
         str_append_char(&this_operation_rendered, ' ');
@@ -256,7 +260,7 @@ render_expr(Expression* expr)
         if (right_ref)
             str_concat(&this_operation_rendered, right_ref);
         else
-            render_operand(&this_operation_rendered, expr->operands[operation.right]);
+            render_operand(&this_operation_rendered, operands[operation.right]);
         str_append_char(&this_operation_rendered, ')');
 
         string_mem[i] = this_operation_rendered;
@@ -271,7 +275,7 @@ render_expr(Expression* expr)
             already_rendered_chunks[operation.right] = string_mem + i;
     }
 
-    return string_mem[expr->n_operations - 1];
+    return string_mem[expr->operations.length - 1];
 }
 
 void

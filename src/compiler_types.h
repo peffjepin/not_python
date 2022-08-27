@@ -13,7 +13,6 @@ typedef enum {
     OPERAND_SLICE,
 } OperandKind;
 
-// TODO: just use a reference for token
 typedef struct {
     OperandKind kind;
     union {
@@ -28,12 +27,9 @@ typedef struct {
     size_t right;
 } Operation;
 
-#define EXPRESSION_MAX_OPERATIONS 10
-
 typedef struct {
-    size_t n_operations;
-    Operand operands[EXPRESSION_MAX_OPERATIONS + 1];
-    Operation operations[EXPRESSION_MAX_OPERATIONS];
+    ArenaArray operands;
+    ArenaArray operations;
 } Expression;
 
 #define MAX_ARGUMENTS 10

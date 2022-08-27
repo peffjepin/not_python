@@ -535,6 +535,7 @@ parse_mapped_enclosure(Parser* parser)
         Operand op = {
             .kind = OPERAND_ENCLOSURE_LITERAL,
             .ref = arena_put_memory(parser->arena, &enclosure, sizeof(Enclosure))};
+        expression_vector_free(&vec);
         return op;
     }
 
@@ -544,6 +545,7 @@ parse_mapped_enclosure(Parser* parser)
         Operand op = {
             .kind = OPERAND_COMPREHENSION,
             .ref = arena_put_memory(parser->arena, &comp, sizeof(Comprehension))};
+        expression_vector_free(&vec);
         return op;
     }
 
@@ -839,22 +841,57 @@ expect_token_type(Parser* parser, TokenType type)
     return tok;
 }
 
-#define INTERMEDIATE_TABLE_MAX EXPRESSION_MAX_OPERATIONS
-
-// TODO: some smarter data structure for sorting operator precedence
 typedef struct {
-    Operation operations[INTERMEDIATE_TABLE_MAX];
-    size_t length;
-} IntermediateOperationTableEntry;
+    size_t count;
+    size_t capacity;
+    Operation* operations;
+} OperationVector;
+
+typedef struct {
+    size_t operands_count;
+    size_t operands_capacity;
+    Operand* operands;
+    size_t operations_count;
+    OperationVector operation_vectors[MAX_PRECEDENCE + 1];
+} ExpressionTable;
+
+static inline void
+et_push_operand(ExpressionTable* et, Operand operand)
+{
+    if (et->operands_count == et->operands_capacity) {
+        et->operands_capacity += 16;
+        et->operands = realloc(et->operands, sizeof(Operand) * et->operands_capacity);
+        if (!et->operands) out_of_memory();
+    }
+    et->operands[et->operands_count++] = operand;
+}
+
+static inline void
+operation_vector_push(OperationVector* vec, Operation operation)
+{
+    if (vec->capacity == vec->count) {
+        vec->capacity += 16;
+        vec->operations = realloc(vec->operations, sizeof(Operation) * vec->capacity);
+        if (!vec->operations) out_of_memory();
+    }
+    vec->operations[vec->count++] = operation;
+}
+
+static void
+et_push_operation(ExpressionTable* et, Operation operation)
+{
+    unsigned int precedence = PRECENDENCE_TABLE[operation.op_type];
+    operation_vector_push(et->operation_vectors + precedence, operation);
+    et->operations_count += 1;
+}
 
 static Expression
 parse_expression(Parser* parser)
 {
     const unsigned int POW_PREC = PRECENDENCE_TABLE[OPERATOR_POW];
-    IntermediateOperationTableEntry by_prec[MAX_PRECEDENCE + 1] = {0};
-    Expression expr = {0};
-    size_t operand_index = 0;
+    ExpressionTable et = {0};
 
+    // parse operands/operations
     do {
         Token tok = get_next_token(parser);
         if (tok.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
@@ -862,83 +899,104 @@ parse_expression(Parser* parser)
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
-                unsigned int prec = PRECENDENCE_TABLE[tok.value];
-                Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
-                operation->left = operand_index - 1;
-                operation->right = operand_index;
-                operation->op_type = tok.value;
+                Operation operation = {
+                    .op_type = tok.value,
+                    .left = et.operands_count - 1,
+                    .right = et.operands_count};
+                et_push_operation(&et, operation);
                 break;
             }
-            case TOK_NUMBER:
-                expr.operands[operand_index].kind = OPERAND_TOKEN;
-                expr.operands[operand_index++].token = tok;
+            case TOK_NUMBER: {
+                Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
+                et_push_operand(&et, operand);
                 break;
-            case TOK_STRING:
-                expr.operands[operand_index].kind = OPERAND_TOKEN;
-                expr.operands[operand_index++].token = tok;
+            }
+            case TOK_STRING: {
+                Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
+                et_push_operand(&et, operand);
                 break;
-            case TOK_IDENTIFIER:
-                expr.operands[operand_index].kind = OPERAND_TOKEN;
-                expr.operands[operand_index++].token = tok;
+            }
+            case TOK_IDENTIFIER: {
+                Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
+                et_push_operand(&et, operand);
                 break;
-            case TOK_OPEN_PARENS:
-                if (parser->previous.type == TOK_OPERATOR || operand_index == 0)
-                    expr.operands[operand_index++] = parse_sequence_enclosure(parser);
+            }
+            case TOK_OPEN_PARENS: {
+                if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
+                    et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    unsigned int prec = PRECENDENCE_TABLE[OPERATOR_CALL];
-                    Operation* operation =
-                        &by_prec[prec].operations[by_prec[prec].length++];
-                    operation->left = operand_index - 1;
-                    operation->right = operand_index;
-                    operation->op_type = OPERATOR_CALL;
-                    expr.operands[operand_index++] = parse_arguments(parser);
+                    Operation operation = {
+                        .op_type = OPERATOR_CALL,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, operation);
+                    et_push_operand(&et, parse_arguments(parser));
                 }
                 break;
-            case TOK_OPEN_SQUARE:
-                if (parser->previous.type == TOK_OPERATOR || operand_index == 0)
-                    expr.operands[operand_index++] = parse_sequence_enclosure(parser);
+            }
+            case TOK_OPEN_SQUARE: {
+                if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
+                    et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    unsigned int prec = PRECENDENCE_TABLE[OPERATOR_GET_ITEM];
-                    Operation* operation =
-                        &by_prec[prec].operations[by_prec[prec].length++];
-                    operation->left = operand_index - 1;
-                    operation->right = operand_index;
-                    operation->op_type = OPERATOR_GET_ITEM;
-                    expr.operands[operand_index++] = parse_getitem_arguments(parser);
+                    Operation operation = {
+                        .op_type = OPERATOR_GET_ITEM,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, operation);
+                    et_push_operand(&et, parse_getitem_arguments(parser));
                 }
                 break;
-            case TOK_OPEN_CURLY:
-                expr.operands[operand_index++] = parse_mapped_enclosure(parser);
+            }
+            case TOK_OPEN_CURLY: {
+                et_push_operand(&et, parse_mapped_enclosure(parser));
                 break;
+            }
             case TOK_DOT: {
-                unsigned int prec = PRECENDENCE_TABLE[OPERATOR_GET_ATTR];
-                Operation* operation = &by_prec[prec].operations[by_prec[prec].length++];
-                operation->left = operand_index - 1;
-                operation->right = operand_index;
-                operation->op_type = OPERATOR_GET_ATTR;
-                expr.operands[operand_index].kind = OPERAND_TOKEN;
-                expr.operands[operand_index++].token =
-                    expect_token_type(parser, TOK_IDENTIFIER);
+                Operation operation = {
+                    .op_type = OPERATOR_GET_ATTR,
+                    .left = et.operands_count - 1,
+                    .right = et.operands_count};
+                et_push_operation(&et, operation);
+                Operand right = {
+                    .kind = OPERAND_TOKEN,
+                    .token = expect_token_type(parser, TOK_IDENTIFIER)};
+                et_push_operand(&et, right);
                 break;
             }
             default:
                 fprintf(
                     stderr, "loc: %s:%u:%u\n", tok.loc.filename, tok.loc.line, tok.loc.col
                 );
-                UNIMPLEMENTED("no implementation for token");
+                UNIMPLEMENTED("token not recognized within expression parsing");
         };
-        assert(operand_index != EXPRESSION_MAX_OPERATIONS + 1);
     } while (!is_end_of_expression(parser));
 
+    // sort operations by precedence into a contiguous array
+    Operation sorted_operations[et.operations_count];
+    size_t sorted_count = 0;
     for (int prec = MAX_PRECEDENCE; prec >= 0; prec--) {
-        IntermediateOperationTableEntry* entry = by_prec + prec;
-        if (entry->length == 0) continue;
-        for (size_t i = 0; i < entry->length; i++) {
-            size_t index = ((unsigned)prec == POW_PREC) ? entry->length - 1 - i : i;
-            expr.operations[expr.n_operations++] = entry->operations[index];
+        if (sorted_count == et.operations_count) break;
+        OperationVector vec = et.operation_vectors[prec];
+        if (vec.count == 0) continue;
+        for (size_t i = 0; i < vec.count; i++) {
+            // OPERATOR_POW precedes right->left
+            size_t index = ((unsigned)prec == POW_PREC) ? vec.count - 1 - i : i;
+            sorted_operations[sorted_count++] = vec.operations[index];
         }
+        free(vec.operations);
     }
 
+    // construct expression (inserting operands and opertaions into arena memory)
+    Expression expr = {
+        .operands.ref = arena_put_memory(
+            parser->arena, et.operands, sizeof(Operand) * et.operands_count
+        ),
+        .operands.length = et.operands_count,
+        .operations.ref = arena_put_memory(
+            parser->arena, sorted_operations, sizeof(Operation) * et.operations_count
+        ),
+        .operations.length = et.operations_count};
+    free(et.operands);
     return expr;
 }
 
