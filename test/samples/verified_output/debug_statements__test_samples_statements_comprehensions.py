@@ -23,6 +23,10 @@ EXPR:
 (i
  for i in (range __call__ (10))
  if (i < 5))
+EXPR: 
+(((i if (i == 1)) else (2 * i))
+ for i in (range __call__ (10))
+ if (i < 5))
 EOF
 
 exitcode=0

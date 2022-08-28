@@ -355,6 +355,7 @@ typedef struct {
     TokenQueue* tq;
     Token previous;
     Token token;
+    bool disallow_conditional_expression;
 } Parser;
 
 static inline Token
@@ -406,7 +407,7 @@ is_end_of_expression(Parser* parser)
             // TODO: there are some keywords that are actually operators
             // like `and` `or` etc. We should probably scan those in as ops
             // in the tokenizer
-            return true;
+            return (parser->disallow_conditional_expression || token.value != KW_IF);
         case TOK_EOF:
             return true;
         default:
@@ -467,7 +468,9 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
+        parser->disallow_conditional_expression = true;
         Expression iterable = parse_expression(parser);
+        parser->disallow_conditional_expression = false;
         body->iterables[body->nesting++] =
             arena_put_memory(parser->arena, &iterable, sizeof(Expression));
         // potentially another nested for loop
@@ -896,6 +899,41 @@ parse_expression(Parser* parser)
         Token tok = get_next_token(parser);
         if (tok.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
         switch (tok.type) {
+            case TOK_KEYWORD: {
+                if (tok.value == KW_IF && !parser->disallow_conditional_expression) {
+                    Operation if_operation = {
+                        .op_type = OPERATOR_CONDITIONAL_IF,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, if_operation);
+
+                    Expression condition = parse_expression(parser);
+                    Operand condition_operand = {
+                        .kind = OPERAND_EXPRESSION,
+                        .ref = arena_put_memory(
+                            parser->arena, &condition, sizeof(Expression)
+                        )};
+                    et_push_operand(&et, condition_operand);
+
+                    expect_keyword(parser, KW_ELSE);
+                    Operation else_operation = {
+                        .op_type = OPERATOR_CONDITIONAL_ELSE,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, else_operation);
+
+                    Expression else_expr = parse_expression(parser);
+                    Operand else_operand = {
+                        .kind = OPERAND_EXPRESSION,
+                        .ref = arena_put_memory(
+                            parser->arena, &else_expr, sizeof(Expression)
+                        )};
+                    et_push_operand(&et, else_operand);
+                }
+                else
+                    SYNTAX_ERROR(tok.loc, "not expecting keyword here");
+                break;
+            }
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed

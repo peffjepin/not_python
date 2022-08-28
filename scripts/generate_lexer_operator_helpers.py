@@ -31,6 +31,8 @@ OPS = {
     "OPERATOR_BITWISE_OR": {"value": "|", "precedence": 7},
     "OPERATOR_BITWISE_XOR": {"value": "^", "precedence": 8},
     "OPERATOR_BITWISE_NOT": {"value": "~", "precedence": 0},
+    "OPERATOR_CONDITIONAL_IF": {"value": "if", "precedence": 2},
+    "OPERATOR_CONDITIONAL_ELSE": {"value": "else", "precedence": 2},
     "OPERATOR_LSHIFT": {"value": "<<", "precedence": 10},
     "OPERATOR_RSHIFT": {"value": ">>", "precedence": 10},
     "OPERATOR_CALL": {"value": "__call__", "precedence": 16},
