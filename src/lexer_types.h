@@ -85,6 +85,8 @@ typedef enum {
     OPERATOR_CALL = 77,
     OPERATOR_GET_ITEM = 11,
     OPERATOR_GET_ATTR = 23,
+    OPERATOR_LOGICAL_AND = 134,
+    OPERATOR_LOGICAL_OR = 66,
 } Operator;
 
 #define MAX_PRECEDENCE 16

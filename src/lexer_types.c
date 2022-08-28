@@ -95,6 +95,8 @@ const unsigned int PRECENDENCE_TABLE[OPERATOR_TABLE_MAX] = {
     [OPERATOR_CALL] = 16,
     [OPERATOR_GET_ITEM] = 16,
     [OPERATOR_GET_ATTR] = 16,
+    [OPERATOR_LOGICAL_AND] = 4,
+    [OPERATOR_LOGICAL_OR] = 3,
 };
 
 const char* OP_TO_CSTR_TABLE[OPERATOR_TABLE_MAX] = {
@@ -135,6 +137,8 @@ const char* OP_TO_CSTR_TABLE[OPERATOR_TABLE_MAX] = {
     [OPERATOR_CALL] = "__call__",
     [OPERATOR_GET_ITEM] = "__getitem__",
     [OPERATOR_GET_ATTR] = "__getattr__",
+    [OPERATOR_LOGICAL_AND] = "and",
+    [OPERATOR_LOGICAL_OR] = "or",
 };
 
 Operator

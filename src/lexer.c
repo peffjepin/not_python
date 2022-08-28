@@ -355,6 +355,12 @@ typedef struct {
     TokenQueue* tq;
     Token previous;
     Token token;
+
+    // FIXME: this will fail in some cases and should be replaced
+    // with special rule mechanism which parse_expression can check
+    // for and (CONSUME) on entry so that if there are nested expressions
+    // to be parsed then special flags like this will only effect the
+    // very next call after being set
     bool disallow_conditional_expression;
 } Parser;
 
@@ -404,10 +410,8 @@ is_end_of_expression(Parser* parser)
         case TOK_COMMA:
             return true;
         case TOK_KEYWORD:
-            // TODO: there are some keywords that are actually operators
-            // like `and` `or` etc. We should probably scan those in as ops
-            // in the tokenizer
-            return (parser->disallow_conditional_expression || token.value != KW_IF);
+            if (token.value == KW_IF) return parser->disallow_conditional_expression;
+            return (token.value != KW_AND && token.value != KW_OR);
         case TOK_EOF:
             return true;
         default:
@@ -929,6 +933,20 @@ parse_expression(Parser* parser)
                             parser->arena, &else_expr, sizeof(Expression)
                         )};
                     et_push_operand(&et, else_operand);
+                }
+                else if (tok.value == KW_AND) {
+                    Operation operation = {
+                        .op_type = OPERATOR_LOGICAL_AND,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, operation);
+                }
+                else if (tok.value == KW_OR) {
+                    Operation operation = {
+                        .op_type = OPERATOR_LOGICAL_OR,
+                        .left = et.operands_count - 1,
+                        .right = et.operands_count};
+                    et_push_operation(&et, operation);
                 }
                 else
                     SYNTAX_ERROR(tok.loc, "not expecting keyword here");

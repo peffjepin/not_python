@@ -38,6 +38,8 @@ OPS = {
     "OPERATOR_CALL": {"value": "__call__", "precedence": 16},
     "OPERATOR_GET_ITEM": {"value": "__getitem__", "precedence": 16},
     "OPERATOR_GET_ATTR": {"value": "__getattr__", "precedence": 16},
+    "OPERATOR_LOGICAL_AND": {"value": "and", "precedence": 4},
+    "OPERATOR_LOGICAL_OR": {"value": "or", "precedence": 3},
 }
 
 
