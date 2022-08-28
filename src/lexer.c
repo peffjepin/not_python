@@ -4,73 +4,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include "lexer_types.h"
-
-#define UNIMPLEMENTED(msg) assert(0 && msg)
-
-#define SYNTAX_ERROR(loc, msg)                                                           \
-    do {                                                                                 \
-        fprintf(                                                                         \
-            stderr,                                                                      \
-            "%s:%u:%u SYNTAX ERROR: %s\n",                                               \
-            (loc).filename,                                                              \
-            (loc).line,                                                                  \
-            (loc).col,                                                                   \
-            msg                                                                          \
-        );                                                                               \
-        exit(1);                                                                         \
-    } while (0)
-
-#define SYNTAX_ERRORF(loc, msg, ...)                                                     \
-    do {                                                                                 \
-        fprintf(                                                                         \
-            stderr,                                                                      \
-            "%s:%u:%u SYNTAX ERROR: " msg "\n",                                          \
-            (loc).filename,                                                              \
-            (loc).line,                                                                  \
-            (loc).col,                                                                   \
-            __VA_ARGS__                                                                  \
-        );                                                                               \
-        exit(1);                                                                         \
-    } while (0)
-
-void
-out_of_memory(void)
-{
-    fprintf(stderr, "ERROR: out of memory");
-    exit(1);
-}
-
-#define TOKEN_QUEUE_CAPACITY 8
-
-typedef struct {
-    size_t head;
-    size_t length;
-    Token tokens[TOKEN_QUEUE_CAPACITY];
-} TokenQueue;
-
-Token
-tq_peek(TokenQueue* tq, size_t offset)
-{
-    assert(tq->length && "peeking empty queue");
-    assert(tq->length > offset && "peeking past the end of queue");
-    return tq->tokens[(tq->head + offset) % TOKEN_QUEUE_CAPACITY];
-}
-
-Token
-tq_consume(TokenQueue* tq)
-{
-    assert(tq->length && "consuming empty queue");
-    tq->length -= 1;
-    return tq->tokens[tq->head++ % TOKEN_QUEUE_CAPACITY];
-}
-
-void
-tq_push(TokenQueue* tq, Token token)
-{
-    assert(tq->length < TOKEN_QUEUE_CAPACITY && "pushing to full queue");
-    tq->tokens[(tq->head + tq->length++) % TOKEN_QUEUE_CAPACITY] = token;
-}
+#include "lexer_helpers.h"
 
 #define SCANNER_BUF_CAPACITY 4096
 
@@ -132,8 +66,10 @@ static bool CHAR_IS_OPERATOR_TABLE[sizeof(unsigned char) * 256] = {
 };
 
 #define CHAR_IS_OPERATOR(c) CHAR_IS_OPERATOR_TABLE[(unsigned char)(c)]
+
 #define CHAR_IS_ALPHA(c)                                                                 \
     (((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z') || c == '_')
+
 #define CHAR_IS_NUMERIC(c) (((c) >= '0' && (c) <= '9'))
 
 static inline void
@@ -418,32 +354,6 @@ is_end_of_expression(Parser* parser)
             break;
     }
     return false;
-}
-
-typedef struct {
-    Expression* buf;
-    size_t capacity;
-    size_t length;
-} ExpressionVector;
-
-static void
-expression_vector_append(ExpressionVector* vec, Expression expr)
-{
-    if (vec->length == vec->capacity) {
-        if (vec->capacity == 0)
-            vec->capacity = 8;
-        else
-            vec->capacity *= 2;
-        vec->buf = realloc(vec->buf, sizeof(Expression) * vec->capacity);
-        if (!vec->buf) out_of_memory();
-    }
-    vec->buf[vec->length++] = expr;
-}
-
-static void
-expression_vector_free(ExpressionVector* vec)
-{
-    free(vec->buf);
 }
 
 static Expression parse_expression(Parser* parser);
@@ -848,50 +758,6 @@ expect_token_type(Parser* parser, TokenType type)
     return tok;
 }
 
-typedef struct {
-    size_t count;
-    size_t capacity;
-    Operation* operations;
-} OperationVector;
-
-typedef struct {
-    size_t operands_count;
-    size_t operands_capacity;
-    Operand* operands;
-    size_t operations_count;
-    OperationVector operation_vectors[MAX_PRECEDENCE + 1];
-} ExpressionTable;
-
-static inline void
-et_push_operand(ExpressionTable* et, Operand operand)
-{
-    if (et->operands_count == et->operands_capacity) {
-        et->operands_capacity += 16;
-        et->operands = realloc(et->operands, sizeof(Operand) * et->operands_capacity);
-        if (!et->operands) out_of_memory();
-    }
-    et->operands[et->operands_count++] = operand;
-}
-
-static inline void
-operation_vector_push(OperationVector* vec, Operation operation)
-{
-    if (vec->capacity == vec->count) {
-        vec->capacity += 16;
-        vec->operations = realloc(vec->operations, sizeof(Operation) * vec->capacity);
-        if (!vec->operations) out_of_memory();
-    }
-    vec->operations[vec->count++] = operation;
-}
-
-static void
-et_push_operation(ExpressionTable* et, Operation operation)
-{
-    unsigned int precedence = PRECENDENCE_TABLE[operation.op_type];
-    operation_vector_push(et->operation_vectors + precedence, operation);
-    et->operations_count += 1;
-}
-
 static Expression
 parse_expression(Parser* parser)
 {
@@ -1112,18 +978,6 @@ parse_statement(Parser* parser)
     Expression expr = parse_expression(parser);
     stmt.expr_ref = arena_put_memory(parser->arena, &expr, sizeof(Expression));
     return stmt;
-}
-
-// TODO: portability
-static size_t
-filename_offset(const char* filepath)
-{
-    size_t length = strlen(filepath);
-    for (size_t i = 0; i < length; i++) {
-        size_t index = length - 1 - i;
-        if (filepath[index] == '/') return index + 1;
-    }
-    return 0;
 }
 
 #define LEXER_STATEMENTS_CHUNK_SIZE 64
