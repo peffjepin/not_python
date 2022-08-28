@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "forward.h"
-
 typedef enum {
     NOT_A_KEYWORD = 0,
     KW_AND = 17,

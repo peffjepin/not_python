@@ -1,7 +1,6 @@
 #ifndef COMPILER_TYPES_H
 #define COMPILER_TYPES_H
 
-#include "forward.h"
 #include "lexer_types.h"
 
 typedef struct Comprehension Comprehension;
