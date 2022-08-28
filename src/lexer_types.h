@@ -130,8 +130,9 @@ typedef struct {
     Location loc;
     TokenType type;
     union {
-        int value;
-        ArenaRef ref;
+        Keyword kw;
+        Operator op;
+        char* value;
     };
 } Token;
 

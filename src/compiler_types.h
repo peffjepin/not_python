@@ -4,6 +4,14 @@
 #include "forward.h"
 #include "lexer_types.h"
 
+typedef struct Comprehension Comprehension;
+typedef struct Enclosure Enclosure;
+typedef struct Expression Expression;
+typedef struct Arguments Arguments;
+typedef struct Slice Slice;
+typedef struct Operation Operation;
+typedef struct Operand Operand;
+
 typedef enum {
     OPERAND_EXPRESSION,
     OPERAND_ENCLOSURE_LITERAL,
@@ -13,44 +21,51 @@ typedef enum {
     OPERAND_SLICE,
 } OperandKind;
 
-typedef struct {
+struct Operand {
     OperandKind kind;
     union {
         Token token;
-        ArenaRef ref;
+        Comprehension* comp;
+        Enclosure* enclosure;
+        Expression* expr;
+        Arguments* args;
+        Slice* slice;
     };
-} Operand;
+};
 
-typedef struct {
+struct Operation {
     Operator op_type;
     size_t left;
     size_t right;
-} Operation;
+};
 
-typedef struct {
-    ArenaArray operands;
-    ArenaArray operations;
-} Expression;
+struct Expression {
+    size_t operands_count;
+    Operand* operands;
+    size_t operations_count;
+    Operation* operations;
+};
 
 #define MAX_ARGUMENTS 10
 
-typedef struct {
-    ArenaRef value_refs[MAX_ARGUMENTS];
+// TODO: stop using static size MAX_ARGUMENTS
+struct Arguments {
+    Expression* values[MAX_ARGUMENTS];
     Token kwds[MAX_ARGUMENTS];
     size_t length;
     size_t n_positional;
-} Arguments;
+};
 
-typedef struct {
+struct Slice {
     // either use default
     bool use_default_start;
     bool use_default_stop;
     bool use_default_step;
     // or provide a ref
-    ArenaRef start_expr_ref;
-    ArenaRef stop_expr_ref;
-    ArenaRef step_expr_ref;
-} Slice;
+    Expression* start_expr;
+    Expression* stop_expr;
+    Expression* step_expr;
+};
 
 typedef enum {
     ENCLOSURE_LIST,
@@ -65,36 +80,37 @@ typedef enum {
 
 #define MAX_COMPREHENSION_NESTING 10
 
+// TODO: `its` arent't really expressions
 typedef struct {
     size_t nesting;
-    ArenaRef its[MAX_COMPREHENSION_NESTING];
-    ArenaRef iterables[MAX_COMPREHENSION_NESTING];
-    bool has_if;
-    ArenaRef if_expr;
+    Expression* its[MAX_COMPREHENSION_NESTING];
+    Expression* iterables[MAX_COMPREHENSION_NESTING];
+    Expression* if_expr;
 } ComprehensionBody;
 
 typedef struct {
-    ArenaRef key_expr;
-    ArenaRef val_expr;
+    Expression* key_expr;
+    Expression* val_expr;
 } MappedComprehension;
 
 typedef struct {
-    ArenaRef expr;
+    Expression* expr;
 } SequenceComprehension;
 
-typedef struct {
+struct Comprehension {
     EnclosureType type;
     ComprehensionBody body;
     union {
         MappedComprehension mapped;
         SequenceComprehension sequence;
     };
-} Comprehension;
+};
 
-typedef struct {
+struct Enclosure {
     EnclosureType type;
-    ArenaArray expressions;
-} Enclosure;
+    size_t expressions_count;
+    Expression* expressions;
+};
 
 typedef enum {
     NULL_STMT,
@@ -103,16 +119,17 @@ typedef enum {
     STMT_EOF,
 } StatementKind;
 
+// TODO: `it` isn't really an identifier string
 typedef struct {
-    ArenaRef it_ref;
-    ArenaRef expr_ref;
+    char* it;
+    Expression* iterable;
 } ForLoopStatement;
 
 typedef struct {
     StatementKind kind;
     union {
         ForLoopStatement for_loop;
-        ArenaRef expr_ref;
+        Expression* expr;
     };
 } Statement;
 

@@ -6,14 +6,6 @@
 
 #define STRING_BUFFER_CAPACITY 1024
 
-Arena* arena;
-
-void
-debugger_use_arena(Arena* a)
-{
-    arena = a;
-}
-
 typedef struct {
     char data[STRING_BUFFER_CAPACITY];
     size_t length;
@@ -83,20 +75,19 @@ render_operand(StringBuffer* str, Operand op)
 
     switch (op.kind) {
         case OPERAND_TOKEN:
-            str_concat_cstr(str, (char*)arena_get_memory(arena, op.token.ref));
+            str_concat_cstr(str, op.token.value);
             break;
         case OPERAND_EXPRESSION: {
-            StringBuffer rendered_expr =
-                render_expr((Expression*)arena_get_memory(arena, op.ref));
+            StringBuffer rendered_expr = render_expr(op.expr);
             str_concat(str, &rendered_expr);
             break;
         }
         case OPERAND_ENCLOSURE_LITERAL: {
-            Enclosure* enclosure = (Enclosure*)arena_get_memory(arena, op.ref);
+            Enclosure* enclosure = op.enclosure;
             bool is_map = (enclosure->type == ENCLOSURE_DICT);
             render_enclosure_opening(str, enclosure->type);
-            Expression* expressions = arena_get_memory(arena, enclosure->expressions.ref);
-            for (size_t i = 0; i < enclosure->expressions.length; i++) {
+            Expression* expressions = enclosure->expressions;
+            for (size_t i = 0; i < enclosure->expressions_count; i++) {
                 if (is_map) {
                     if (i % 2 == 1)
                         str_concat_cstr(str, ": ");
@@ -112,45 +103,35 @@ render_operand(StringBuffer* str, Operand op)
             break;
         }
         case OPERAND_COMPREHENSION: {
-            Comprehension* comp = arena_get_memory(arena, op.ref);
+            Comprehension* comp = op.comp;
             bool is_map = (comp->type == ENCLOSURE_DICT);
             str_append_char(str, '\n');
             render_enclosure_opening(str, comp->type);
             // initial (key: value) expression
             if (is_map) {
-                expr = render_expr(
-                    (Expression*)arena_get_memory(arena, comp->mapped.key_expr)
-                );
+                expr = render_expr(comp->mapped.key_expr);
                 str_concat(str, &expr);
                 str_concat_cstr(str, ": ");
-                expr = render_expr(
-                    (Expression*)arena_get_memory(arena, comp->mapped.val_expr)
-                );
+                expr = render_expr(comp->mapped.val_expr);
                 str_concat(str, &expr);
             }
             // initial expression
             else {
-                expr =
-                    render_expr((Expression*)arena_get_memory(arena, comp->sequence.expr)
-                    );
+                expr = render_expr(comp->sequence.expr);
                 str_concat(str, &expr);
             }
             // for loop bodies
             for (size_t i = 0; i < comp->body.nesting; i++) {
                 str_concat_cstr(str, "\n for ");
-                expr =
-                    render_expr((Expression*)arena_get_memory(arena, comp->body.its[i]));
+                expr = render_expr(comp->body.its[i]);
                 str_concat(str, &expr);
                 str_concat_cstr(str, " in ");
-                expr = render_expr(
-                    (Expression*)arena_get_memory(arena, comp->body.iterables[i])
-                );
+                expr = render_expr(comp->body.iterables[i]);
                 str_concat(str, &expr);
             }
-            if (comp->body.has_if) {
+            if (comp->body.if_expr) {
                 str_concat_cstr(str, "\n if ");
-                expr =
-                    render_expr((Expression*)arena_get_memory(arena, comp->body.if_expr));
+                expr = render_expr(comp->body.if_expr);
                 str_concat(str, &expr);
             }
             render_enclosure_closing(str, comp->type);
@@ -158,25 +139,19 @@ render_operand(StringBuffer* str, Operand op)
         }
         case OPERAND_ARGUMENTS: {
             str_append_char(str, '(');
-            Arguments* args = (Arguments*)arena_get_memory(arena, op.ref);
+            Arguments* args = op.args;
             size_t positional = 0;
             size_t kwds = 0;
             for (size_t i = 0; i < args->length; i++) {
                 if (i > 0) str_concat_cstr(str, ", ");
                 if (positional++ < args->n_positional) {
-                    expr = render_expr(
-                        (Expression*)arena_get_memory(arena, args->value_refs[i])
-                    );
+                    expr = render_expr(args->values[i]);
                     str_concat(str, &expr);
                 }
                 else {
-                    str_concat_cstr(
-                        str, (char*)arena_get_memory(arena, args->kwds[kwds++].ref)
-                    );
+                    str_concat_cstr(str, args->kwds[kwds++].value);
                     str_append_char(str, '=');
-                    expr = render_expr(
-                        (Expression*)arena_get_memory(arena, args->value_refs[i])
-                    );
+                    expr = render_expr(args->values[i]);
                     str_concat(str, &expr);
                 }
             }
@@ -185,13 +160,11 @@ render_operand(StringBuffer* str, Operand op)
         }
         case OPERAND_SLICE: {
             str_concat_cstr(str, "slice(");
-            Slice* slice = (Slice*)arena_get_memory(arena, op.ref);
+            Slice* slice = op.slice;
             bool need_comma = false;
             if (!slice->use_default_start) {
                 str_concat_cstr(str, "start=");
-                expr = render_expr(
-                    (Expression*)arena_get_memory(arena, slice->start_expr_ref)
-                );
+                expr = render_expr(slice->start_expr);
                 str_concat(str, &expr);
                 need_comma = true;
             }
@@ -201,9 +174,7 @@ render_operand(StringBuffer* str, Operand op)
                     need_comma = false;
                 }
                 str_concat_cstr(str, "stop=");
-                expr =
-                    render_expr((Expression*)arena_get_memory(arena, slice->stop_expr_ref)
-                    );
+                expr = render_expr(slice->stop_expr);
                 str_concat(str, &expr);
                 need_comma = true;
             }
@@ -212,9 +183,7 @@ render_operand(StringBuffer* str, Operand op)
                     str_concat_cstr(str, ", ");
                 }
                 str_concat_cstr(str, "step=");
-                expr =
-                    render_expr((Expression*)arena_get_memory(arena, slice->step_expr_ref)
-                    );
+                expr = render_expr(slice->step_expr);
                 str_concat(str, &expr);
                 need_comma = true;
             }
@@ -229,21 +198,21 @@ render_operand(StringBuffer* str, Operand op)
 static StringBuffer
 render_expr(Expression* expr)
 {
-    StringBuffer string_mem[expr->operations.length];
-    StringBuffer* already_rendered_chunks[expr->operands.length];
-    memset(already_rendered_chunks, 0, sizeof(StringBuffer*) * expr->operands.length);
-    memset(string_mem, 0, sizeof(StringBuffer) * expr->operations.length);
+    StringBuffer string_mem[expr->operations_count];
+    StringBuffer* already_rendered_chunks[expr->operands_count];
+    memset(already_rendered_chunks, 0, sizeof(StringBuffer*) * expr->operands_count);
+    memset(string_mem, 0, sizeof(StringBuffer) * expr->operations_count);
 
-    Operand* operands = arena_get_memory(arena, expr->operands.ref);
-    Operation* operations = arena_get_memory(arena, expr->operations.ref);
+    Operand* operands = expr->operands;
+    Operation* operations = expr->operations;
 
-    if (expr->operations.length == 0) {
+    if (expr->operations_count == 0) {
         StringBuffer buf = {0};
         render_operand(&buf, operands[0]);
         return buf;
     }
 
-    for (size_t i = 0; i < expr->operations.length; i++) {
+    for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = operations[i];
         StringBuffer this_operation_rendered = {0};
 
@@ -275,7 +244,7 @@ render_expr(Expression* expr)
             already_rendered_chunks[operation.right] = string_mem + i;
     }
 
-    return string_mem[expr->operations.length - 1];
+    return string_mem[expr->operations_count - 1];
 }
 
 void
@@ -297,7 +266,7 @@ print_statement(Statement* stmt)
             break;
         case STMT_EXPR:
             printf("EXPR: ");
-            print_expression((Expression*)arena_get_memory(arena, stmt->expr_ref));
+            print_expression(stmt->expr);
             break;
         default:
             assert(0 && "unimplemented");
@@ -311,14 +280,14 @@ print_token(Token tok)
     printf("%s:%u:%u ", tok.loc.filename, tok.loc.line, tok.loc.col);
     print_token_type(tok.type);
     if (tok.type == TOK_OPERATOR) {
-        printf(": %s", op_to_cstr(tok.value));
+        printf(": %s", op_to_cstr(tok.op));
     }
     else if (tok.type == TOK_KEYWORD) {
-        printf(": %s", kw_to_cstr(tok.value));
+        printf(": %s", kw_to_cstr(tok.kw));
     }
     else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
-        printf("%s", (char*)arena_get_memory(arena, tok.ref));
+        printf("%s", tok.value);
     }
     printf("\n");
 }

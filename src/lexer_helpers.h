@@ -35,7 +35,7 @@ typedef struct {
     Operation* operations;
 } OperationVector;
 
-inline void operation_vector_push(OperationVector* vec, Operation operation);
+void operation_vector_push(OperationVector* vec, Operation operation);
 
 typedef struct {
     size_t operands_count;
@@ -45,7 +45,7 @@ typedef struct {
     OperationVector operation_vectors[MAX_PRECEDENCE + 1];
 } ExpressionTable;
 
-inline void et_push_operand(ExpressionTable* et, Operand operand);
+void et_push_operand(ExpressionTable* et, Operand operand);
 void et_push_operation(ExpressionTable* et, Operation operation);
 
 size_t filename_offset(const char* filepath);

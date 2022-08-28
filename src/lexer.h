@@ -9,7 +9,7 @@
 #include "lexer_types.h"
 
 typedef struct {
-    Arena arena;
+    Arena* arena;
     size_t n_statements;
     Statement* statements;
 } Lexer;

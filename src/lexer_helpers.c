@@ -55,7 +55,7 @@ expression_vector_free(ExpressionVector* vec)
     free(vec->buf);
 }
 
-inline void
+void
 operation_vector_push(OperationVector* vec, Operation operation)
 {
     if (vec->capacity == vec->count) {
@@ -66,7 +66,7 @@ operation_vector_push(OperationVector* vec, Operation operation)
     vec->operations[vec->count++] = operation;
 }
 
-inline void
+void
 et_push_operand(ExpressionTable* et, Operand operand)
 {
     if (et->operands_count == et->operands_capacity) {
