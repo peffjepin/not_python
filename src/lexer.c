@@ -725,7 +725,6 @@ parse_expression(Parser* parser)
     // parse operands/operations
     do {
         Token tok = get_next_token(parser);
-        if (tok.type == NULL_TOKEN) UNIMPLEMENTED("waiting on tokenization");
         switch (tok.type) {
             case TOK_KEYWORD: {
                 if (tok.kw == KW_IF && !parser->disallow_conditional_expression) {

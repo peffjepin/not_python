@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define STRING_BUFFER_CAPACITY 1024
+#define STRING_BUFFER_CAPACITY 4096
 
 typedef struct {
     char data[STRING_BUFFER_CAPACITY];
