@@ -57,11 +57,6 @@ struct Arguments {
 };
 
 struct Slice {
-    // either use default
-    bool use_default_start;
-    bool use_default_stop;
-    bool use_default_step;
-    // or provide a ref
     Expression* start_expr;
     Expression* stop_expr;
     Expression* step_expr;
@@ -109,7 +104,7 @@ struct Comprehension {
 struct Enclosure {
     EnclosureType type;
     size_t expressions_count;
-    Expression* expressions;
+    Expression** expressions;
 };
 
 typedef enum {

@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "arena.h"
 #include "compiler_types.h"
 #include "lexer_types.h"
 
@@ -21,13 +22,16 @@ Token tq_consume(TokenQueue* tq);
 void tq_push(TokenQueue* tq, Token token);
 
 typedef struct {
-    Expression* buf;
+    Arena* arena;
+    Expression** data;
     size_t capacity;
-    size_t length;
+    size_t count;
+    size_t bytes;
 } ExpressionVector;
 
-void expression_vector_append(ExpressionVector* vec, Expression expr);
-void expression_vector_free(ExpressionVector* vec);
+ExpressionVector expr_vector_init(Arena* arena);
+void expr_vector_append(ExpressionVector* vec, Expression* expr);
+Expression** expr_vector_finalize(ExpressionVector* vec);
 
 typedef struct {
     size_t count;
@@ -38,15 +42,20 @@ typedef struct {
 void operation_vector_push(OperationVector* vec, Operation operation);
 
 typedef struct {
+    Arena* arena;
     size_t operands_count;
     size_t operands_capacity;
+    size_t operands_nbytes;
     Operand* operands;
     size_t operations_count;
     OperationVector operation_vectors[MAX_PRECEDENCE + 1];
 } ExpressionTable;
 
+ExpressionTable et_init(Arena* arena);
 void et_push_operand(ExpressionTable* et, Operand operand);
 void et_push_operation(ExpressionTable* et, Operation operation);
+void et_push_operation_type(ExpressionTable* et, Operator op_type);
+Expression* et_to_expr(ExpressionTable* et);
 
 size_t filename_offset(const char* filepath);
 

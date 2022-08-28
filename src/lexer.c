@@ -355,7 +355,7 @@ is_end_of_expression(Parser* parser)
     return false;
 }
 
-static Expression parse_expression(Parser* parser);
+static Expression* parse_expression(Parser* parser);
 static inline Token expect_token_type(Parser* parser, TokenType type);
 static inline Token expect_keyword(Parser* parser, Keyword kw);
 
@@ -375,16 +375,13 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
         // for
         expect_keyword(parser, KW_FOR);
         // it
-        Expression it = parse_expression(parser);
-        body->its[body->nesting] = arena_copy(parser->arena, &it, sizeof(Expression));
+        body->its[body->nesting] = parse_expression(parser);
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
         parser->disallow_conditional_expression = true;
-        Expression iterable = parse_expression(parser);
+        body->iterables[body->nesting++] = parse_expression(parser);
         parser->disallow_conditional_expression = false;
-        body->iterables[body->nesting++] =
-            arena_copy(parser->arena, &iterable, sizeof(Expression));
         // potentially another nested for loop
         next = peek_next_token(parser);
     } while (next.type == TOK_KEYWORD && next.kw == KW_FOR);
@@ -393,25 +390,21 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
     next = peek_next_token(parser);
     if (next.type == TOK_KEYWORD && next.kw == KW_IF) {
         get_next_token(parser);
-        Expression expr = parse_expression(parser);
-        body->if_expr = arena_copy(parser->arena, &expr, sizeof(Expression));
+        body->if_expr = parse_expression(parser);
     }
 }
 
-static Comprehension
+static Comprehension*
 parse_dict_comprehension(
-    Parser* parser, Location loc, Expression first_key, Expression first_val
+    Parser* parser, Location loc, Expression* key_expr, Expression* val_expr
 )
 {
-    MappedComprehension mapped_comp = {
-        .key_expr = arena_copy(parser->arena, &first_key, sizeof(Expression)),
-        .val_expr = arena_copy(parser->arena, &first_val, sizeof(Expression)),
-    };
-    ComprehensionBody body = {0};
-    parse_comprehension_body(parser, loc, &body);
-
+    Comprehension* comp = arena_alloc(parser->arena, sizeof(Comprehension));
+    comp->type = ENCLOSURE_DICT;
+    comp->mapped.key_expr = key_expr;
+    comp->mapped.val_expr = val_expr;
+    parse_comprehension_body(parser, loc, &comp->body);
     expect_token_type(parser, TOK_CLOSE_CURLY);
-    Comprehension comp = {.type = ENCLOSURE_DICT, .body = body, .mapped = mapped_comp};
     return comp;
 }
 
@@ -419,101 +412,85 @@ static Operand
 parse_mapped_enclosure(Parser* parser)
 {
     Location loc = parser->token.loc;
+    Operand op = {0};
 
     // empty dict
     if (peek_next_token(parser).type == TOK_CLOSE_CURLY) {
+        Enclosure* enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
         get_next_token(parser);
-        Enclosure enclosure = {
-            .type = ENCLOSURE_DICT,
-            .expressions_count = 0,
-        };
-        Operand op = {
-            .kind = OPERAND_ENCLOSURE_LITERAL,
-            .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure))};
+        enclosure->type = ENCLOSURE_DICT;
+        enclosure->expressions_count = 0;
+        op.kind = OPERAND_ENCLOSURE_LITERAL;
+        op.enclosure = enclosure;
         return op;
     }
 
-    ExpressionVector vec = {0};
-    expression_vector_append(&vec, parse_expression(parser));
+    Expression* first_key = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
-    expression_vector_append(&vec, parse_expression(parser));
+    Expression* first_val = parse_expression(parser);
     Token next_token = peek_next_token(parser);
+
+    // might be a comprehension
+    if (next_token.type == TOK_KEYWORD) {
+        op.kind = OPERAND_COMPREHENSION,
+        op.comp = parse_dict_comprehension(parser, loc, first_key, first_val);
+        return op;
+    }
+
+    // prepare to continue parsing dict literal
+    Enclosure* enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
+    op.enclosure = enclosure;
+    ExpressionVector vec = expr_vector_init(parser->arena);
+    expr_vector_append(&vec, first_key);
+    expr_vector_append(&vec, first_val);
 
     if (next_token.type == TOK_CLOSE_CURLY) {
         get_next_token(parser);  // consume token
-        Enclosure enclosure = {
-            .type = ENCLOSURE_DICT,
-            .expressions =
-                arena_copy(parser->arena, vec.buf, sizeof(Expression) * vec.length),
-            .expressions_count = vec.length};
-        Operand op = {
-            .kind = OPERAND_ENCLOSURE_LITERAL,
-            .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure))};
-        expression_vector_free(&vec);
-        return op;
-    }
-
-    else if (next_token.type == TOK_KEYWORD) {
-        Comprehension comp =
-            parse_dict_comprehension(parser, loc, vec.buf[0], vec.buf[1]);
-        Operand op = {
-            .kind = OPERAND_COMPREHENSION,
-            .comp = arena_copy(parser->arena, &comp, sizeof(Comprehension))};
-        expression_vector_free(&vec);
+        enclosure->type = ENCLOSURE_DICT;
+        enclosure->expressions = expr_vector_finalize(&vec);
+        enclosure->expressions_count = vec.count;
+        op.kind = OPERAND_ENCLOSURE_LITERAL;
         return op;
     }
 
     // continue parsing literal
     else {
-        // enclosures are marked by their starting and ending expressions
-        // so we wont add any parsed expressions into the arena until we
-        // have parsed the entire dict literal
         while (peek_next_token(parser).type != TOK_CLOSE_CURLY) {
             expect_token_type(parser, TOK_COMMA);
             // beware trailing comma
             if (peek_next_token(parser).type == TOK_CLOSE_CURLY) break;
-            // key
-            expression_vector_append(&vec, parse_expression(parser));
-            // :
+            // key:value
+            expr_vector_append(&vec, parse_expression(parser));
             expect_token_type(parser, TOK_COLON);
-            // value
-            expression_vector_append(&vec, parse_expression(parser));
+            expr_vector_append(&vec, parse_expression(parser));
         }
         expect_token_type(parser, TOK_CLOSE_CURLY);
-        Enclosure enclosure = {
-            .type = ENCLOSURE_DICT,
-            .expressions =
-                arena_copy(parser->arena, vec.buf, sizeof(Expression) * vec.length),
-            .expressions_count = vec.length};
-        Operand op = {
-            .kind = OPERAND_ENCLOSURE_LITERAL,
-            .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure))};
-        expression_vector_free(&vec);
+        enclosure->type = ENCLOSURE_DICT,
+        enclosure->expressions = expr_vector_finalize(&vec);
+        enclosure->expressions_count = vec.count;
+        op.kind = OPERAND_ENCLOSURE_LITERAL;
         return op;
     }
 }
 
-static Comprehension
+static Comprehension*
 parse_sequence_comprehension(
-    Parser* parser, Location loc, Expression expr, TokenType closing_token
+    Parser* parser, Location loc, Expression* expr, TokenType closing_token
 )
 {
-    SequenceComprehension seq_comp = {
-        .expr = arena_copy(parser->arena, &expr, sizeof(Expression)),
-    };
-    ComprehensionBody body = {0};
-    parse_comprehension_body(parser, loc, &body);
-
+    Comprehension* comp = arena_alloc(parser->arena, sizeof(Comprehension));
+    comp->sequence.expr = expr;
+    comp->type = (closing_token == TOK_CLOSE_PARENS) ? ENCLOSURE_TUPLE : ENCLOSURE_LIST;
+    parse_comprehension_body(parser, loc, &comp->body);
     expect_token_type(parser, closing_token);
-    EnclosureType type =
-        (closing_token == TOK_CLOSE_PARENS) ? ENCLOSURE_TUPLE : ENCLOSURE_LIST;
-    Comprehension comp = {.type = type, .body = body, .sequence = seq_comp};
     return comp;
 }
 
 static Operand
 parse_sequence_enclosure(Parser* parser)
 {
+    Operand op = {0};
+
     Token opening_token = parser->token;
     TokenType closing_token_type;
     EnclosureType enclosure_type;
@@ -529,108 +506,99 @@ parse_sequence_enclosure(Parser* parser)
     // empty sequence
     if (peek_next_token(parser).type == closing_token_type) {
         get_next_token(parser);
-        Enclosure enclosure = {
-            .type = enclosure_type,
-            .expressions_count = 0,
-        };
-        Operand op = {
-            .kind = OPERAND_ENCLOSURE_LITERAL,
-            .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure)),
-        };
+        op.kind = OPERAND_ENCLOSURE_LITERAL,
+        op.enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
+        op.enclosure->type = enclosure_type;
+        op.enclosure->expressions_count = 0;
         return op;
-    }
+    };
 
-    Expression first_expr = parse_expression(parser);
+    Expression* first_expr = parse_expression(parser);
     Token peek = peek_next_token(parser);
 
+    // tuple with no comma resolves to plain expression
+    // ex: (1)  == 1
+    //     (1,) != 1
     if (peek.type == TOK_CLOSE_PARENS) {
-        // tuple with no comma resolves to plain expression
-        // ex: (1)  == 1
-        //     (1,) != 1
         expect_token_type(parser, TOK_CLOSE_PARENS);
-        Operand op = {
-            .kind = OPERAND_EXPRESSION,
-            .expr = arena_copy(parser->arena, &first_expr, sizeof(Expression))};
+        op.kind = OPERAND_EXPRESSION;
+        op.expr = first_expr;
         return op;
     }
 
-    else if (peek.type == TOK_CLOSE_SQUARE) {
-        // single element list with no comma resolves to list
-        expect_token_type(parser, TOK_CLOSE_SQUARE);
-        Enclosure enclosure = {
-            .type = ENCLOSURE_LIST,
-            .expressions = arena_copy(parser->arena, &first_expr, sizeof(Expression)),
-            .expressions_count = 1};
-        Operand op = {
-            .kind = OPERAND_ENCLOSURE_LITERAL,
-            .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure)),
-        };
-        return op;
-    }
-
-    else if (peek.type == TOK_KEYWORD && peek.kw == KW_FOR) {
-        Comprehension comp = parse_sequence_comprehension(
+    // sequence comprehension
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_FOR) {
+        Comprehension* comp = parse_sequence_comprehension(
             parser, opening_token.loc, first_expr, closing_token_type
         );
-        Operand op = {
-            .kind = OPERAND_COMPREHENSION,
-            .comp = arena_copy(parser->arena, &comp, sizeof(Comprehension))};
+        op.kind = OPERAND_COMPREHENSION;
+        op.comp = comp;
+        return op;
+    }
+
+    // prepare to continue parsing enclosure literal
+    Enclosure* enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
+    enclosure->type = enclosure_type;
+    op.enclosure = enclosure;
+
+    // single element list with no comma resolves to list
+    if (peek.type == TOK_CLOSE_SQUARE) {
+        expect_token_type(parser, TOK_CLOSE_SQUARE);
+        enclosure->expressions = arena_alloc(parser->arena, sizeof(Expression**));
+        enclosure->expressions[0] = first_expr;
+        enclosure->expressions_count = 1;
+        op.kind = OPERAND_ENCLOSURE_LITERAL;
         return op;
     }
 
     // otherwise parse the rest of the enclosure literal
-    // accrue expressions in an intermediate vector so that the
-    // enclosure.first_expr and enclosure.last_expr ArenaRefs are contiguous
-    ExpressionVector vec = {0};
-    expression_vector_append(&vec, first_expr);
+    ExpressionVector vec = expr_vector_init(parser->arena);
+    expr_vector_append(&vec, first_expr);
 
     while (peek_next_token(parser).type != closing_token_type) {
         expect_token_type(parser, TOK_COMMA);
         // beware trailing comma
         if (peek_next_token(parser).type == closing_token_type) break;
-        expression_vector_append(&vec, parse_expression(parser));
+        expr_vector_append(&vec, parse_expression(parser));
     }
 
     expect_token_type(parser, closing_token_type);
-    Enclosure enclosure = {
-        .type = enclosure_type,
-        .expressions =
-            arena_copy(parser->arena, vec.buf, sizeof(Expression) * vec.length),
-        .expressions_count = vec.length};
-    Operand op = {
-        .kind = OPERAND_ENCLOSURE_LITERAL,
-        .enclosure = arena_copy(parser->arena, &enclosure, sizeof(Enclosure))};
-    expression_vector_free(&vec);
+    enclosure->expressions = expr_vector_finalize(&vec);
+    enclosure->expressions_count = vec.count;
+    op.kind = OPERAND_ENCLOSURE_LITERAL;
     return op;
 }
 
 static Operand
 parse_arguments(Parser* parser)
 {
+    Arguments* args = arena_alloc(parser->arena, sizeof(Arguments));
+    Operand op = {.kind = OPERAND_ARGUMENTS, .args = args};
+
     Token begin_args = parser->token;
-    Expression expr;
-    Arguments args = {0};
     size_t n_kwds = 0;
     while (true) {
+        // end of arguments
         if (peek_next_token(parser).type == TOK_CLOSE_PARENS) {
             get_next_token(parser);
             break;
         }
-        else if (args.length == MAX_ARGUMENTS) {
+        // ERROR exceeds max args
+        else if (args->length == MAX_ARGUMENTS) {
             SYNTAX_ERRORF(
                 begin_args.loc, "maximum arguments (%u) exceeded", MAX_ARGUMENTS
             );
         }
-        else if (args.length > 0)
+
+        else if (args->length > 0)
             expect_token_type(parser, TOK_COMMA);
         Token next = peek_forward_n_tokens(parser, 1);
+
         // keyword argument
         if (next.type == TOK_OPERATOR && next.op == OPERATOR_ASSIGNMENT) {
-            args.kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
+            args->kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
             get_next_token(parser);  // consume assignment op
-            expr = parse_expression(parser);
-            args.values[args.length++] =
-                arena_copy(parser->arena, &expr, sizeof(Expression));
+            args->values[args->length++] = parse_expression(parser);
         }
         // positional argument
         else {
@@ -640,52 +608,50 @@ parse_arguments(Parser* parser)
                     "positional arguments must come before keyword arguments"
                 );
             }
-            expr = parse_expression(parser);
-            args.values[args.length++] =
-                arena_copy(parser->arena, &expr, sizeof(Expression));
-            args.n_positional++;
+            args->values[args->length++] = parse_expression(parser);
+            args->n_positional++;
         }
     }
 
-    Operand op = {
-        .kind = OPERAND_ARGUMENTS,
-        .args = arena_copy(parser->arena, &args, sizeof(Arguments))};
     return op;
 }
 
 static Operand
 parse_getitem_arguments(Parser* parser)
 {
-    Slice slice = {0};
+    Slice* slice;
     Operand op = {0};
     Token peek = peek_next_token(parser);
     Token next;
     // []
     if (peek.type == TOK_CLOSE_SQUARE)
-        SYNTAX_ERROR(peek.loc, "some argument is require for the getitem operator");
-    // [:...
-    else if (peek.type == TOK_COLON) {
-        get_next_token(parser);
-        slice.use_default_start = true;
-        goto slice_stop_expr;
-    }
+        SYNTAX_ERROR(peek.loc, "some argument is required for the getitem operator");
     // [expr1...
-    else {
-        Expression first_expr = parse_expression(parser);
+    else if (peek.type != TOK_COLON) {
+        Expression* first_expr = parse_expression(parser);
         next = get_next_token(parser);
         // [expr1]
         if (next.type == TOK_CLOSE_SQUARE) {
             op.kind = OPERAND_EXPRESSION;
-            op.expr = arena_copy(parser->arena, &first_expr, sizeof(Expression));
+            op.expr = first_expr;
             return op;
         }
+        // we now know we're dealing with a slice
+        slice = arena_alloc(parser->arena, sizeof(Slice));
         // [expr1:...
-        else if (next.type == TOK_COLON) {
-            slice.start_expr = arena_copy(parser->arena, &first_expr, sizeof(Expression));
+        if (next.type == TOK_COLON) {
+            slice->start_expr = first_expr;
             goto slice_stop_expr;
         }
-        else
+        else {
             SYNTAX_ERROR(next.loc, "expected either `:` or `]`");
+        }
+    }
+    // [:...
+    else {
+        slice = arena_alloc(parser->arena, sizeof(Slice));
+        get_next_token(parser);
+        slice->start_expr = NULL;
     }
 slice_stop_expr:
     // [...:...
@@ -693,25 +659,24 @@ slice_stop_expr:
     // [...:]
     if (peek.type == TOK_CLOSE_SQUARE) {
         get_next_token(parser);
-        slice.use_default_stop = true;
-        slice.use_default_step = true;
+        slice->stop_expr = NULL;
+        slice->step_expr = NULL;
         goto return_slice_operand;
     }
     // [...::...
     if (peek.type == TOK_COLON) {
         get_next_token(parser);
-        slice.use_default_stop = true;
+        slice->stop_expr = NULL;
         goto slice_step_expr;
     }
     // [...:expr2...
-    Expression stop_expr = parse_expression(parser);
-    slice.stop_expr = arena_copy(parser->arena, &stop_expr, sizeof(Expression));
+    slice->stop_expr = parse_expression(parser);
     next = get_next_token(parser);
     // [...:expr2:...
     if (next.type == TOK_COLON) goto slice_step_expr;
     // [...:expr2]
     else if (next.type == TOK_CLOSE_SQUARE) {
-        slice.use_default_step = true;
+        slice->step_expr = NULL;
         goto return_slice_operand;
     }
     else
@@ -722,15 +687,14 @@ slice_step_expr:
     // [...:...:]
     if (peek.type == TOK_CLOSE_SQUARE) {
         get_next_token(parser);
-        slice.use_default_step = true;
+        slice->step_expr = NULL;
         goto return_slice_operand;
     }
     // [...:...:expr3]
-    Expression step_expr = parse_expression(parser);
-    slice.step_expr = arena_copy(parser->arena, &step_expr, sizeof(Expression));
+    slice->step_expr = parse_expression(parser);
     expect_token_type(parser, TOK_CLOSE_SQUARE);
 return_slice_operand:
-    op.slice = arena_copy(parser->arena, &slice, sizeof(Slice));
+    op.slice = slice;
     op.kind = OPERAND_SLICE;
     return op;
 }
@@ -753,11 +717,10 @@ expect_token_type(Parser* parser, TokenType type)
     return tok;
 }
 
-static Expression
+static Expression*
 parse_expression(Parser* parser)
 {
-    const unsigned int POW_PREC = PRECENDENCE_TABLE[OPERATOR_POW];
-    ExpressionTable et = {0};
+    ExpressionTable et = et_init(parser->arena);
 
     // parse operands/operations
     do {
@@ -766,47 +729,23 @@ parse_expression(Parser* parser)
         switch (tok.type) {
             case TOK_KEYWORD: {
                 if (tok.kw == KW_IF && !parser->disallow_conditional_expression) {
-                    Operation if_operation = {
-                        .op_type = OPERATOR_CONDITIONAL_IF,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, if_operation);
+                    et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
 
-                    Expression condition = parse_expression(parser);
                     Operand condition_operand = {
-                        .kind = OPERAND_EXPRESSION,
-                        .expr =
-                            arena_copy(parser->arena, &condition, sizeof(Expression))};
+                        .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
                     et_push_operand(&et, condition_operand);
 
                     expect_keyword(parser, KW_ELSE);
-                    Operation else_operation = {
-                        .op_type = OPERATOR_CONDITIONAL_ELSE,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, else_operation);
+                    et_push_operation_type(&et, OPERATOR_CONDITIONAL_ELSE);
 
-                    Expression else_expr = parse_expression(parser);
                     Operand else_operand = {
-                        .kind = OPERAND_EXPRESSION,
-                        .expr =
-                            arena_copy(parser->arena, &else_expr, sizeof(Expression))};
+                        .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
                     et_push_operand(&et, else_operand);
                 }
-                else if (tok.kw == KW_AND) {
-                    Operation operation = {
-                        .op_type = OPERATOR_LOGICAL_AND,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, operation);
-                }
-                else if (tok.kw == KW_OR) {
-                    Operation operation = {
-                        .op_type = OPERATOR_LOGICAL_OR,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, operation);
-                }
+                else if (tok.kw == KW_AND)
+                    et_push_operation_type(&et, OPERATOR_LOGICAL_AND);
+                else if (tok.kw == KW_OR)
+                    et_push_operation_type(&et, OPERATOR_LOGICAL_OR);
                 else
                     SYNTAX_ERROR(tok.loc, "not expecting keyword here");
                 break;
@@ -814,11 +753,7 @@ parse_expression(Parser* parser)
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
-                Operation operation = {
-                    .op_type = tok.op,
-                    .left = et.operands_count - 1,
-                    .right = et.operands_count};
-                et_push_operation(&et, operation);
+                et_push_operation_type(&et, tok.op);
                 break;
             }
             case TOK_NUMBER: {
@@ -840,11 +775,7 @@ parse_expression(Parser* parser)
                 if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
                     et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    Operation operation = {
-                        .op_type = OPERATOR_CALL,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, operation);
+                    et_push_operation_type(&et, OPERATOR_CALL);
                     et_push_operand(&et, parse_arguments(parser));
                 }
                 break;
@@ -853,11 +784,7 @@ parse_expression(Parser* parser)
                 if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
                     et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    Operation operation = {
-                        .op_type = OPERATOR_GET_ITEM,
-                        .left = et.operands_count - 1,
-                        .right = et.operands_count};
-                    et_push_operation(&et, operation);
+                    et_push_operation_type(&et, OPERATOR_GET_ITEM);
                     et_push_operand(&et, parse_getitem_arguments(parser));
                 }
                 break;
@@ -867,11 +794,7 @@ parse_expression(Parser* parser)
                 break;
             }
             case TOK_DOT: {
-                Operation operation = {
-                    .op_type = OPERATOR_GET_ATTR,
-                    .left = et.operands_count - 1,
-                    .right = et.operands_count};
-                et_push_operation(&et, operation);
+                et_push_operation_type(&et, OPERATOR_GET_ATTR);
                 Operand right = {
                     .kind = OPERAND_TOKEN,
                     .token = expect_token_type(parser, TOK_IDENTIFIER)};
@@ -886,32 +809,7 @@ parse_expression(Parser* parser)
         };
     } while (!is_end_of_expression(parser));
 
-    // sort operations by precedence into a contiguous array
-    Operation sorted_operations[et.operations_count];
-    size_t sorted_count = 0;
-    for (int prec = MAX_PRECEDENCE; prec >= 0; prec--) {
-        if (sorted_count == et.operations_count) break;
-        OperationVector vec = et.operation_vectors[prec];
-        if (vec.count == 0) continue;
-        for (size_t i = 0; i < vec.count; i++) {
-            // OPERATOR_POW precedes right->left
-            size_t index = ((unsigned)prec == POW_PREC) ? vec.count - 1 - i : i;
-            sorted_operations[sorted_count++] = vec.operations[index];
-        }
-        free(vec.operations);
-    }
-
-    // construct expression (inserting operands and opertaions into arena memory)
-    Expression expr = {
-        .operands =
-            arena_copy(parser->arena, et.operands, sizeof(Operand) * et.operands_count),
-        .operands_count = et.operands_count,
-        .operations = arena_copy(
-            parser->arena, sorted_operations, sizeof(Operation) * et.operations_count
-        ),
-        .operations_count = et.operations_count};
-    free(et.operands);
-    return expr;
+    return et_to_expr(&et);
 }
 
 static Statement
@@ -925,8 +823,7 @@ parse_for_loop_instruction(Parser* parser)
     stmt.for_loop.it = tok.value;
 
     tok = expect_keyword(parser, KW_IN);
-    Expression expr = parse_expression(parser);
-    stmt.for_loop.iterable = arena_copy(parser->arena, &expr, sizeof(Expression));
+    stmt.for_loop.iterable = parse_expression(parser);
 
     tok = expect_token_type(parser, TOK_COLON);
 
@@ -967,8 +864,7 @@ parse_statement(Parser* parser)
     }
 
     stmt.kind = STMT_EXPR;
-    Expression expr = parse_expression(parser);
-    stmt.expr = arena_copy(parser->arena, &expr, sizeof(Expression));
+    stmt.expr = parse_expression(parser);
     return stmt;
 }
 

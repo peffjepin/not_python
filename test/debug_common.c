@@ -86,7 +86,7 @@ render_operand(StringBuffer* str, Operand op)
             Enclosure* enclosure = op.enclosure;
             bool is_map = (enclosure->type == ENCLOSURE_DICT);
             render_enclosure_opening(str, enclosure->type);
-            Expression* expressions = enclosure->expressions;
+            Expression** expressions = enclosure->expressions;
             for (size_t i = 0; i < enclosure->expressions_count; i++) {
                 if (is_map) {
                     if (i % 2 == 1)
@@ -96,7 +96,7 @@ render_operand(StringBuffer* str, Operand op)
                 }
                 else if (i > 0)
                     str_concat_cstr(str, ", ");
-                StringBuffer rendered_element = render_expr(expressions + i);
+                StringBuffer rendered_element = render_expr(expressions[i]);
                 str_concat(str, &rendered_element);
             }
             render_enclosure_closing(str, enclosure->type);
@@ -162,13 +162,13 @@ render_operand(StringBuffer* str, Operand op)
             str_concat_cstr(str, "slice(");
             Slice* slice = op.slice;
             bool need_comma = false;
-            if (!slice->use_default_start) {
+            if (slice->start_expr) {
                 str_concat_cstr(str, "start=");
                 expr = render_expr(slice->start_expr);
                 str_concat(str, &expr);
                 need_comma = true;
             }
-            if (!slice->use_default_stop) {
+            if (slice->stop_expr) {
                 if (need_comma) {
                     str_concat_cstr(str, ", ");
                     need_comma = false;
@@ -178,7 +178,7 @@ render_operand(StringBuffer* str, Operand op)
                 str_concat(str, &expr);
                 need_comma = true;
             }
-            if (!slice->use_default_step) {
+            if (slice->step_expr) {
                 if (need_comma) {
                     str_concat_cstr(str, ", ");
                 }

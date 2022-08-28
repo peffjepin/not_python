@@ -147,6 +147,7 @@ arena_alloc(Arena* arena, size_t nbytes)
         static_chunk->head = nbytes;
         static_chunk->buffer = malloc(nbytes);
         if (!static_chunk->buffer) out_of_static_memory();
+        memset(static_chunk->buffer, 0, nbytes);
         return static_chunk->buffer;
     }
 
@@ -163,6 +164,7 @@ arena_alloc(Arena* arena, size_t nbytes)
     arena->current_static_chunk = arena->static_chunks_count - 1;
     new_chunk->buffer = malloc(ARENA_STATIC_CHUNK_MIN_SIZE);
     if (!new_chunk->buffer) out_of_static_memory();
+    memset(new_chunk->buffer, 0, ARENA_STATIC_CHUNK_MIN_SIZE);
     new_chunk->capacity = ARENA_STATIC_CHUNK_MIN_SIZE;
     new_chunk->head = nbytes;
     return new_chunk->buffer;
