@@ -90,6 +90,33 @@ str_vector_finalize(StringVector* vec)
     return arena_dynamic_finalize(vec->arena, vec->data, sizeof(char*) * vec->count);
 }
 
+ItIdentifierVector
+itid_vector_init(Arena* arena)
+{
+    ItIdentifierVector vec = {.arena = arena};
+    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
+    vec.capacity = vec.bytes / sizeof(ItIdentifier);
+    return vec;
+}
+
+void
+itid_vector_append(ItIdentifierVector* vec, ItIdentifier itid)
+{
+    if (vec->count == vec->capacity) {
+        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
+        vec->capacity = vec->bytes / sizeof(ItIdentifier);
+    }
+    vec->data[vec->count++] = itid;
+}
+
+ItIdentifier*
+itid_vector_finalize(ItIdentifierVector* vec)
+{
+    return arena_dynamic_finalize(
+        vec->arena, vec->data, sizeof(ItIdentifier) * vec->count
+    );
+}
+
 void
 operation_vector_push(OperationVector* vec, Operation operation)
 {

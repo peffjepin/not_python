@@ -46,6 +46,18 @@ void str_vector_append(StringVector* vec, char* str);
 char** str_vector_finalize(StringVector* vec);
 
 typedef struct {
+    Arena* arena;
+    ItIdentifier* data;
+    size_t capacity;
+    size_t count;
+    size_t bytes;
+} ItIdentifierVector;
+
+ItIdentifierVector itid_vector_init(Arena* arena);
+void itid_vector_append(ItIdentifierVector* vec, ItIdentifier itid);
+ItIdentifier* itid_vector_finalize(ItIdentifierVector* vec);
+
+typedef struct {
     size_t count;
     size_t capacity;
     Operation* operations;

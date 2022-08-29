@@ -359,6 +359,46 @@ static Expression* parse_expression(Parser* parser);
 static inline Token expect_token_type(Parser* parser, TokenType type);
 static inline Token expect_keyword(Parser* parser, Keyword kw);
 
+static ItGroup*
+parse_iterable_identifiers(Parser* parser)
+{
+    ItIdentifierVector vec = itid_vector_init(parser->arena);
+    ItGroup* it_group = arena_alloc(parser->arena, sizeof(ItGroup));
+
+    while (peek_next_token(parser).type != TOK_KEYWORD) {
+        Token token = get_next_token(parser);
+        switch (token.type) {
+            case TOK_COMMA:
+                // maybe ignoring commas is a bad idea but it seems to me they don't
+                // actually have meaning here besides being a delimiter though this
+                // will allow for some whacky syntax: `for key,,,,,value,,, in d.items():`
+                continue;
+            case TOK_OPEN_PARENS: {
+                ItIdentifier identifier = {
+                    .kind = IT_GROUP, .group = parse_iterable_identifiers(parser)};
+                itid_vector_append(&vec, identifier);
+                break;
+            }
+            case TOK_CLOSE_PARENS: {
+                goto return_it_group;
+                break;
+            }
+            case TOK_IDENTIFIER: {
+                ItIdentifier identifier = {.kind = IT_ID, .name = token.value};
+                itid_vector_append(&vec, identifier);
+                break;
+            }
+            default:
+                SYNTAX_ERROR(token.loc, "unexpected token");
+        }
+    }
+return_it_group:
+    if (vec.count == 0) SYNTAX_ERROR(peek_next_token(parser).loc, "no identifiers given");
+    it_group->identifiers = itid_vector_finalize(&vec);
+    it_group->identifiers_count = vec.count;
+    return it_group;
+}
+
 static void
 parse_comprehension_body(Parser* parser, ComprehensionBody* body)
 {
@@ -802,16 +842,14 @@ static Statement
 parse_for_loop_instruction(Parser* parser)
 {
     Statement stmt = {.kind = STMT_FOR_LOOP};
-    // consume for token
-    Token tok = expect_keyword(parser, KW_FOR);
+    expect_keyword(parser, KW_FOR);
 
-    tok = expect_token_type(parser, TOK_IDENTIFIER);
-    stmt.for_loop.it = tok.value;
+    stmt.for_loop.it = parse_iterable_identifiers(parser);
 
-    tok = expect_keyword(parser, KW_IN);
+    expect_keyword(parser, KW_IN);
     stmt.for_loop.iterable = parse_expression(parser);
 
-    tok = expect_token_type(parser, TOK_COLON);
+    expect_token_type(parser, TOK_COLON);
 
     return stmt;
 }

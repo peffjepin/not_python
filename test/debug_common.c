@@ -247,11 +247,39 @@ render_expr(Expression* expr)
     return string_mem[expr->operations_count - 1];
 }
 
+StringBuffer
+render_it_group(ItGroup* it)
+{
+    StringBuffer buf = {0};
+    for (size_t i = 0; i < it->identifiers_count; i++) {
+        if (i > 0) str_concat_cstr(&buf, ", ");
+        ItIdentifier id = it->identifiers[i];
+        if (id.kind == IT_ID) {
+            str_concat_cstr(&buf, id.name);
+        }
+        else {
+            StringBuffer group_render = render_it_group(id.group);
+            str_append_char(&buf, '(');
+            str_concat(&buf, &group_render);
+            str_append_char(&buf, ')');
+        }
+    }
+    return buf;
+}
+
 void
 print_expression(Expression* expr)
 {
     StringBuffer buf = render_expr(expr);
     printf("%s", buf.data);
+}
+
+void
+print_for_loop(ForLoopStatement for_loop)
+{
+    StringBuffer it = render_it_group(for_loop.it);
+    StringBuffer iterable = render_expr(for_loop.iterable);
+    printf("for %s in %s", it.data, iterable.data);
 }
 
 void
@@ -267,6 +295,10 @@ print_statement(Statement* stmt)
         case STMT_EXPR:
             printf("EXPR: ");
             print_expression(stmt->expr);
+            break;
+        case STMT_FOR_LOOP:
+            printf("FOR_LOOP:\n");
+            print_for_loop(stmt->for_loop);
             break;
         default:
             assert(0 && "unimplemented");

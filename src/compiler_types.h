@@ -10,6 +10,7 @@ typedef struct Arguments Arguments;
 typedef struct Slice Slice;
 typedef struct Operation Operation;
 typedef struct Operand Operand;
+typedef struct ItGroup ItGroup;
 
 typedef enum {
     OPERAND_EXPRESSION,
@@ -69,7 +70,20 @@ typedef enum {
     COMPREHENSION_SEQUENCE,
 } ComprehensionKind;
 
-// TODO: `its` arent't really expressions
+typedef struct {
+    enum { IT_GROUP, IT_ID } kind;
+    union {
+        ItGroup* group;
+        char* name;
+    };
+} ItIdentifier;
+
+struct ItGroup {
+    size_t identifiers_count;
+    ItIdentifier* identifiers;
+};
+
+// TODO: `its` aren't really expressions
 typedef struct {
     size_t loop_count;
     Expression** its;
@@ -108,9 +122,8 @@ typedef enum {
     STMT_EOF,
 } StatementKind;
 
-// TODO: `it` isn't really an identifier string
 typedef struct {
-    char* it;
+    ItGroup* it;
     Expression* iterable;
 } ForLoopStatement;
 
