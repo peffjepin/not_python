@@ -69,13 +69,11 @@ typedef enum {
     COMPREHENSION_SEQUENCE,
 } ComprehensionKind;
 
-#define MAX_COMPREHENSION_NESTING 10
-
 // TODO: `its` arent't really expressions
 typedef struct {
-    size_t nesting;
-    Expression* its[MAX_COMPREHENSION_NESTING];
-    Expression* iterables[MAX_COMPREHENSION_NESTING];
+    size_t loop_count;
+    Expression** its;
+    Expression** iterables;
     Expression* if_expr;
 } ComprehensionBody;
 

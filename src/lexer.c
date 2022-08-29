@@ -360,31 +360,31 @@ static inline Token expect_token_type(Parser* parser, TokenType type);
 static inline Token expect_keyword(Parser* parser, Keyword kw);
 
 static void
-parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
+parse_comprehension_body(Parser* parser, ComprehensionBody* body)
 {
     Token next;
-    size_t nesting = 0;
+
+    ExpressionVector its = expr_vector_init(parser->arena);
+    ExpressionVector iterables = expr_vector_init(parser->arena);
+
     do {
-        if (nesting == MAX_COMPREHENSION_NESTING) {
-            SYNTAX_ERRORF(
-                loc,
-                "maximum comprehension nesting (%u) exceeded",
-                MAX_COMPREHENSION_NESTING
-            );
-        }
         // for
         expect_keyword(parser, KW_FOR);
         // it
-        body->its[body->nesting] = parse_expression(parser);
+        expr_vector_append(&its, parse_expression(parser));
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
         parser->disallow_conditional_expression = true;
-        body->iterables[body->nesting++] = parse_expression(parser);
+        expr_vector_append(&iterables, parse_expression(parser));
         parser->disallow_conditional_expression = false;
         // potentially another nested for loop
+        body->loop_count += 1;
         next = peek_next_token(parser);
     } while (next.type == TOK_KEYWORD && next.kw == KW_FOR);
+
+    body->its = expr_vector_finalize(&its);
+    body->iterables = expr_vector_finalize(&iterables);
 
     // maybe has if condition at the eend
     next = peek_next_token(parser);
@@ -395,15 +395,13 @@ parse_comprehension_body(Parser* parser, Location loc, ComprehensionBody* body)
 }
 
 static Comprehension*
-parse_dict_comprehension(
-    Parser* parser, Location loc, Expression* key_expr, Expression* val_expr
-)
+parse_dict_comprehension(Parser* parser, Expression* key_expr, Expression* val_expr)
 {
     Comprehension* comp = arena_alloc(parser->arena, sizeof(Comprehension));
     comp->type = ENCLOSURE_DICT;
     comp->mapped.key_expr = key_expr;
     comp->mapped.val_expr = val_expr;
-    parse_comprehension_body(parser, loc, &comp->body);
+    parse_comprehension_body(parser, &comp->body);
     expect_token_type(parser, TOK_CLOSE_CURLY);
     return comp;
 }
@@ -411,7 +409,6 @@ parse_dict_comprehension(
 static Operand
 parse_mapped_enclosure(Parser* parser)
 {
-    Location loc = parser->token.loc;
     Operand op = {0};
 
     // empty dict
@@ -433,7 +430,7 @@ parse_mapped_enclosure(Parser* parser)
     // might be a comprehension
     if (next_token.type == TOK_KEYWORD) {
         op.kind = OPERAND_COMPREHENSION,
-        op.comp = parse_dict_comprehension(parser, loc, first_key, first_val);
+        op.comp = parse_dict_comprehension(parser, first_key, first_val);
         return op;
     }
 
@@ -474,14 +471,12 @@ parse_mapped_enclosure(Parser* parser)
 }
 
 static Comprehension*
-parse_sequence_comprehension(
-    Parser* parser, Location loc, Expression* expr, TokenType closing_token
-)
+parse_sequence_comprehension(Parser* parser, Expression* expr, TokenType closing_token)
 {
     Comprehension* comp = arena_alloc(parser->arena, sizeof(Comprehension));
     comp->sequence.expr = expr;
     comp->type = (closing_token == TOK_CLOSE_PARENS) ? ENCLOSURE_TUPLE : ENCLOSURE_LIST;
-    parse_comprehension_body(parser, loc, &comp->body);
+    parse_comprehension_body(parser, &comp->body);
     expect_token_type(parser, closing_token);
     return comp;
 }
@@ -528,9 +523,8 @@ parse_sequence_enclosure(Parser* parser)
 
     // sequence comprehension
     if (peek.type == TOK_KEYWORD && peek.kw == KW_FOR) {
-        Comprehension* comp = parse_sequence_comprehension(
-            parser, opening_token.loc, first_expr, closing_token_type
-        );
+        Comprehension* comp =
+            parse_sequence_comprehension(parser, first_expr, closing_token_type);
         op.kind = OPERAND_COMPREHENSION;
         op.comp = comp;
         return op;

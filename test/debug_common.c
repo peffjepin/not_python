@@ -121,7 +121,7 @@ render_operand(StringBuffer* str, Operand op)
                 str_concat(str, &expr);
             }
             // for loop bodies
-            for (size_t i = 0; i < comp->body.nesting; i++) {
+            for (size_t i = 0; i < comp->body.loop_count; i++) {
                 str_concat_cstr(str, "\n for ");
                 expr = render_expr(comp->body.its[i]);
                 str_concat(str, &expr);
