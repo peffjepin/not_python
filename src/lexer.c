@@ -575,43 +575,36 @@ parse_arguments(Parser* parser)
     Arguments* args = arena_alloc(parser->arena, sizeof(Arguments));
     Operand op = {.kind = OPERAND_ARGUMENTS, .args = args};
 
-    Token begin_args = parser->token;
-    size_t n_kwds = 0;
+    ExpressionVector values = expr_vector_init(parser->arena);
+    StringVector kwds = str_vector_init(parser->arena);
+
     while (true) {
         // end of arguments
         if (peek_next_token(parser).type == TOK_CLOSE_PARENS) {
             get_next_token(parser);
             break;
         }
-        // ERROR exceeds max args
-        else if (args->length == MAX_ARGUMENTS) {
-            SYNTAX_ERRORF(
-                begin_args.loc, "maximum arguments (%u) exceeded", MAX_ARGUMENTS
-            );
-        }
 
-        else if (args->length > 0)
-            expect_token_type(parser, TOK_COMMA);
+        if (values.count > 0) expect_token_type(parser, TOK_COMMA);
+
         Token next = peek_forward_n_tokens(parser, 1);
 
         // keyword argument
         if (next.type == TOK_OPERATOR && next.op == OPERATOR_ASSIGNMENT) {
-            args->kwds[n_kwds++] = expect_token_type(parser, TOK_IDENTIFIER);
+            str_vector_append(&kwds, expect_token_type(parser, TOK_IDENTIFIER).value);
             get_next_token(parser);  // consume assignment op
-            args->values[args->length++] = parse_expression(parser);
+            expr_vector_append(&values, parse_expression(parser));
         }
         // positional argument
         else {
-            if (n_kwds > 0) {
-                SYNTAX_ERROR(
-                    get_next_token(parser).loc,
-                    "positional arguments must come before keyword arguments"
-                );
-            }
-            args->values[args->length++] = parse_expression(parser);
+            expr_vector_append(&values, parse_expression(parser));
             args->n_positional++;
         }
     }
+
+    args->values = expr_vector_finalize(&values);
+    args->values_count = values.count;
+    args->kwds = str_vector_finalize(&kwds);
 
     return op;
 }

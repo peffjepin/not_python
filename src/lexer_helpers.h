@@ -34,6 +34,18 @@ void expr_vector_append(ExpressionVector* vec, Expression* expr);
 Expression** expr_vector_finalize(ExpressionVector* vec);
 
 typedef struct {
+    Arena* arena;
+    char** data;
+    size_t capacity;
+    size_t count;
+    size_t bytes;
+} StringVector;
+
+StringVector str_vector_init(Arena* arena);
+void str_vector_append(StringVector* vec, char* str);
+char** str_vector_finalize(StringVector* vec);
+
+typedef struct {
     size_t count;
     size_t capacity;
     Operation* operations;

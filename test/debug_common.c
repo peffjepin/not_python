@@ -142,14 +142,14 @@ render_operand(StringBuffer* str, Operand op)
             Arguments* args = op.args;
             size_t positional = 0;
             size_t kwds = 0;
-            for (size_t i = 0; i < args->length; i++) {
+            for (size_t i = 0; i < args->values_count; i++) {
                 if (i > 0) str_concat_cstr(str, ", ");
                 if (positional++ < args->n_positional) {
                     expr = render_expr(args->values[i]);
                     str_concat(str, &expr);
                 }
                 else {
-                    str_concat_cstr(str, args->kwds[kwds++].value);
+                    str_concat_cstr(str, args->kwds[kwds++]);
                     str_append_char(str, '=');
                     expr = render_expr(args->values[i]);
                     str_concat(str, &expr);

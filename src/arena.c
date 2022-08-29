@@ -101,9 +101,12 @@ memory_error:
 void*
 arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes)
 {
-    void* static_allocation = arena_alloc(arena, nbytes);
-    if (!static_allocation) out_of_static_memory();
-    memcpy(static_allocation, dynamic_allocation, nbytes);
+    void* ptr = NULL;
+    if (nbytes > 0) {
+        ptr = arena_alloc(arena, nbytes);
+        if (!ptr) out_of_static_memory();
+        memcpy(ptr, dynamic_allocation, nbytes);
+    }
 
     size_t head_chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
     // TODO: if dynamic_chunks_in_use kept the nchunks value in the head chunk position
@@ -117,7 +120,7 @@ arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes)
     }
     memset(arena->dynamic_chunks_in_use + head_chunk, false, sizeof(bool) * nchunks);
 
-    return static_allocation;
+    return ptr;
 }
 
 #define ARENA_STATIC_CHUNK_MIN_SIZE 4096

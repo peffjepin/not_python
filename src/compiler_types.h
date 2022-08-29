@@ -45,14 +45,11 @@ struct Expression {
     Operation* operations;
 };
 
-#define MAX_ARGUMENTS 10
-
-// TODO: stop using static size MAX_ARGUMENTS
 struct Arguments {
-    Expression* values[MAX_ARGUMENTS];
-    Token kwds[MAX_ARGUMENTS];
-    size_t length;
+    size_t values_count;
     size_t n_positional;
+    Expression** values;
+    char** kwds;
 };
 
 struct Slice {

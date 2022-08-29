@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO: vector types allocated in dynamic arena memory could probably be
+// implemented very easily with a macro
+
 void
 out_of_memory(void)
 {
@@ -60,6 +63,31 @@ expr_vector_finalize(ExpressionVector* vec)
     return arena_dynamic_finalize(
         vec->arena, vec->data, sizeof(Expression*) * vec->count
     );
+}
+
+StringVector
+str_vector_init(Arena* arena)
+{
+    StringVector vec = {.arena = arena};
+    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
+    vec.capacity = vec.bytes / sizeof(char*);
+    return vec;
+}
+
+void
+str_vector_append(StringVector* vec, char* str)
+{
+    if (vec->count == vec->capacity) {
+        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
+        vec->capacity = vec->bytes / sizeof(char*);
+    }
+    vec->data[vec->count++] = str;
+}
+
+char**
+str_vector_finalize(StringVector* vec)
+{
+    return arena_dynamic_finalize(vec->arena, vec->data, sizeof(char*) * vec->count);
 }
 
 void
