@@ -4,12 +4,15 @@
 #include <stddef.h>
 
 #include "arena.h"
+#include "tokens.h"
 #include "syntax.h"
-#include "lexer_types.h"
+#include "generated.h"
 
 void out_of_memory(void);
 
 #define TOKEN_QUEUE_CAPACITY 8
+
+const char* token_type_to_cstr(TokenType type);
 
 typedef struct {
     size_t head;

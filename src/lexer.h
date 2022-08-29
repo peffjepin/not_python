@@ -6,7 +6,7 @@
 
 #include "arena.h"
 #include "syntax.h"
-#include "lexer_types.h"
+#include "generated.h"
 
 typedef struct {
     Arena* arena;

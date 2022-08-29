@@ -1,7 +1,8 @@
 #ifndef COMPILER_TYPES_H
 #define COMPILER_TYPES_H
 
-#include "lexer_types.h"
+#include "generated.h"
+#include "tokens.h"
 
 typedef struct Comprehension Comprehension;
 typedef struct Enclosure Enclosure;

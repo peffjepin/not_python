@@ -3,7 +3,11 @@
 
 #include <stdint.h>
 
-#include "lexer_types.h"
+#include "generated.h"
+#ifdef DEBUG
+#include "tokens.h"
+#endif
+
 
 typedef struct {
     uint8_t* buffer;

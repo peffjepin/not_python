@@ -4,8 +4,10 @@ COMPILER_SOURCES = $(wildcard src/*.c)
 DEBUG_SOURCES = test/debug_common.c
 
 clean:
-	-@rm debug_tokens
-	-@rm debug_statements
+	-rm debug_tokens
+	-rm debug_statements
+	-rm codegen
+	-rm backup
 
 debug: debug_tokens debug_statements
 
@@ -30,3 +32,13 @@ test_statements: debug_statements
 
 test_statements_interactive: debug_statements
 	./scripts/test.py ./debug_statements ./test/samples/statements -i
+
+regenerate:
+	-mkdir backup
+	-mkdir codegen
+	./scripts/codegen.py --out-dir=codegen --module-name=generated
+	-cp src/generated.h backup
+	-cp src/generated.c backup
+	clang-format ./codegen/generated.h > src/generated.h
+	clang-format ./codegen/generated.c > src/generated.c
+	rm -rf codegen

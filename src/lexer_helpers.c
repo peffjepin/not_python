@@ -15,6 +15,32 @@ out_of_memory(void)
     exit(1);
 }
 
+static const char* TOKEN_TYPE_TO_CSTR_TABLE[19] = {
+    [TOK_KEYWORD] = "keyword",
+    [TOK_COMMA] = ",",
+    [TOK_COLON] = ":",
+    [TOK_STRING] = "string",
+    [TOK_NUMBER] = "number",
+    [TOK_OPERATOR] = "operator",
+    [TOK_NEWLINE] = "\n",
+    [TOK_OPEN_PARENS] = "(",
+    [TOK_CLOSE_PARENS] = ")",
+    [TOK_OPEN_SQUARE] = "[",
+    [TOK_CLOSE_SQUARE] = "]",
+    [TOK_OPEN_CURLY] = "{",
+    [TOK_CLOSE_CURLY] = "}",
+    [TOK_IDENTIFIER] = "identifier",
+    [TOK_DOT] = ".",
+    [TOK_EOF] = "EOF",
+};
+
+const char*
+token_type_to_cstr(TokenType type)
+{
+    assert(type < 19 && "token type not in table");
+    return TOKEN_TYPE_TO_CSTR_TABLE[type];
+}
+
 Token
 tq_peek(TokenQueue* tq, size_t offset)
 {
@@ -150,7 +176,7 @@ et_push_operand(ExpressionTable* et, Operand operand)
 void
 et_push_operation(ExpressionTable* et, Operation operation)
 {
-    unsigned int precedence = PRECENDENCE_TABLE[operation.op_type];
+    unsigned int precedence = PRECEDENCE_TABLE[operation.op_type];
     operation_vector_push(et->operation_vectors + precedence, operation);
     et->operations_count += 1;
 }
@@ -166,7 +192,7 @@ et_push_operation_type(ExpressionTable* et, Operator op_type)
 Expression*
 et_to_expr(ExpressionTable* et)
 {
-    const unsigned int POW_PREC = PRECENDENCE_TABLE[OPERATOR_POW];
+    const unsigned int POW_PREC = PRECEDENCE_TABLE[OPERATOR_POW];
 
     Expression* expr = arena_alloc(et->arena, sizeof(Expression));
     expr->operations = arena_alloc(et->arena, sizeof(Operation) * et->operations_count);
