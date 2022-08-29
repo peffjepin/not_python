@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #include "arena.h"
-#include "compiler_types.h"
+#include "syntax.h"
 #include "lexer_types.h"
 
 void out_of_memory(void);
