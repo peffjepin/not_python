@@ -4,9 +4,9 @@
 #include <stddef.h>
 
 #include "arena.h"
-#include "tokens.h"
-#include "syntax.h"
 #include "generated.h"
+#include "syntax.h"
+#include "tokens.h"
 
 void out_of_memory(void);
 
@@ -59,6 +59,18 @@ typedef struct {
 ItIdentifierVector itid_vector_init(Arena* arena);
 void itid_vector_append(ItIdentifierVector* vec, ItIdentifier itid);
 ItIdentifier* itid_vector_finalize(ItIdentifierVector* vec);
+
+typedef struct {
+    Arena* arena;
+    ItGroup** data;
+    size_t capacity;
+    size_t count;
+    size_t bytes;
+} ItGroupVector;
+
+ItGroupVector itgroup_vector_init(Arena* arena);
+void itgroup_vector_append(ItGroupVector* vec, ItGroup* group);
+ItGroup** itgroup_vector_finalize(ItGroupVector* vec);
 
 typedef struct {
     size_t count;

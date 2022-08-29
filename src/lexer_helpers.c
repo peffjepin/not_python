@@ -143,6 +143,31 @@ itid_vector_finalize(ItIdentifierVector* vec)
     );
 }
 
+ItGroupVector
+itgroup_vector_init(Arena* arena)
+{
+    ItGroupVector vec = {.arena = arena};
+    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
+    vec.capacity = vec.bytes / sizeof(ItGroup*);
+    return vec;
+}
+
+void
+itgroup_vector_append(ItGroupVector* vec, ItGroup* group)
+{
+    if (vec->count == vec->capacity) {
+        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
+        vec->capacity = vec->bytes / sizeof(ItGroup*);
+    }
+    vec->data[vec->count++] = group;
+}
+
+ItGroup**
+itgroup_vector_finalize(ItGroupVector* vec)
+{
+    return arena_dynamic_finalize(vec->arena, vec->data, sizeof(ItGroup*) * vec->count);
+}
+
 void
 operation_vector_push(OperationVector* vec, Operation operation)
 {

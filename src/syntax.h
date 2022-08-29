@@ -84,10 +84,9 @@ struct ItGroup {
     ItIdentifier* identifiers;
 };
 
-// TODO: `its` aren't really expressions
 typedef struct {
     size_t loop_count;
-    Expression** its;
+    ItGroup** its;
     Expression** iterables;
     Expression* if_expr;
 } ComprehensionBody;

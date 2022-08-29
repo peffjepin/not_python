@@ -401,14 +401,14 @@ parse_comprehension_body(Parser* parser, ComprehensionBody* body)
 {
     Token next;
 
-    ExpressionVector its = expr_vector_init(parser->arena);
+    ItGroupVector its = itgroup_vector_init(parser->arena);
     ExpressionVector iterables = expr_vector_init(parser->arena);
 
     do {
         // for
         expect_keyword(parser, KW_FOR);
         // it
-        expr_vector_append(&its, parse_expression(parser));
+        itgroup_vector_append(&its, parse_iterable_identifiers(parser));
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
@@ -420,7 +420,7 @@ parse_comprehension_body(Parser* parser, ComprehensionBody* body)
         next = peek_next_token(parser);
     } while (next.type == TOK_KEYWORD && next.kw == KW_FOR);
 
-    body->its = expr_vector_finalize(&its);
+    body->its = itgroup_vector_finalize(&its);
     body->iterables = expr_vector_finalize(&iterables);
 
     // maybe has if condition at the eend

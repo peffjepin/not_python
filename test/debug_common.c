@@ -12,6 +12,7 @@ typedef struct {
 } StringBuffer;
 
 static StringBuffer render_expr(Expression* expr);
+StringBuffer render_it_group(ItGroup* it);
 
 static void
 str_append_char(StringBuffer* str, char c)
@@ -123,8 +124,8 @@ render_operand(StringBuffer* str, Operand op)
             // for loop bodies
             for (size_t i = 0; i < comp->body.loop_count; i++) {
                 str_concat_cstr(str, "\n for ");
-                expr = render_expr(comp->body.its[i]);
-                str_concat(str, &expr);
+                StringBuffer its = render_it_group(comp->body.its[i]);
+                str_concat(str, &its);
                 str_concat_cstr(str, " in ");
                 expr = render_expr(comp->body.iterables[i]);
                 str_concat(str, &expr);
