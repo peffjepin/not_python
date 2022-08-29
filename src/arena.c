@@ -201,21 +201,5 @@ arena_free(Arena* arena)
         free(arena->static_chunks[i].buffer);
     }
     free(arena->static_chunks);
-#if DEBUG
-    free(arena->tokens);
-#endif
     free(arena);
 }
-
-#if DEBUG
-void
-arena_put_token(Arena* arena, Token token)
-{
-    if (arena->tokens_count == arena->tokens_capacity) {
-        arena->tokens_capacity += 128;
-        arena->tokens = realloc(arena->tokens, sizeof(Token) * (arena->tokens_capacity));
-        if (!arena->tokens) out_of_static_memory();
-    }
-    arena->tokens[arena->tokens_count++] = token;
-}
-#endif

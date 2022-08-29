@@ -279,9 +279,6 @@ scan_token(Scanner* scanner)
 
 push_token:
     tq_push(scanner->tq, scanner->token);
-#if DEBUG
-    arena_put_token(scanner->arena, scanner->token);
-#endif
 }
 
 typedef struct {
@@ -937,3 +934,43 @@ lexer_free(Lexer* lexer)
     free(lexer->statements);
     arena_free(lexer->arena);
 }
+
+#if DEBUG
+Token*
+tokenize_file(const char* filepath, size_t* token_count)
+{
+    FILE* file = fopen(filepath, "r");
+    if (!file) {
+        fprintf(stderr, "ERROR: unable to open %s (%s)\n", filepath, strerror(errno));
+        exit(1);
+    }
+
+    Location start_location = {
+        .line = 1,
+        .filename = filepath + filename_offset(filepath),
+    };
+    TokenQueue tq = {0};
+    Arena* arena = arena_init();
+    Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};
+
+    size_t count = 0;
+    size_t capacity = 64;
+    Token* tokens = malloc(sizeof(Token) * capacity);
+    if (!tokens) out_of_memory();
+
+    do {
+        if (count == capacity) {
+            capacity *= 2;
+            tokens = realloc(tokens, sizeof(Token) * capacity);
+            if (!tokens) out_of_memory();
+        }
+        scan_token(&scanner);
+        tq_consume(&tq);
+        tokens[count++] = scanner.token;
+    } while (scanner.token.type != TOK_EOF);
+
+    *token_count = count;
+    fclose(file);
+    return tokens;
+}
+#endif

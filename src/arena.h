@@ -4,10 +4,6 @@
 #include <stdint.h>
 
 #include "generated.h"
-#ifdef DEBUG
-#include "tokens.h"
-#endif
-
 
 typedef struct {
     uint8_t* buffer;
@@ -25,12 +21,6 @@ typedef struct {
     ArenaStaticChunk* static_chunks;
     uint8_t dynamic_chunks[ARENA_DYNAMIC_CHUNK_COUNT][ARENA_DYNAMIC_CHUNK_SIZE];
     bool dynamic_chunks_in_use[ARENA_DYNAMIC_CHUNK_COUNT];
-// TODO: expose some tokenization function from lexer.c instead of doing this
-#if DEBUG
-    Token* tokens;
-    size_t tokens_capacity;
-    size_t tokens_count;
-#endif
 } Arena;
 
 Arena* arena_init(void);
@@ -50,9 +40,5 @@ void* arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbyt
 void* arena_alloc(Arena* arena, size_t nbytes);
 // copy into static arena memory
 void* arena_copy(Arena* arena, void* data, size_t nbytes);
-
-#if DEBUG
-void arena_put_token(Arena* arena, Token token);
-#endif
 
 #endif

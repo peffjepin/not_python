@@ -17,4 +17,8 @@ typedef struct {
 Lexer lex_file(const char* filepath);
 void lexer_free(Lexer* lexer);
 
+#if DEBUG
+Token* tokenize_file(const char* filepath, size_t* token_count);
+#endif
+
 #endif
