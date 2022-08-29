@@ -281,20 +281,27 @@ push_token:
     tq_push(scanner->tq, scanner->token);
 }
 
+typedef enum {
+    CONSUMABLE_RULE_UNSET,
+    DISALLOW_CONDITIONAL_EXPRESSION,
+} ConsumableParserRule;
+
 typedef struct {
     Arena* arena;
     Scanner* scanner;
     TokenQueue* tq;
     Token previous;
     Token token;
-
-    // FIXME: this will fail in some cases and should be replaced
-    // with special rule mechanism which parse_expression can check
-    // for and (CONSUME) on entry so that if there are nested expressions
-    // to be parsed then special flags like this will only effect the
-    // very next call after being set
-    bool disallow_conditional_expression;
+    ConsumableParserRule consumable_rule;
 } Parser;
+
+static inline ConsumableParserRule
+consume_rule(Parser* parser)
+{
+    ConsumableParserRule rule = parser->consumable_rule;
+    parser->consumable_rule = CONSUMABLE_RULE_UNSET;
+    return rule;
+}
 
 static inline Token
 get_next_token(Parser* parser)
@@ -323,7 +330,7 @@ peek_forward_n_tokens(Parser* parser, size_t n)
 }
 
 static bool
-is_end_of_expression(Parser* parser)
+is_end_of_expression(Parser* parser, ConsumableParserRule rule)
 {
     Token token = peek_next_token(parser);
     switch (token.type) {
@@ -342,7 +349,7 @@ is_end_of_expression(Parser* parser)
         case TOK_COMMA:
             return true;
         case TOK_KEYWORD:
-            if (token.kw == KW_IF) return parser->disallow_conditional_expression;
+            if (token.kw == KW_IF) return rule == DISALLOW_CONDITIONAL_EXPRESSION;
             return (token.kw != KW_AND && token.kw != KW_OR);
         case TOK_EOF:
             return true;
@@ -412,9 +419,8 @@ parse_comprehension_body(Parser* parser, ComprehensionBody* body)
         // in
         expect_keyword(parser, KW_IN);
         // some iterable
-        parser->disallow_conditional_expression = true;
+        parser->consumable_rule = DISALLOW_CONDITIONAL_EXPRESSION;
         expr_vector_append(&iterables, parse_expression(parser));
-        parser->disallow_conditional_expression = false;
         // potentially another nested for loop
         body->loop_count += 1;
         next = peek_next_token(parser);
@@ -745,13 +751,13 @@ static Expression*
 parse_expression(Parser* parser)
 {
     ExpressionTable et = et_init(parser->arena);
-
+    ConsumableParserRule rule = consume_rule(parser);
     // parse operands/operations
     do {
         Token tok = get_next_token(parser);
         switch (tok.type) {
             case TOK_KEYWORD: {
-                if (tok.kw == KW_IF && !parser->disallow_conditional_expression) {
+                if (tok.kw == KW_IF && rule != DISALLOW_CONDITIONAL_EXPRESSION) {
                     et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
 
                     Operand condition_operand = {
@@ -830,7 +836,7 @@ parse_expression(Parser* parser)
                 );
                 UNIMPLEMENTED("token not recognized within expression parsing");
         };
-    } while (!is_end_of_expression(parser));
+    } while (!is_end_of_expression(parser, rule));
 
     return et_to_expr(&et);
 }

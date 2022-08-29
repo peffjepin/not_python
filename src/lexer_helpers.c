@@ -214,6 +214,8 @@ et_push_operation_type(ExpressionTable* et, Operator op_type)
     et_push_operation(et, operation);
 }
 
+// TODO: the expression tree should make some kind of assertation that
+// there are the expected number of operands for the given operations
 Expression*
 et_to_expr(ExpressionTable* et)
 {
