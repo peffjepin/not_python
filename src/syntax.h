@@ -119,6 +119,7 @@ typedef enum {
     NULL_STMT,
     STMT_EXPR,
     STMT_FOR_LOOP,
+    STMT_NO_OP,
     STMT_EOF,
 } StatementKind;
 

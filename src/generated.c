@@ -85,6 +85,7 @@ const unsigned int PRECEDENCE_TABLE[OPERATORS_MAX] = {
     [OPERATOR_GET_ATTR] = 16,
     [OPERATOR_LOGICAL_AND] = 4,
     [OPERATOR_LOGICAL_OR] = 3,
+    [OPERATOR_LOGICAL_NOT] = 5,
 };
 
 const bool IS_ASSIGNMENT_OP[OPERATORS_MAX] = {
@@ -143,6 +144,7 @@ static const char* OP_TO_CSTR_TABLE[OPERATORS_MAX] = {
     [OPERATOR_GET_ATTR] = "__getattr__",
     [OPERATOR_LOGICAL_AND] = "and",
     [OPERATOR_LOGICAL_OR] = "or",
+    [OPERATOR_LOGICAL_NOT] = "not",
 };
 
 Operator

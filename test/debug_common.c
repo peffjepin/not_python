@@ -215,29 +215,39 @@ render_expr(Expression* expr)
 
     for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = operations[i];
+        bool is_unary = operation.op_type == OPERATOR_LOGICAL_NOT;
         StringBuffer this_operation_rendered = {0};
 
         str_append_char(&this_operation_rendered, '(');
-        StringBuffer* left_ref = already_rendered_chunks[operation.left];
-        if (left_ref)
-            str_concat(&this_operation_rendered, left_ref);
-        else
-            render_operand(&this_operation_rendered, operands[operation.left]);
-        str_append_char(&this_operation_rendered, ' ');
+
+        StringBuffer* left_ref = NULL;
+        if (!is_unary) {
+            left_ref = already_rendered_chunks[operation.left];
+            if (left_ref)
+                str_concat(&this_operation_rendered, left_ref);
+            else
+                render_operand(&this_operation_rendered, operands[operation.left]);
+            str_append_char(&this_operation_rendered, ' ');
+        }
+
         str_concat_cstr(&this_operation_rendered, (char*)op_to_cstr(operation.op_type));
         str_append_char(&this_operation_rendered, ' ');
+
         StringBuffer* right_ref = already_rendered_chunks[operation.right];
         if (right_ref)
             str_concat(&this_operation_rendered, right_ref);
         else
             render_operand(&this_operation_rendered, operands[operation.right]);
+
         str_append_char(&this_operation_rendered, ')');
 
         string_mem[i] = this_operation_rendered;
-        if (left_ref)
-            *left_ref = string_mem[i];
-        else
-            already_rendered_chunks[operation.left] = string_mem + i;
+        if (!is_unary) {
+            if (left_ref)
+                *left_ref = string_mem[i];
+            else
+                already_rendered_chunks[operation.left] = string_mem + i;
+        }
         if (right_ref) {
             *right_ref = string_mem[i];
         }
@@ -300,6 +310,9 @@ print_statement(Statement* stmt)
         case STMT_FOR_LOOP:
             printf("FOR_LOOP:\n");
             print_for_loop(stmt->for_loop);
+            break;
+        case STMT_NO_OP:
+            printf("NO_OP");
             break;
         default:
             assert(0 && "unimplemented");

@@ -206,7 +206,8 @@ kw_to_cstr_function = CFunc(
     body=["return kw_hashtable[kw];"],
 )
 
-
+# REF
+# https://docs.python.org/3/reference/expressions.html#operator-precedence
 OPS = {
     "OPERATOR_PLUS": {"value": "+", "precedence": 11},
     "OPERATOR_MINUS": {"value": "-", "precedence": 11},
@@ -247,6 +248,7 @@ OPS = {
     "OPERATOR_GET_ATTR": {"value": "__getattr__", "precedence": 16},
     "OPERATOR_LOGICAL_AND": {"value": "and", "precedence": 4},
     "OPERATOR_LOGICAL_OR": {"value": "or", "precedence": 3},
+    "OPERATOR_LOGICAL_NOT": {"value": "not", "precedence": 5},
 }
 
 

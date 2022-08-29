@@ -329,6 +329,7 @@ peek_forward_n_tokens(Parser* parser, size_t n)
     return tq_peek(parser->tq, n);
 }
 
+// TODO: might be worth implementing a lookup table for this
 static bool
 is_end_of_expression(Parser* parser, ConsumableParserRule rule)
 {
@@ -349,8 +350,19 @@ is_end_of_expression(Parser* parser, ConsumableParserRule rule)
         case TOK_COMMA:
             return true;
         case TOK_KEYWORD:
-            if (token.kw == KW_IF) return rule == DISALLOW_CONDITIONAL_EXPRESSION;
-            return (token.kw != KW_AND && token.kw != KW_OR);
+            switch (token.kw) {
+                case KW_IF:
+                    return rule == DISALLOW_CONDITIONAL_EXPRESSION;
+                case KW_AND:
+                    return false;
+                case KW_OR:
+                    return false;
+                case KW_NOT:
+                    return false;
+                default:
+                    return true;
+            }
+            break;
         case TOK_EOF:
             return true;
         default:
@@ -747,6 +759,8 @@ expect_token_type(Parser* parser, TokenType type)
     return tok;
 }
 
+// TODO: might want some kind of lookup table instead of the long switch statements
+// int the future
 static Expression*
 parse_expression(Parser* parser)
 {
@@ -757,28 +771,41 @@ parse_expression(Parser* parser)
         Token tok = get_next_token(parser);
         switch (tok.type) {
             case TOK_KEYWORD: {
-                if (tok.kw == KW_IF && rule != DISALLOW_CONDITIONAL_EXPRESSION) {
-                    et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
+                switch (tok.kw) {
+                    case KW_IF:
+                        if (rule == DISALLOW_CONDITIONAL_EXPRESSION)
+                            SYNTAX_ERROR(
+                                tok.loc, "conditional expression not allowed here"
+                            );
+                        et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
 
-                    Operand condition_operand = {
-                        .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
-                    et_push_operand(&et, condition_operand);
+                        Operand condition_operand = {
+                            .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
+                        et_push_operand(&et, condition_operand);
 
-                    expect_keyword(parser, KW_ELSE);
-                    et_push_operation_type(&et, OPERATOR_CONDITIONAL_ELSE);
+                        expect_keyword(parser, KW_ELSE);
+                        et_push_operation_type(&et, OPERATOR_CONDITIONAL_ELSE);
 
-                    Operand else_operand = {
-                        .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
-                    et_push_operand(&et, else_operand);
+                        Operand else_operand = {
+                            .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
+                        et_push_operand(&et, else_operand);
+                        break;
+                    case KW_AND:
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_AND);
+                        break;
+                    case KW_OR:
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_OR);
+                        break;
+                    case KW_NOT:
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_NOT);
+                        break;
+                    default:
+                        SYNTAX_ERRORF(
+                            tok.loc, "not expecting keyword %s here", kw_to_cstr(tok.kw)
+                        );
+                        break;
                 }
-                else if (tok.kw == KW_AND)
-                    et_push_operation_type(&et, OPERATOR_LOGICAL_AND);
-                else if (tok.kw == KW_OR)
-                    et_push_operation_type(&et, OPERATOR_LOGICAL_OR);
-                else
-                    SYNTAX_ERROR(tok.loc, "not expecting keyword here");
-                break;
-            }
+            } break;
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
@@ -857,14 +884,6 @@ parse_for_loop_instruction(Parser* parser)
     return stmt;
 }
 
-static Statement
-parse_unknown_instruction(Parser* parser)
-{
-    Statement stmt = {.kind = NULL_STMT};
-    get_next_token(parser);
-    return stmt;
-}
-
 Statement
 parse_statement(Parser* parser)
 {
@@ -880,11 +899,16 @@ parse_statement(Parser* parser)
         switch (first_token.kw) {
             case KW_FOR:
                 return parse_for_loop_instruction(parser);
+            case KW_PASS:
+                expect_keyword(parser, KW_PASS);
+                expect_token_type(parser, TOK_NEWLINE);
+                stmt.kind = STMT_NO_OP;
+                return stmt;
             default:
-                return parse_unknown_instruction(parser);
+                break;
         }
     }
-    else if (first_token.type == TOK_EOF) {
+    if (first_token.type == TOK_EOF) {
         get_next_token(parser);
         stmt.kind = STMT_EOF;
         return stmt;
