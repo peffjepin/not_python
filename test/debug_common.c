@@ -360,7 +360,18 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_IF: {
-            assert(0 && "STMT_IF printing is unimplemented");
+            indent_printf("if %s:\n", render_expr(stmt->if_stmt->condition).data);
+            print_block(stmt->if_stmt->body, indent + 4);
+            for (size_t i = 0; i < stmt->if_stmt->elifs_count; i++) {
+                indent_printf(
+                    "elif %s:\n", render_expr(stmt->if_stmt->elifs[i].condition).data
+                );
+                print_block(stmt->if_stmt->elifs[i].body, indent + 4);
+            }
+            if (stmt->if_stmt->else_body.stmts_count > 0) {
+                indent_print("else:\n");
+                print_block(stmt->if_stmt->else_body, indent + 4);
+            }
             break;
         }
         case STMT_TRY: {

@@ -13,7 +13,6 @@ typedef struct Operation Operation;
 typedef struct Operand Operand;
 typedef struct ItGroup ItGroup;
 typedef struct Statement Statement;
-typedef struct IfStatement IfStatement;
 
 typedef enum {
     OPERAND_EXPRESSION,
@@ -129,7 +128,6 @@ typedef struct {
     char** as;
 } ImportStatement;
 
-// TODO: requires implementation
 typedef struct {
     size_t stmts_count;
     Statement* stmts;
@@ -140,14 +138,18 @@ typedef struct {
     Block body;
 } WhileStatement;
 
-// TODO: requires implementation
-struct IfStatement {
+typedef struct {
+    Expression* condition;
+    Block body;
+} ElifStatement;
+
+typedef struct {
     Expression* condition;
     Block body;
     size_t elifs_count;
-    IfStatement* elifs;
+    ElifStatement* elifs;
     Block else_body;
-};
+} IfStatement;
 
 // TODO: requires implementation
 typedef struct {

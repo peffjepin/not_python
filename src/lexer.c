@@ -993,6 +993,7 @@ parse_statement(Parser* parser)
 
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
+    // TODO: maybe we want some kind of check on indentation here
     stmt.loc = peek.loc;
 
     if (peek.type == TOK_KEYWORD) {
@@ -1043,6 +1044,48 @@ parse_statement(Parser* parser)
                 stmt.import_stmt->from = parse_import_path(parser);
                 expect_keyword(parser, KW_IMPORT);
                 parse_import_group(parser, stmt.import_stmt);
+                return stmt;
+            }
+            case KW_IF: {
+                // parse if condition and body
+                discard_next_token(parser);
+                stmt.kind = STMT_IF;
+                stmt.if_stmt = arena_alloc(parser->arena, sizeof(IfStatement));
+                stmt.if_stmt->condition = parse_expression(parser);
+                expect_token_type(parser, TOK_COLON);
+                stmt.if_stmt->body = parse_block(parser, stmt.loc.col);
+
+                // parse variable number of elif statements
+                // as long as the indentation level hasn't changed
+                ElifStatementVector vec = elif_vector_init(parser->arena);
+                Token peek;
+                for (;;) {
+                    consume_newline_tokens(parser);
+                    peek = peek_next_token(parser);
+                    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELIF &&
+                        peek.loc.col == stmt.loc.col) {
+                        discard_next_token(parser);
+                        ElifStatement elif = {0};
+                        elif.condition = parse_expression(parser);
+                        expect_token_type(parser, TOK_COLON);
+                        elif.body = parse_block(parser, stmt.loc.col);
+                        elif_vector_append(&vec, elif);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                stmt.if_stmt->elifs = elif_vector_finalize(&vec);
+                stmt.if_stmt->elifs_count = vec.count;
+
+                // maybe there is an else statment,
+                // we have the next token in `peek` already
+                if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE &&
+                    peek.loc.col == stmt.loc.col) {
+                    discard_next_token(parser);
+                    expect_token_type(parser, TOK_COLON);
+                    stmt.if_stmt->else_body = parse_block(parser, stmt.loc.col);
+                }
                 return stmt;
             }
             default:

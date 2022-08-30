@@ -83,6 +83,7 @@ PTR_VECTOR_DECLARATION(Expression, expr)
 PTR_VECTOR_DECLARATION(ItGroup, itgroup)
 VALUE_VECTOR_DECLARATION(ItIdentifier, itid)
 VALUE_VECTOR_DECLARATION(Statement, stmt)
+VALUE_VECTOR_DECLARATION(ElifStatement, elif)
 
 void out_of_memory(void);
 
