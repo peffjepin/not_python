@@ -89,6 +89,8 @@ typedef enum {
     OPERATOR_LOGICAL_AND = 132,
     OPERATOR_LOGICAL_OR = 64,
     OPERATOR_LOGICAL_NOT = 39,
+    OPERATOR_IN = 48,
+    OPERATOR_IS = 53,
 } Operator;
 
 #define OPERATORS_MAX 136

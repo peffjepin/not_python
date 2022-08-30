@@ -359,6 +359,10 @@ is_end_of_expression(Parser* parser, ConsumableParserRule rule)
                     return false;
                 case KW_NOT:
                     return false;
+                case KW_IN:
+                    return false;
+                case KW_IS:
+                    return false;
                 default:
                     return true;
             }
@@ -798,6 +802,12 @@ parse_expression(Parser* parser)
                         break;
                     case KW_NOT:
                         et_push_operation_type(&et, OPERATOR_LOGICAL_NOT);
+                        break;
+                    case KW_IN:
+                        et_push_operation_type(&et, OPERATOR_IN);
+                        break;
+                    case KW_IS:
+                        et_push_operation_type(&et, OPERATOR_IS);
                         break;
                     default:
                         SYNTAX_ERRORF(

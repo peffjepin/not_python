@@ -249,6 +249,8 @@ OPS = {
     "OPERATOR_LOGICAL_AND": {"value": "and", "precedence": 4},
     "OPERATOR_LOGICAL_OR": {"value": "or", "precedence": 3},
     "OPERATOR_LOGICAL_NOT": {"value": "not", "precedence": 5},
+    "OPERATOR_IN": {"value": "in", "precedence": 6},
+    "OPERATOR_IS": {"value": "is", "precedence": 6},
 }
 
 
