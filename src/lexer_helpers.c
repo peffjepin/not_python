@@ -203,7 +203,8 @@ void
 et_push_operation(ExpressionTable* et, Operation operation)
 {
     unsigned int precedence = PRECEDENCE_TABLE[operation.op_type];
-    operation_vector_push(et->operation_vectors + precedence, operation);
+    OperationVector* vec = et->operation_vectors + precedence;
+    operation_vector_push(vec, operation);
     et->operations_count += 1;
     et->previous = ET_OPERATION;
 }
@@ -214,14 +215,14 @@ et_push_operation_type(ExpressionTable* et, Operator op_type)
     Operation operation = {
         .op_type = op_type, .left = et->operands_count - 1, .right = et->operands_count};
     et_push_operation(et, operation);
-    et->previous = ET_OPERATION;
 }
 
-// TODO: the expression tree should make some kind of assertation that
-// there are the expected number of operands for the given operations
 Expression*
 et_to_expr(ExpressionTable* et)
 {
+    assert(et->previous != ET_NONE && "got an empty expression");
+    assert(et->previous == ET_OPERAND && "expression ended on an operator token");
+
     const unsigned int POW_PREC = PRECEDENCE_TABLE[OPERATOR_POW];
 
     Expression* expr = arena_alloc(et->arena, sizeof(Expression));

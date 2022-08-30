@@ -770,7 +770,6 @@ parse_expression(Parser* parser)
 {
     ExpressionTable et = et_init(parser->arena);
     ConsumableParserRule rule = consume_rule(parser);
-    // parse operands/operations
     do {
         Token tok = get_next_token(parser);
         switch (tok.type) {
@@ -817,8 +816,6 @@ parse_expression(Parser* parser)
                 }
             } break;
             case TOK_OPERATOR: {
-                // FIXME: the right side operand is yet to be parsed so we
-                // need to add some assertation that it will be parsed
                 if (tok.op == OPERATOR_PLUS &&
                     (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
                     et_push_operation_type(&et, OPERATOR_POSITIVE);
