@@ -8,97 +8,6 @@
 #include "syntax.h"
 #include "tokens.h"
 
-void out_of_memory(void);
-
-#define TOKEN_QUEUE_CAPACITY 8
-
-const char* token_type_to_cstr(TokenType type);
-
-typedef struct {
-    size_t head;
-    size_t length;
-    Token tokens[TOKEN_QUEUE_CAPACITY];
-} TokenQueue;
-
-Token tq_peek(TokenQueue* tq, size_t offset);
-Token tq_consume(TokenQueue* tq);
-void tq_push(TokenQueue* tq, Token token);
-
-typedef struct {
-    Arena* arena;
-    Expression** data;
-    size_t capacity;
-    size_t count;
-    size_t bytes;
-} ExpressionVector;
-
-ExpressionVector expr_vector_init(Arena* arena);
-void expr_vector_append(ExpressionVector* vec, Expression* expr);
-Expression** expr_vector_finalize(ExpressionVector* vec);
-
-typedef struct {
-    Arena* arena;
-    char** data;
-    size_t capacity;
-    size_t count;
-    size_t bytes;
-} StringVector;
-
-StringVector str_vector_init(Arena* arena);
-void str_vector_append(StringVector* vec, char* str);
-char** str_vector_finalize(StringVector* vec);
-
-typedef struct {
-    Arena* arena;
-    ItIdentifier* data;
-    size_t capacity;
-    size_t count;
-    size_t bytes;
-} ItIdentifierVector;
-
-ItIdentifierVector itid_vector_init(Arena* arena);
-void itid_vector_append(ItIdentifierVector* vec, ItIdentifier itid);
-ItIdentifier* itid_vector_finalize(ItIdentifierVector* vec);
-
-typedef struct {
-    Arena* arena;
-    ItGroup** data;
-    size_t capacity;
-    size_t count;
-    size_t bytes;
-} ItGroupVector;
-
-ItGroupVector itgroup_vector_init(Arena* arena);
-void itgroup_vector_append(ItGroupVector* vec, ItGroup* group);
-ItGroup** itgroup_vector_finalize(ItGroupVector* vec);
-
-typedef struct {
-    size_t count;
-    size_t capacity;
-    Operation* operations;
-} OperationVector;
-
-void operation_vector_push(OperationVector* vec, Operation operation);
-
-typedef struct {
-    Arena* arena;
-    enum { ET_NONE, ET_OPERAND, ET_OPERATION } previous;
-    size_t operands_count;
-    size_t operands_capacity;
-    size_t operands_nbytes;
-    Operand* operands;
-    size_t operations_count;
-    OperationVector operation_vectors[MAX_PRECEDENCE + 1];
-} ExpressionTable;
-
-ExpressionTable et_init(Arena* arena);
-void et_push_operand(ExpressionTable* et, Operand operand);
-void et_push_operation(ExpressionTable* et, Operation operation);
-void et_push_operation_type(ExpressionTable* et, Operator op_type);
-Expression* et_to_expr(ExpressionTable* et);
-
-size_t filename_offset(const char* filepath);
-
 #define UNIMPLEMENTED(msg) assert(0 && msg)
 
 #define SYNTAX_ERROR(loc, msg)                                                           \
@@ -126,5 +35,95 @@ size_t filename_offset(const char* filepath);
         );                                                                               \
         exit(1);                                                                         \
     } while (0)
+
+/*
+ * Notes on vector declarations
+ *
+ * Vectors defined with these macros are allocated in dynamic arena memory
+ * and are meant to be finalized (allocated into static arena memory) once
+ * their size has been determined.
+ *
+ * Vectors declared with PTR_VECTOR_DECLARATION take their elements by pointers
+ * and when finalized return type**;
+ *
+ * Vectors declared with VALUE_VECTOR_DECLARATION take their elements by value
+ * and when finalized return type*
+ */
+
+#define PTR_VECTOR_DECLARATION(type, prefix)                                             \
+    typedef struct {                                                                     \
+        Arena* arena;                                                                    \
+        type** data;                                                                     \
+        size_t capacity;                                                                 \
+        size_t count;                                                                    \
+        size_t bytes;                                                                    \
+    } type##Vector;                                                                      \
+    type##Vector prefix##_vector_init(Arena* arena);                                     \
+    void prefix##_vector_append(type##Vector* vec, type* ptr);                           \
+    type** prefix##_vector_finalize(type##Vector* vec);
+
+#define VALUE_VECTOR_DECLARATION(type, prefix)                                           \
+    typedef struct {                                                                     \
+        Arena* arena;                                                                    \
+        type* data;                                                                      \
+        size_t capacity;                                                                 \
+        size_t count;                                                                    \
+        size_t bytes;                                                                    \
+    } type##Vector;                                                                      \
+    type##Vector prefix##_vector_init(Arena* arena);                                     \
+    void prefix##_vector_append(type##Vector* vec, type value);                          \
+    type* prefix##_vector_finalize(type##Vector* vec);
+
+// kind of a hack to define StringVector without having to typedef String
+#define String char
+PTR_VECTOR_DECLARATION(String, str)
+#undef String
+
+PTR_VECTOR_DECLARATION(Expression, expr)
+PTR_VECTOR_DECLARATION(ItGroup, itgroup)
+VALUE_VECTOR_DECLARATION(ItIdentifier, itid)
+
+void out_of_memory(void);
+
+#define TOKEN_QUEUE_CAPACITY 8
+
+const char* token_type_to_cstr(TokenType type);
+
+typedef struct {
+    size_t head;
+    size_t length;
+    Token tokens[TOKEN_QUEUE_CAPACITY];
+} TokenQueue;
+
+Token tq_peek(TokenQueue* tq, size_t offset);
+Token tq_consume(TokenQueue* tq);
+void tq_push(TokenQueue* tq, Token token);
+
+typedef struct {
+    size_t count;
+    size_t capacity;
+    Operation* operations;
+} OperationVector;
+
+void operation_vector_push(OperationVector* vec, Operation operation);
+
+typedef struct {
+    Arena* arena;
+    enum { ET_NONE, ET_OPERAND, ET_OPERATION } previous;
+    size_t operands_count;
+    size_t operands_capacity;
+    size_t operands_nbytes;
+    Operand* operands;
+    size_t operations_count;
+    OperationVector operation_vectors[MAX_PRECEDENCE + 1];
+} ExpressionTable;
+
+ExpressionTable et_init(Arena* arena);
+void et_push_operand(ExpressionTable* et, Operand operand);
+void et_push_operation(ExpressionTable* et, Operation operation);
+void et_push_operation_type(ExpressionTable* et, Operator op_type);
+Expression* et_to_expr(ExpressionTable* et);
+
+size_t filename_offset(const char* filepath);
 
 #endif

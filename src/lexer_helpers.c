@@ -5,8 +5,72 @@
 #include <stdlib.h>
 #include <string.h>
 
-// TODO: vector types allocated in dynamic arena memory could probably be
-// implemented very easily with a macro
+/*
+ * Notes on vector definitions
+ *
+ * Vectors defined with these macros are allocated in dynamic arena memory
+ * and are meant to be finalized (allocated into static arena memory) once
+ * their size has been determined.
+ *
+ * Vectors defined with PTR_VECTOR_DEFINITION take their elements by pointers
+ * and when finalized return type**;
+ *
+ * Vectors defined with VALUE_VECTOR_DEFINITION take their elements by value
+ * and when finalized return type*
+ */
+
+#define PTR_VECTOR_DEFINITION(type, prefix)                                              \
+    type##Vector prefix##_vector_init(Arena* arena)                                      \
+    {                                                                                    \
+        type##Vector vec = {.arena = arena};                                             \
+        vec.data = arena_dynamic_alloc(arena, &vec.bytes);                               \
+        vec.capacity = vec.bytes / sizeof(type*);                                        \
+        return vec;                                                                      \
+    }                                                                                    \
+    void prefix##_vector_append(type##Vector* vec, type* ptr)                            \
+    {                                                                                    \
+        if (vec->count == vec->capacity) {                                               \
+            vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);          \
+            vec->capacity = vec->bytes / sizeof(type*);                                  \
+        }                                                                                \
+        vec->data[vec->count++] = ptr;                                                   \
+    }                                                                                    \
+    type** prefix##_vector_finalize(type##Vector* vec)                                   \
+    {                                                                                    \
+        return arena_dynamic_finalize(                                                   \
+            vec->arena, vec->data, sizeof(type*) * vec->count                            \
+        );                                                                               \
+    }
+
+#define VALUE_VECTOR_DEFINITION(type, prefix)                                            \
+    type##Vector prefix##_vector_init(Arena* arena)                                      \
+    {                                                                                    \
+        type##Vector vec = {.arena = arena};                                             \
+        vec.data = arena_dynamic_alloc(arena, &vec.bytes);                               \
+        vec.capacity = vec.bytes / sizeof(type);                                         \
+        return vec;                                                                      \
+    }                                                                                    \
+    void prefix##_vector_append(type##Vector* vec, type value)                           \
+    {                                                                                    \
+        if (vec->count == vec->capacity) {                                               \
+            vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);          \
+            vec->capacity = vec->bytes / sizeof(type);                                   \
+        }                                                                                \
+        vec->data[vec->count++] = value;                                                 \
+    }                                                                                    \
+    type* prefix##_vector_finalize(type##Vector* vec)                                    \
+    {                                                                                    \
+        return arena_dynamic_finalize(vec->arena, vec->data, sizeof(type) * vec->count); \
+    }
+
+// kind of a hack to define StringVector without having to typedef String
+#define String char
+PTR_VECTOR_DEFINITION(String, str)
+#undef String
+
+PTR_VECTOR_DEFINITION(Expression, expr)
+PTR_VECTOR_DEFINITION(ItGroup, itgroup)
+VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
 
 void
 out_of_memory(void)
@@ -62,110 +126,6 @@ tq_push(TokenQueue* tq, Token token)
 {
     assert(tq->length < TOKEN_QUEUE_CAPACITY && "pushing to full queue");
     tq->tokens[(tq->head + tq->length++) % TOKEN_QUEUE_CAPACITY] = token;
-}
-
-ExpressionVector
-expr_vector_init(Arena* arena)
-{
-    ExpressionVector vec = {.arena = arena};
-    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
-    vec.capacity = vec.bytes / sizeof(Expression*);
-    return vec;
-}
-
-void
-expr_vector_append(ExpressionVector* vec, Expression* expr)
-{
-    if (vec->count == vec->capacity) {
-        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
-        vec->capacity = vec->bytes / sizeof(Expression*);
-    }
-    vec->data[vec->count++] = expr;
-}
-
-Expression**
-expr_vector_finalize(ExpressionVector* vec)
-{
-    return arena_dynamic_finalize(
-        vec->arena, vec->data, sizeof(Expression*) * vec->count
-    );
-}
-
-StringVector
-str_vector_init(Arena* arena)
-{
-    StringVector vec = {.arena = arena};
-    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
-    vec.capacity = vec.bytes / sizeof(char*);
-    return vec;
-}
-
-void
-str_vector_append(StringVector* vec, char* str)
-{
-    if (vec->count == vec->capacity) {
-        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
-        vec->capacity = vec->bytes / sizeof(char*);
-    }
-    vec->data[vec->count++] = str;
-}
-
-char**
-str_vector_finalize(StringVector* vec)
-{
-    return arena_dynamic_finalize(vec->arena, vec->data, sizeof(char*) * vec->count);
-}
-
-ItIdentifierVector
-itid_vector_init(Arena* arena)
-{
-    ItIdentifierVector vec = {.arena = arena};
-    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
-    vec.capacity = vec.bytes / sizeof(ItIdentifier);
-    return vec;
-}
-
-void
-itid_vector_append(ItIdentifierVector* vec, ItIdentifier itid)
-{
-    if (vec->count == vec->capacity) {
-        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
-        vec->capacity = vec->bytes / sizeof(ItIdentifier);
-    }
-    vec->data[vec->count++] = itid;
-}
-
-ItIdentifier*
-itid_vector_finalize(ItIdentifierVector* vec)
-{
-    return arena_dynamic_finalize(
-        vec->arena, vec->data, sizeof(ItIdentifier) * vec->count
-    );
-}
-
-ItGroupVector
-itgroup_vector_init(Arena* arena)
-{
-    ItGroupVector vec = {.arena = arena};
-    vec.data = arena_dynamic_alloc(arena, &vec.bytes);
-    vec.capacity = vec.bytes / sizeof(ItGroup*);
-    return vec;
-}
-
-void
-itgroup_vector_append(ItGroupVector* vec, ItGroup* group)
-{
-    if (vec->count == vec->capacity) {
-        vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);
-        vec->capacity = vec->bytes / sizeof(ItGroup*);
-    }
-    vec->data[vec->count++] = group;
-}
-
-ItGroup**
-itgroup_vector_finalize(ItGroupVector* vec)
-{
-    return arena_dynamic_finalize(vec->arena, vec->data, sizeof(ItGroup*) * vec->count);
 }
 
 void
