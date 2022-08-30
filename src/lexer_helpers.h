@@ -82,6 +82,7 @@ PTR_VECTOR_DECLARATION(String, str)
 PTR_VECTOR_DECLARATION(Expression, expr)
 PTR_VECTOR_DECLARATION(ItGroup, itgroup)
 VALUE_VECTOR_DECLARATION(ItIdentifier, itid)
+VALUE_VECTOR_DECLARATION(Statement, stmt)
 
 void out_of_memory(void);
 

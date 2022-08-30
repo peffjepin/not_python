@@ -71,6 +71,7 @@ PTR_VECTOR_DEFINITION(String, str)
 PTR_VECTOR_DEFINITION(Expression, expr)
 PTR_VECTOR_DEFINITION(ItGroup, itgroup)
 VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
+VALUE_VECTOR_DEFINITION(Statement, stmt)
 
 void
 out_of_memory(void)

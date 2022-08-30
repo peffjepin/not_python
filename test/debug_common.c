@@ -291,15 +291,18 @@ print_expression(Expression* expr)
 }
 
 void
-print_for_loop(ForLoopStatement for_loop)
+print_for_loop(ForLoopStatement* for_loop, int indent)
 {
-    StringBuffer it = render_it_group(for_loop.it);
-    StringBuffer iterable = render_expr(for_loop.iterable);
-    printf("for %s in %s", it.data, iterable.data);
+    StringBuffer it = render_it_group(for_loop->it);
+    StringBuffer iterable = render_expr(for_loop->iterable);
+    printf("%*sfor %s in %s:\n", indent, "", it.data, iterable.data);
+    for (size_t i = 0; i < for_loop->body_length; i++) {
+        print_statement(for_loop->body + i, indent + 4);
+    }
 }
 
 void
-print_statement(Statement* stmt)
+print_statement(Statement* stmt, int indent)
 {
     switch (stmt->kind) {
         case NULL_STMT:
@@ -313,16 +316,15 @@ print_statement(Statement* stmt)
             print_expression(stmt->expr);
             break;
         case STMT_FOR_LOOP:
-            printf("FOR_LOOP:\n");
-            print_for_loop(stmt->for_loop);
+            print_for_loop(stmt->for_loop, indent);
             break;
         case STMT_NO_OP:
-            printf("NO_OP");
+            printf("%*sNO_OP", indent, "");
             break;
         default:
             assert(0 && "unimplemented");
     }
-    printf("\n");
+    if (indent == 0) printf("\n");
 }
 
 void

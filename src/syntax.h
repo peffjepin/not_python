@@ -12,6 +12,7 @@ typedef struct Slice Slice;
 typedef struct Operation Operation;
 typedef struct Operand Operand;
 typedef struct ItGroup ItGroup;
+typedef struct Statement Statement;
 
 typedef enum {
     OPERAND_EXPRESSION,
@@ -126,14 +127,17 @@ typedef enum {
 typedef struct {
     ItGroup* it;
     Expression* iterable;
+    size_t body_length;
+    Statement* body;
 } ForLoopStatement;
 
-typedef struct {
+struct Statement {
     StatementKind kind;
     union {
-        ForLoopStatement for_loop;
+        ForLoopStatement* for_loop;
         Expression* expr;
     };
-} Statement;
+    Location loc;
+};
 
 #endif

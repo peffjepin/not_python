@@ -883,20 +883,43 @@ parse_expression(Parser* parser)
     return et_to_expr(&et);
 }
 
-static Statement
-parse_for_loop_instruction(Parser* parser)
+Statement parse_statement(Parser* parser);
+
+static void
+consume_newline_tokens(Parser* parser)
 {
-    Statement stmt = {.kind = STMT_FOR_LOOP};
+    while (peek_next_token(parser).type == TOK_NEWLINE) get_next_token(parser);
+}
+
+static void
+parse_for_loop_instruction(Parser* parser, Statement* stmt)
+{
+    stmt->kind = STMT_FOR_LOOP;
+    stmt->for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
+    StatementVector vec = stmt_vector_init(parser->arena);
+
     expect_keyword(parser, KW_FOR);
-
-    stmt.for_loop.it = parse_iterable_identifiers(parser);
-
+    stmt->for_loop->it = parse_iterable_identifiers(parser);
     expect_keyword(parser, KW_IN);
-    stmt.for_loop.iterable = parse_expression(parser);
-
+    stmt->for_loop->iterable = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
 
-    return stmt;
+    Statement first_body_stmt = parse_statement(parser);
+    if (first_body_stmt.loc.col <= stmt->loc.col)
+        SYNTAX_ERROR(first_body_stmt.loc, "expected indentation");
+    stmt_vector_append(&vec, first_body_stmt);
+
+    for (;;) {
+        consume_newline_tokens(parser);
+        Token peek = peek_next_token(parser);
+        if (peek.loc.col < first_body_stmt.loc.col) break;
+        if (peek.loc.col > first_body_stmt.loc.col)
+            SYNTAX_ERROR(peek.loc, "inconsistent indentation");
+        stmt_vector_append(&vec, parse_statement(parser));
+    }
+
+    stmt->for_loop->body = stmt_vector_finalize(&vec);
+    stmt->for_loop->body_length = vec.count;
 }
 
 Statement
@@ -904,16 +927,15 @@ parse_statement(Parser* parser)
 {
     Statement stmt = {.kind = NULL_STMT};
 
+    consume_newline_tokens(parser);
     Token first_token = peek_next_token(parser);
-    while (first_token.type == TOK_NEWLINE) {
-        get_next_token(parser);
-        first_token = peek_next_token(parser);
-    }
+    stmt.loc = first_token.loc;
 
     if (first_token.type == TOK_KEYWORD) {
         switch (first_token.kw) {
             case KW_FOR:
-                return parse_for_loop_instruction(parser);
+                parse_for_loop_instruction(parser, &stmt);
+                return stmt;
             case KW_PASS:
                 expect_keyword(parser, KW_PASS);
                 expect_token_type(parser, TOK_NEWLINE);
