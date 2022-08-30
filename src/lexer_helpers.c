@@ -130,6 +130,13 @@ tq_push(TokenQueue* tq, Token token)
 }
 
 void
+tq_discard(TokenQueue* tq)
+{
+    tq->length--;
+    tq->head++;
+}
+
+void
 operation_vector_push(OperationVector* vec, Operation operation)
 {
     if (vec->capacity == vec->count) {

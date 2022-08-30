@@ -99,6 +99,8 @@ typedef struct {
 Token tq_peek(TokenQueue* tq, size_t offset);
 Token tq_consume(TokenQueue* tq);
 void tq_push(TokenQueue* tq, Token token);
+// cheaper option to consume the next item after peeking
+void tq_discard(TokenQueue* tq);
 
 typedef struct {
     size_t count;

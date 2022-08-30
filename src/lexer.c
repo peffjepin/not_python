@@ -329,6 +329,12 @@ peek_forward_n_tokens(Parser* parser, size_t n)
     return tq_peek(parser->tq, n);
 }
 
+static inline void
+discard_next_token(Parser* parser)
+{
+    tq_discard(parser->tq);
+}
+
 // TODO: might be worth implementing a lookup table for this
 static bool
 is_end_of_expression(Parser* parser, ConsumableParserRule rule)
@@ -448,7 +454,7 @@ parse_comprehension_body(Parser* parser, ComprehensionBody* body)
     // maybe has if condition at the eend
     next = peek_next_token(parser);
     if (next.type == TOK_KEYWORD && next.kw == KW_IF) {
-        get_next_token(parser);
+        discard_next_token(parser);
         body->if_expr = parse_expression(parser);
     }
 }
@@ -473,7 +479,7 @@ parse_mapped_enclosure(Parser* parser)
     // empty dict
     if (peek_next_token(parser).type == TOK_CLOSE_CURLY) {
         Enclosure* enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
-        get_next_token(parser);
+        discard_next_token(parser);
         enclosure->type = ENCLOSURE_DICT;
         enclosure->expressions_count = 0;
         op.kind = OPERAND_ENCLOSURE_LITERAL;
@@ -501,7 +507,7 @@ parse_mapped_enclosure(Parser* parser)
     expr_vector_append(&vec, first_val);
 
     if (next_token.type == TOK_CLOSE_CURLY) {
-        get_next_token(parser);  // consume token
+        discard_next_token(parser);
         enclosure->type = ENCLOSURE_DICT;
         enclosure->expressions = expr_vector_finalize(&vec);
         enclosure->expressions_count = vec.count;
@@ -520,7 +526,7 @@ parse_mapped_enclosure(Parser* parser)
             expect_token_type(parser, TOK_COLON);
             expr_vector_append(&vec, parse_expression(parser));
         }
-        expect_token_type(parser, TOK_CLOSE_CURLY);
+        discard_next_token(parser);
         enclosure->type = ENCLOSURE_DICT,
         enclosure->expressions = expr_vector_finalize(&vec);
         enclosure->expressions_count = vec.count;
@@ -559,7 +565,7 @@ parse_sequence_enclosure(Parser* parser)
 
     // empty sequence
     if (peek_next_token(parser).type == closing_token_type) {
-        get_next_token(parser);
+        discard_next_token(parser);
         op.kind = OPERAND_ENCLOSURE_LITERAL,
         op.enclosure = arena_alloc(parser->arena, sizeof(Enclosure));
         op.enclosure->type = enclosure_type;
@@ -574,7 +580,7 @@ parse_sequence_enclosure(Parser* parser)
     // ex: (1)  == 1
     //     (1,) != 1
     if (peek.type == TOK_CLOSE_PARENS) {
-        expect_token_type(parser, TOK_CLOSE_PARENS);
+        discard_next_token(parser);
         op.kind = OPERAND_EXPRESSION;
         op.expr = first_expr;
         return op;
@@ -596,7 +602,7 @@ parse_sequence_enclosure(Parser* parser)
 
     // single element list with no comma resolves to list
     if (peek.type == TOK_CLOSE_SQUARE) {
-        expect_token_type(parser, TOK_CLOSE_SQUARE);
+        discard_next_token(parser);
         enclosure->expressions = arena_alloc(parser->arena, sizeof(Expression**));
         enclosure->expressions[0] = first_expr;
         enclosure->expressions_count = 1;
@@ -615,7 +621,7 @@ parse_sequence_enclosure(Parser* parser)
         expr_vector_append(&vec, parse_expression(parser));
     }
 
-    expect_token_type(parser, closing_token_type);
+    discard_next_token(parser);
     enclosure->expressions = expr_vector_finalize(&vec);
     enclosure->expressions_count = vec.count;
     op.kind = OPERAND_ENCLOSURE_LITERAL;
@@ -634,7 +640,7 @@ parse_arguments(Parser* parser)
     while (true) {
         // end of arguments
         if (peek_next_token(parser).type == TOK_CLOSE_PARENS) {
-            get_next_token(parser);
+            discard_next_token(parser);
             break;
         }
 
@@ -645,7 +651,7 @@ parse_arguments(Parser* parser)
         // keyword argument
         if (next.type == TOK_OPERATOR && next.op == OPERATOR_ASSIGNMENT) {
             str_vector_append(&kwds, expect_token_type(parser, TOK_IDENTIFIER).value);
-            get_next_token(parser);  // consume assignment op
+            discard_next_token(parser);  // consume assignment op
             expr_vector_append(&values, parse_expression(parser));
         }
         // positional argument
@@ -696,7 +702,7 @@ parse_getitem_arguments(Parser* parser)
     // [:...
     else {
         slice = arena_alloc(parser->arena, sizeof(Slice));
-        get_next_token(parser);
+        discard_next_token(parser);
         slice->start_expr = NULL;
     }
 slice_stop_expr:
@@ -704,14 +710,14 @@ slice_stop_expr:
     peek = peek_next_token(parser);
     // [...:]
     if (peek.type == TOK_CLOSE_SQUARE) {
-        get_next_token(parser);
+        discard_next_token(parser);
         slice->stop_expr = NULL;
         slice->step_expr = NULL;
         goto return_slice_operand;
     }
     // [...::...
     if (peek.type == TOK_COLON) {
-        get_next_token(parser);
+        discard_next_token(parser);
         slice->stop_expr = NULL;
         goto slice_step_expr;
     }
@@ -732,7 +738,7 @@ slice_step_expr:
     peek = peek_next_token(parser);
     // [...:...:]
     if (peek.type == TOK_CLOSE_SQUARE) {
-        get_next_token(parser);
+        discard_next_token(parser);
         slice->step_expr = NULL;
         goto return_slice_operand;
     }
@@ -888,7 +894,7 @@ Statement parse_statement(Parser* parser);
 static void
 consume_newline_tokens(Parser* parser)
 {
-    while (peek_next_token(parser).type == TOK_NEWLINE) get_next_token(parser);
+    while (peek_next_token(parser).type == TOK_NEWLINE) discard_next_token(parser);
 }
 
 static Block
@@ -947,7 +953,7 @@ parse_statement(Parser* parser)
                 parse_for_loop_instruction(parser, &stmt);
                 return stmt;
             case KW_PASS:
-                expect_keyword(parser, KW_PASS);
+                discard_next_token(parser);
                 expect_token_type(parser, TOK_NEWLINE);
                 stmt.kind = STMT_NO_OP;
                 return stmt;
@@ -956,7 +962,7 @@ parse_statement(Parser* parser)
         }
     }
     if (first_token.type == TOK_EOF) {
-        get_next_token(parser);
+        discard_next_token(parser);
         stmt.kind = STMT_EOF;
         return stmt;
     }
