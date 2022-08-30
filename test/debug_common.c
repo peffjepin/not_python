@@ -215,7 +215,12 @@ render_expr(Expression* expr)
 
     for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = operations[i];
-        bool is_unary = operation.op_type == OPERATOR_LOGICAL_NOT;
+        bool is_unary =
+            (operation.op_type == OPERATOR_LOGICAL_NOT ||
+             operation.op_type == OPERATOR_NEGATIVE ||
+             operation.op_type == OPERATOR_POSITIVE ||
+             operation.op_type == OPERATOR_BITWISE_NOT);
+
         StringBuffer this_operation_rendered = {0};
 
         str_append_char(&this_operation_rendered, '(');

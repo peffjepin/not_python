@@ -196,6 +196,7 @@ et_push_operand(ExpressionTable* et, Operand operand)
         et->operands_capacity = et->operands_nbytes / sizeof(Operand);
     }
     et->operands[et->operands_count++] = operand;
+    et->previous = ET_OPERAND;
 }
 
 void
@@ -204,6 +205,7 @@ et_push_operation(ExpressionTable* et, Operation operation)
     unsigned int precedence = PRECEDENCE_TABLE[operation.op_type];
     operation_vector_push(et->operation_vectors + precedence, operation);
     et->operations_count += 1;
+    et->previous = ET_OPERATION;
 }
 
 void
@@ -212,6 +214,7 @@ et_push_operation_type(ExpressionTable* et, Operator op_type)
     Operation operation = {
         .op_type = op_type, .left = et->operands_count - 1, .right = et->operands_count};
     et_push_operation(et, operation);
+    et->previous = ET_OPERATION;
 }
 
 // TODO: the expression tree should make some kind of assertation that

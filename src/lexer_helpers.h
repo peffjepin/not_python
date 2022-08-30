@@ -82,6 +82,7 @@ void operation_vector_push(OperationVector* vec, Operation operation);
 
 typedef struct {
     Arena* arena;
+    enum { ET_NONE, ET_OPERAND, ET_OPERATION } previous;
     size_t operands_count;
     size_t operands_capacity;
     size_t operands_nbytes;

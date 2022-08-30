@@ -75,7 +75,6 @@ const unsigned int PRECEDENCE_TABLE[OPERATORS_MAX] = {
     [OPERATOR_BITWISE_AND] = 9,
     [OPERATOR_BITWISE_OR] = 7,
     [OPERATOR_BITWISE_XOR] = 8,
-    [OPERATOR_BITWISE_NOT] = 0,
     [OPERATOR_CONDITIONAL_IF] = 2,
     [OPERATOR_CONDITIONAL_ELSE] = 2,
     [OPERATOR_LSHIFT] = 10,
@@ -88,6 +87,9 @@ const unsigned int PRECEDENCE_TABLE[OPERATORS_MAX] = {
     [OPERATOR_LOGICAL_NOT] = 5,
     [OPERATOR_IN] = 6,
     [OPERATOR_IS] = 6,
+    [OPERATOR_NEGATIVE] = 13,
+    [OPERATOR_POSITIVE] = 13,
+    [OPERATOR_BITWISE_NOT] = 13,
 };
 
 const bool IS_ASSIGNMENT_OP[OPERATORS_MAX] = {
@@ -136,7 +138,6 @@ static const char* OP_TO_CSTR_TABLE[OPERATORS_MAX] = {
     [OPERATOR_BITWISE_AND] = "&",
     [OPERATOR_BITWISE_OR] = "|",
     [OPERATOR_BITWISE_XOR] = "^",
-    [OPERATOR_BITWISE_NOT] = "~",
     [OPERATOR_CONDITIONAL_IF] = "if",
     [OPERATOR_CONDITIONAL_ELSE] = "else",
     [OPERATOR_LSHIFT] = "<<",
@@ -149,6 +150,9 @@ static const char* OP_TO_CSTR_TABLE[OPERATORS_MAX] = {
     [OPERATOR_LOGICAL_NOT] = "not",
     [OPERATOR_IN] = "in",
     [OPERATOR_IS] = "is",
+    [OPERATOR_NEGATIVE] = "neg",
+    [OPERATOR_POSITIVE] = "pos",
+    [OPERATOR_BITWISE_NOT] = "~",
 };
 
 Operator

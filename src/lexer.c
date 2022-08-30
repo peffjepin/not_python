@@ -819,7 +819,15 @@ parse_expression(Parser* parser)
             case TOK_OPERATOR: {
                 // FIXME: the right side operand is yet to be parsed so we
                 // need to add some assertation that it will be parsed
-                et_push_operation_type(&et, tok.op);
+                if (tok.op == OPERATOR_PLUS &&
+                    (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
+                    et_push_operation_type(&et, OPERATOR_POSITIVE);
+                }
+                else if (tok.op == OPERATOR_MINUS && (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
+                    et_push_operation_type(&et, OPERATOR_NEGATIVE);
+                }
+                else
+                    et_push_operation_type(&et, tok.op);
                 break;
             }
             case TOK_NUMBER: {

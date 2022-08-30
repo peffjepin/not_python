@@ -238,7 +238,6 @@ OPS = {
     "OPERATOR_BITWISE_AND": {"value": "&", "precedence": 9},
     "OPERATOR_BITWISE_OR": {"value": "|", "precedence": 7},
     "OPERATOR_BITWISE_XOR": {"value": "^", "precedence": 8},
-    "OPERATOR_BITWISE_NOT": {"value": "~", "precedence": 0},
     "OPERATOR_CONDITIONAL_IF": {"value": "if", "precedence": 2},
     "OPERATOR_CONDITIONAL_ELSE": {"value": "else", "precedence": 2},
     "OPERATOR_LSHIFT": {"value": "<<", "precedence": 10},
@@ -251,6 +250,9 @@ OPS = {
     "OPERATOR_LOGICAL_NOT": {"value": "not", "precedence": 5},
     "OPERATOR_IN": {"value": "in", "precedence": 6},
     "OPERATOR_IS": {"value": "is", "precedence": 6},
+    "OPERATOR_NEGATIVE": {"value": "neg", "precedence": 13},
+    "OPERATOR_POSITIVE": {"value": "pos", "precedence": 13},
+    "OPERATOR_BITWISE_NOT": {"value": "~", "precedence": 13},
 }
 
 
