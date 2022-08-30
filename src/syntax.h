@@ -117,18 +117,16 @@ struct Enclosure {
     Expression** expressions;
 };
 
-// TODO: requires implementation
 typedef struct {
     size_t path_count;
     char** dotted_path;
 } ImportPath;
 
-// TODO: requires implementation
 typedef struct {
     ImportPath from;
-    char* as;
     size_t what_count;
     char** what;
+    char** as;
 } ImportStatement;
 
 // TODO: requires implementation
@@ -137,7 +135,6 @@ typedef struct {
     Statement* stmts;
 } Block;
 
-// TODO: requires implementation
 typedef struct {
     Expression* condition;
     Block body;

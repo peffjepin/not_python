@@ -923,6 +923,69 @@ parse_block(Parser* parser, unsigned int parent_indent)
     return (Block){.stmts_count = vec.count, .stmts = stmt_vector_finalize(&vec)};
 }
 
+static ImportPath
+parse_import_path(Parser* parser)
+{
+    StringVector vec = str_vector_init(parser->arena);
+    str_vector_append(&vec, expect_token_type(parser, TOK_IDENTIFIER).value);
+    while (peek_next_token(parser).type == TOK_DOT) {
+        discard_next_token(parser);
+        str_vector_append(&vec, expect_token_type(parser, TOK_IDENTIFIER).value);
+    }
+    return (ImportPath){
+        .dotted_path = str_vector_finalize(&vec), .path_count = vec.count};
+}
+
+static void
+parse_import_group(Parser* parser, ImportStatement* stmt)
+{
+    StringVector what_vec = str_vector_init(parser->arena);
+    StringVector as_vec = str_vector_init(parser->arena);
+    TokenType end_of_stmt;
+
+    if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
+        discard_next_token(parser);
+        Token peek = peek_next_token(parser);
+        if (peek.type == TOK_CLOSE_PARENS)
+            SYNTAX_ERROR(peek.loc, "empty import statement");
+        end_of_stmt = TOK_CLOSE_PARENS;
+    }
+    else {
+        end_of_stmt = TOK_NEWLINE;
+    }
+
+    for (;;) {
+        // what ident
+        str_vector_append(&what_vec, expect_token_type(parser, TOK_IDENTIFIER).value);
+        // maybe kw_as + as ident
+        Token peek = peek_next_token(parser);
+        if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
+            discard_next_token(parser);
+            str_vector_append(&as_vec, expect_token_type(parser, TOK_IDENTIFIER).value);
+            peek = peek_next_token(parser);
+        }
+        else
+            str_vector_append(&as_vec, NULL);
+
+        // maybe comma
+        if (peek.type == TOK_COMMA) {
+            discard_next_token(parser);
+            continue;
+        }
+        // maybe end of statement
+        else if (peek.type == end_of_stmt) {
+            discard_next_token(parser);
+            break;
+        }
+        else
+            SYNTAX_ERROR(peek.loc, "unexpected token");
+    }
+
+    stmt->what = str_vector_finalize(&what_vec);
+    stmt->what_count = what_vec.count;
+    stmt->as = str_vector_finalize(&as_vec);
+}
+
 Statement
 parse_statement(Parser* parser)
 {
@@ -957,6 +1020,29 @@ parse_statement(Parser* parser)
                 stmt.while_stmt->condition = parse_expression(parser);
                 expect_token_type(parser, TOK_COLON);
                 stmt.while_stmt->body = parse_block(parser, stmt.loc.col);
+                return stmt;
+            }
+            case KW_IMPORT: {
+                discard_next_token(parser);
+                stmt.kind = STMT_IMPORT;
+                stmt.import_stmt = arena_alloc(parser->arena, sizeof(ImportStatement));
+                stmt.import_stmt->from = parse_import_path(parser);
+                Token peek = peek_next_token(parser);
+                if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
+                    discard_next_token(parser);
+                    stmt.import_stmt->as = arena_alloc(parser->arena, sizeof(char**));
+                    stmt.import_stmt->as[0] =
+                        expect_token_type(parser, TOK_IDENTIFIER).value;
+                }
+                return stmt;
+            }
+            case KW_FROM: {
+                discard_next_token(parser);
+                stmt.kind = STMT_IMPORT;
+                stmt.import_stmt = arena_alloc(parser->arena, sizeof(ImportStatement));
+                stmt.import_stmt->from = parse_import_path(parser);
+                expect_keyword(parser, KW_IMPORT);
+                parse_import_group(parser, stmt.import_stmt);
                 return stmt;
             }
             default:

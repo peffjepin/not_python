@@ -298,6 +298,15 @@ print_block(Block block, int indent)
 #define indent_print(fmtstr) printf("%*s" fmtstr, indent, "")
 
 void
+print_import_path(ImportPath path)
+{
+    for (size_t i = 0; i < path.path_count; i++) {
+        if (i > 0) printf(".");
+        printf("%s", path.dotted_path[i]);
+    }
+}
+
+void
 print_statement(Statement* stmt, int indent)
 {
     switch (stmt->kind) {
@@ -323,7 +332,26 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_IMPORT: {
-            assert(0 && "STMT_IMPORT printing is unimplemented");
+            if (stmt->import_stmt->what) {
+                printf("from ");
+                print_import_path(stmt->import_stmt->from);
+                printf(" import ");
+                for (size_t i = 0; i < stmt->import_stmt->what_count; i++) {
+                    if (i > 0) printf(", ");
+                    printf("%s", stmt->import_stmt->what[i]);
+                    char* as = stmt->import_stmt->as[i];
+                    if (as) printf(" as %s", as);
+                }
+                printf("\n");
+            }
+            else {
+                printf("import ");
+                print_import_path(stmt->import_stmt->from);
+                if (stmt->import_stmt->as)
+                    printf(" as %s\n", stmt->import_stmt->as[0]);
+                else
+                    printf("\n");
+            }
             break;
         }
         case STMT_WHILE: {
