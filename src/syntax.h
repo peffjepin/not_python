@@ -13,6 +13,7 @@ typedef struct Operation Operation;
 typedef struct Operand Operand;
 typedef struct ItGroup ItGroup;
 typedef struct Statement Statement;
+typedef struct IfStatement IfStatement;
 
 typedef enum {
     OPERAND_EXPRESSION,
@@ -72,6 +73,7 @@ typedef enum {
     COMPREHENSION_SEQUENCE,
 } ComprehensionKind;
 
+// TODO: ItIdentifier and ItGroup can probably be a single self referential struct
 typedef struct {
     enum { IT_GROUP, IT_ID } kind;
     union {
@@ -116,14 +118,90 @@ struct Enclosure {
     Expression** expressions;
 };
 
-typedef enum {
-    NULL_STMT,
-    STMT_EXPR,
-    STMT_FOR_LOOP,
-    STMT_NO_OP,
-    STMT_EOF,
-} StatementKind;
+// TODO: requires implementation
+typedef struct {
+    size_t path_count;
+    char** dotted_path;
+} ImportPath;
 
+// TODO: requires implementation
+typedef struct {
+    ImportPath from;
+    char* as;
+    size_t what_count;
+    char** what;
+} ImportStatement;
+
+// TODO: requires implementation
+typedef struct {
+    size_t stmt_count;
+    Statement* statements;
+} Block;
+
+// TODO: requires implementation
+typedef struct {
+    Expression* condition;
+    Block body;
+} WhileStatement;
+
+// TODO: requires implementation
+struct IfStatement {
+    Expression* condition;
+    Block body;
+    size_t elifs_count;
+    IfStatement* elifs;
+    Block else_body;
+};
+
+// TODO: requires implementation
+typedef struct {
+    Block try_body;
+    size_t exceptions_count;
+    char** exceptions;
+    char* exception_as;
+    Block except_body;
+    Block finally_body;
+    Block else_body;
+} TryStatement;
+
+// TODO: requires implementation
+typedef struct {
+    Expression* ctx_manager;
+    char* as;
+    Block body;
+} WithStatement;
+
+// TODO: requires implementation
+typedef struct {
+    char* name;
+    size_t bases_count;
+    char** bases;
+    Block body;
+} ClassStatement;
+
+// TODO: requires implementation
+typedef struct {
+    char** names;
+    char** types;
+    size_t defaults_count;
+    Expression** defaults;
+} Signature;
+
+// TODO: requires implementation
+typedef struct {
+    char* name;
+    Signature sig;
+    Block body;
+} FunctionStatement;
+
+// TODO: requires implementation
+typedef struct {
+    Expression* storage;
+    Expression* value;
+    Operator op_type;
+} AssignementStatement;
+
+// TODO: use block
 typedef struct {
     ItGroup* it;
     Expression* iterable;
@@ -131,10 +209,34 @@ typedef struct {
     Statement* body;
 } ForLoopStatement;
 
+typedef enum {
+    NULL_STMT,
+    STMT_EXPR,
+    STMT_FOR_LOOP,
+    STMT_NO_OP,
+    STMT_IMPORT,
+    STMT_WHILE,
+    STMT_IF,
+    STMT_TRY,
+    STMT_WITH,
+    STMT_CLASS,
+    STMT_FUNCTION,
+    STMT_ASSIGNMENT,
+    STMT_EOF,
+} StatementKind;
+
 struct Statement {
     StatementKind kind;
     union {
         ForLoopStatement* for_loop;
+        ImportStatement* import_stmt;
+        WhileStatement* while_stmt;
+        IfStatement* if_stmt;
+        TryStatement* try_stmt;
+        WithStatement* with_stmt;
+        ClassStatement* class_stmt;
+        FunctionStatement* function_stmt;
+        AssignementStatement* assignment_stmt;
         Expression* expr;
     };
     Location loc;

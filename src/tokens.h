@@ -3,6 +3,8 @@
 
 #include "generated.h"
 
+// TODO: `@` decorator token
+
 typedef enum {
     NULL_TOKEN,
     TOK_KEYWORD,
