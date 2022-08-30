@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define STRING_BUFFER_CAPACITY 4096
+#include "../src/lexer_helpers.h"
+
+#define STRING_BUFFER_CAPACITY 2048
 
 typedef struct {
     char data[STRING_BUFFER_CAPACITY];
@@ -299,34 +301,65 @@ print_block(Block block, int indent)
 }
 
 void
-print_for_loop(ForLoopStatement* for_loop, int indent)
-{
-    StringBuffer it = render_it_group(for_loop->it);
-    StringBuffer iterable = render_expr(for_loop->iterable);
-    printf("%*sfor %s in %s:\n", indent, "", it.data, iterable.data);
-    print_block(for_loop->body, indent + 4);
-}
-
-void
 print_statement(Statement* stmt, int indent)
 {
     switch (stmt->kind) {
-        case NULL_STMT:
+        case NULL_STMT: {
             printf("NULL STMT");
             break;
-        case STMT_EOF:
+        }
+        case STMT_EOF: {
             printf("EOF");
             break;
-        case STMT_EXPR:
+        }
+        case STMT_EXPR: {
             printf("EXPR: ");
             print_expression(stmt->expr);
             break;
-        case STMT_FOR_LOOP:
-            print_for_loop(stmt->for_loop, indent);
+        }
+        case STMT_FOR_LOOP: {
+            StringBuffer it = render_it_group(stmt->for_loop->it);
+            StringBuffer iterable = render_expr(stmt->for_loop->iterable);
+            printf("%*sfor %s in %s:\n", indent, "", it.data, iterable.data);
+            print_block(stmt->for_loop->body, indent + 4);
             break;
-        case STMT_NO_OP:
+        }
+        case STMT_IMPORT: {
+            assert(0 && "STMT_IMPORT printing is unimplemented");
+            break;
+        }
+        case STMT_WHILE: {
+            assert(0 && "STMT_WHILE printing is unimplemented");
+            break;
+        }
+        case STMT_IF: {
+            assert(0 && "STMT_IF printing is unimplemented");
+            break;
+        }
+        case STMT_TRY: {
+            assert(0 && "STMT_TRY printing is unimplemented");
+            break;
+        }
+        case STMT_WITH: {
+            assert(0 && "STMT_WITH printing is unimplemented");
+            break;
+        }
+        case STMT_CLASS: {
+            assert(0 && "STMT_CLASS printing is unimplemented");
+            break;
+        }
+        case STMT_FUNCTION: {
+            assert(0 && "STMT_FUNCTION printing is unimplemented");
+            break;
+        }
+        case STMT_ASSIGNMENT: {
+            assert(0 && "STMT_ASSIGNMENT printing is unimplemented");
+            break;
+        }
+        case STMT_NO_OP: {
             printf("%*sNO_OP", indent, "");
             break;
+        }
         default:
             assert(0 && "unimplemented");
     }
@@ -336,8 +369,13 @@ print_statement(Statement* stmt, int indent)
 void
 print_token(Token tok)
 {
-    printf("%s:%u:%u ", tok.loc.filename, tok.loc.line, tok.loc.col);
-    print_token_type(tok.type);
+    printf(
+        "%s:%u:%u %s",
+        tok.loc.filename,
+        tok.loc.line,
+        tok.loc.col,
+        token_type_to_cstr(tok.type)
+    );
     if (tok.type == TOK_OPERATOR) {
         printf(": %s", op_to_cstr(tok.op));
     }
@@ -349,68 +387,4 @@ print_token(Token tok)
         printf("%s", tok.value);
     }
     printf("\n");
-}
-
-void
-print_token_type(TokenType type)
-{
-    switch (type) {
-        case NULL_TOKEN:
-            printf("NULL_TOKEN");
-            break;
-        case TOK_EOF:
-            printf("EOF");
-            break;
-        case TOK_COMMA:
-            printf("COMMA");
-            break;
-        case TOK_KEYWORD:
-            printf("KEYWORD");
-            break;
-        case TOK_COLON:
-            printf("COLON");
-            break;
-        case TOK_STRING:
-            printf("STRING");
-            break;
-        case TOK_NUMBER:
-            printf("NUMBER");
-            break;
-        case TOK_OPERATOR:
-            printf("OPERATOR");
-            break;
-        case TOK_NEWLINE:
-            printf("NEWLINE");
-            break;
-        case TOK_BLOCK_BEGIN:
-            printf("BLOCK_BEGIN");
-            break;
-        case TOK_BLOCK_END:
-            printf("BLOCK_END");
-            break;
-        case TOK_OPEN_PARENS:
-            printf("OPEN_PARENS");
-            break;
-        case TOK_CLOSE_PARENS:
-            printf("CLOSE_PARENS");
-            break;
-        case TOK_OPEN_SQUARE:
-            printf("OPEN_SQUARE");
-            break;
-        case TOK_CLOSE_SQUARE:
-            printf("CLOSE_SQUARE");
-            break;
-        case TOK_OPEN_CURLY:
-            printf("OPEN_CURLY");
-            break;
-        case TOK_CLOSE_CURLY:
-            printf("CLOSE_CURLY");
-            break;
-        case TOK_IDENTIFIER:
-            printf("IDENTIFIER");
-            break;
-        case TOK_DOT:
-            printf("DOT");
-            break;
-    }
 }

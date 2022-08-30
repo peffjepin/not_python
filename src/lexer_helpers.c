@@ -81,20 +81,20 @@ out_of_memory(void)
 }
 
 static const char* TOKEN_TYPE_TO_CSTR_TABLE[19] = {
-    [TOK_KEYWORD] = "keyword",
+    [TOK_KEYWORD] = "KEYWORD",
     [TOK_COMMA] = ",",
     [TOK_COLON] = ":",
-    [TOK_STRING] = "string",
-    [TOK_NUMBER] = "number",
-    [TOK_OPERATOR] = "operator",
-    [TOK_NEWLINE] = "\n",
+    [TOK_STRING] = "STRING",
+    [TOK_NUMBER] = "NUMBER",
+    [TOK_OPERATOR] = "OPERATOR",
+    [TOK_NEWLINE] = "NEWLINE",
     [TOK_OPEN_PARENS] = "(",
     [TOK_CLOSE_PARENS] = ")",
     [TOK_OPEN_SQUARE] = "[",
     [TOK_CLOSE_SQUARE] = "]",
     [TOK_OPEN_CURLY] = "{",
     [TOK_CLOSE_CURLY] = "}",
-    [TOK_IDENTIFIER] = "identifier",
+    [TOK_IDENTIFIER] = "IDENTIFIER",
     [TOK_DOT] = ".",
     [TOK_EOF] = "EOF",
 };
