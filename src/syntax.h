@@ -73,7 +73,6 @@ typedef enum {
     COMPREHENSION_SEQUENCE,
 } ComprehensionKind;
 
-// TODO: ItIdentifier and ItGroup can probably be a single self referential struct
 typedef struct {
     enum { IT_GROUP, IT_ID } kind;
     union {
@@ -134,8 +133,8 @@ typedef struct {
 
 // TODO: requires implementation
 typedef struct {
-    size_t stmt_count;
-    Statement* statements;
+    size_t stmts_count;
+    Statement* stmts;
 } Block;
 
 // TODO: requires implementation
@@ -201,12 +200,10 @@ typedef struct {
     Operator op_type;
 } AssignementStatement;
 
-// TODO: use block
 typedef struct {
     ItGroup* it;
     Expression* iterable;
-    size_t body_length;
-    Statement* body;
+    Block body;
 } ForLoopStatement;
 
 typedef enum {

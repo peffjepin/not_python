@@ -291,14 +291,20 @@ print_expression(Expression* expr)
 }
 
 void
+print_block(Block block, int indent)
+{
+    for (size_t i = 0; i < block.stmts_count; i++) {
+        print_statement(block.stmts + i, indent);
+    }
+}
+
+void
 print_for_loop(ForLoopStatement* for_loop, int indent)
 {
     StringBuffer it = render_it_group(for_loop->it);
     StringBuffer iterable = render_expr(for_loop->iterable);
     printf("%*sfor %s in %s:\n", indent, "", it.data, iterable.data);
-    for (size_t i = 0; i < for_loop->body_length; i++) {
-        print_statement(for_loop->body + i, indent + 4);
-    }
+    print_block(for_loop->body, indent + 4);
 }
 
 void

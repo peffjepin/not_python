@@ -891,12 +891,37 @@ consume_newline_tokens(Parser* parser)
     while (peek_next_token(parser).type == TOK_NEWLINE) get_next_token(parser);
 }
 
+static Block
+parse_block(Parser* parser, unsigned int parent_indent)
+{
+    StatementVector vec = stmt_vector_init(parser->arena);
+
+    Statement first_body_stmt = parse_statement(parser);
+    if (first_body_stmt.loc.col <= parent_indent)
+        SYNTAX_ERROR(first_body_stmt.loc, "expected indentation");
+    stmt_vector_append(&vec, first_body_stmt);
+
+    for (;;) {
+        consume_newline_tokens(parser);
+        Token peek = peek_next_token(parser);
+        if (peek.loc.col < first_body_stmt.loc.col) {
+            if (peek.loc.col > parent_indent)
+                SYNTAX_ERROR(peek.loc, "inconsistent indentation");
+            break;
+        }
+        if (peek.loc.col > first_body_stmt.loc.col)
+            SYNTAX_ERROR(peek.loc, "inconsistent indentation");
+        stmt_vector_append(&vec, parse_statement(parser));
+    }
+
+    return (Block){.stmts_count = vec.count, .stmts = stmt_vector_finalize(&vec)};
+}
+
 static void
 parse_for_loop_instruction(Parser* parser, Statement* stmt)
 {
     stmt->kind = STMT_FOR_LOOP;
     stmt->for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
-    StatementVector vec = stmt_vector_init(parser->arena);
 
     expect_keyword(parser, KW_FOR);
     stmt->for_loop->it = parse_iterable_identifiers(parser);
@@ -904,22 +929,7 @@ parse_for_loop_instruction(Parser* parser, Statement* stmt)
     stmt->for_loop->iterable = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
 
-    Statement first_body_stmt = parse_statement(parser);
-    if (first_body_stmt.loc.col <= stmt->loc.col)
-        SYNTAX_ERROR(first_body_stmt.loc, "expected indentation");
-    stmt_vector_append(&vec, first_body_stmt);
-
-    for (;;) {
-        consume_newline_tokens(parser);
-        Token peek = peek_next_token(parser);
-        if (peek.loc.col < first_body_stmt.loc.col) break;
-        if (peek.loc.col > first_body_stmt.loc.col)
-            SYNTAX_ERROR(peek.loc, "inconsistent indentation");
-        stmt_vector_append(&vec, parse_statement(parser));
-    }
-
-    stmt->for_loop->body = stmt_vector_finalize(&vec);
-    stmt->for_loop->body_length = vec.count;
+    stmt->for_loop->body = parse_block(parser, stmt->loc.col);
 }
 
 Statement
