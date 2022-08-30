@@ -1,6 +1,6 @@
-EXPR: ((x + y) + (neg z))
-EXPR: ((x + y) + (pos z))
-EXPR: ((x + y) + (~ z))
+((x + y) + (neg z))
+((x + y) + (pos z))
+((x + y) + (~ z))
 EOF
 
 exitcode=0

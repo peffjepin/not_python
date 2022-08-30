@@ -286,13 +286,6 @@ render_it_group(ItGroup* it)
 }
 
 void
-print_expression(Expression* expr)
-{
-    StringBuffer buf = render_expr(expr);
-    printf("%s", buf.data);
-}
-
-void
 print_block(Block block, int indent)
 {
     for (size_t i = 0; i < block.stmts_count; i++) {
@@ -300,27 +293,32 @@ print_block(Block block, int indent)
     }
 }
 
+// expects `indent` token to be in scope
+#define indent_printf(fmtstr, ...) printf("%*s" fmtstr, indent, "", __VA_ARGS__)
+#define indent_print(fmtstr) printf("%*s" fmtstr, indent, "")
+
 void
 print_statement(Statement* stmt, int indent)
 {
     switch (stmt->kind) {
         case NULL_STMT: {
-            printf("NULL STMT");
+            printf("NULL STMT\n");
             break;
         }
         case STMT_EOF: {
-            printf("EOF");
+            printf("EOF\n");
             break;
         }
         case STMT_EXPR: {
-            printf("EXPR: ");
-            print_expression(stmt->expr);
+            indent_printf("%s\n", render_expr(stmt->expr).data);
             break;
         }
         case STMT_FOR_LOOP: {
-            StringBuffer it = render_it_group(stmt->for_loop->it);
-            StringBuffer iterable = render_expr(stmt->for_loop->iterable);
-            printf("%*sfor %s in %s:\n", indent, "", it.data, iterable.data);
+            indent_printf(
+                "for %s in %s:\n",
+                render_it_group(stmt->for_loop->it).data,
+                render_expr(stmt->for_loop->iterable).data
+            );
             print_block(stmt->for_loop->body, indent + 4);
             break;
         }
@@ -329,7 +327,8 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_WHILE: {
-            assert(0 && "STMT_WHILE printing is unimplemented");
+            indent_printf("while %s:\n", render_expr(stmt->while_stmt->condition).data);
+            print_block(stmt->while_stmt->body, indent + 4);
             break;
         }
         case STMT_IF: {
@@ -357,13 +356,12 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_NO_OP: {
-            printf("%*sNO_OP", indent, "");
+            indent_print("NO_OP\n");
             break;
         }
         default:
             assert(0 && "unimplemented");
     }
-    if (indent == 0) printf("\n");
 }
 
 void

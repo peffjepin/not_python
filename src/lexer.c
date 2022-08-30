@@ -923,45 +923,47 @@ parse_block(Parser* parser, unsigned int parent_indent)
     return (Block){.stmts_count = vec.count, .stmts = stmt_vector_finalize(&vec)};
 }
 
-static void
-parse_for_loop_instruction(Parser* parser, Statement* stmt)
-{
-    stmt->kind = STMT_FOR_LOOP;
-    stmt->for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
-
-    expect_keyword(parser, KW_FOR);
-    stmt->for_loop->it = parse_iterable_identifiers(parser);
-    expect_keyword(parser, KW_IN);
-    stmt->for_loop->iterable = parse_expression(parser);
-    expect_token_type(parser, TOK_COLON);
-
-    stmt->for_loop->body = parse_block(parser, stmt->loc.col);
-}
-
 Statement
 parse_statement(Parser* parser)
 {
     Statement stmt = {.kind = NULL_STMT};
 
     consume_newline_tokens(parser);
-    Token first_token = peek_next_token(parser);
-    stmt.loc = first_token.loc;
+    Token peek = peek_next_token(parser);
+    stmt.loc = peek.loc;
 
-    if (first_token.type == TOK_KEYWORD) {
-        switch (first_token.kw) {
-            case KW_FOR:
-                parse_for_loop_instruction(parser, &stmt);
+    if (peek.type == TOK_KEYWORD) {
+        switch (peek.kw) {
+            case KW_FOR: {
+                discard_next_token(parser);
+                stmt.kind = STMT_FOR_LOOP;
+                stmt.for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
+                stmt.for_loop->it = parse_iterable_identifiers(parser);
+                expect_keyword(parser, KW_IN);
+                stmt.for_loop->iterable = parse_expression(parser);
+                expect_token_type(parser, TOK_COLON);
+                stmt.for_loop->body = parse_block(parser, stmt.loc.col);
                 return stmt;
+            }
             case KW_PASS:
                 discard_next_token(parser);
                 expect_token_type(parser, TOK_NEWLINE);
                 stmt.kind = STMT_NO_OP;
                 return stmt;
+            case KW_WHILE: {
+                discard_next_token(parser);
+                stmt.kind = STMT_WHILE;
+                stmt.while_stmt = arena_alloc(parser->arena, sizeof(WhileStatement));
+                stmt.while_stmt->condition = parse_expression(parser);
+                expect_token_type(parser, TOK_COLON);
+                stmt.while_stmt->body = parse_block(parser, stmt.loc.col);
+                return stmt;
+            }
             default:
                 break;
         }
     }
-    if (first_token.type == TOK_EOF) {
+    if (peek.type == TOK_EOF) {
         discard_next_token(parser);
         stmt.kind = STMT_EOF;
         return stmt;
