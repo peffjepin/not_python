@@ -1216,8 +1216,6 @@ parse_statement(Parser* parser)
             case KW_DEF: {
                 // TODO: function signatures within a class body need to be parsed a bit
                 // differently.
-                // TODO: you should be able to omit the return type and have it implied to
-                // be None
                 discard_next_token(parser);
                 stmt.kind = STMT_FUNCTION;
                 stmt.function_stmt =
@@ -1255,9 +1253,15 @@ parse_statement(Parser* parser)
                     }
                 }
                 discard_next_token(parser);  // close parens
-                expect_token_type(parser, TOK_ARROW);
+
+                char* return_type = "None";
+                if (peek_next_token(parser).type == TOK_ARROW) {
+                    discard_next_token(parser);
+                    return_type = expect_token_type(parser, TOK_IDENTIFIER).value;
+                }
+
                 Signature sig = {
-                    .return_type = expect_token_type(parser, TOK_IDENTIFIER).value,
+                    .return_type = return_type,
                     .defaults = expr_vector_finalize(&defaults),
                     .defaults_count = defaults.count,
                     .params = str_vector_finalize(&params),
