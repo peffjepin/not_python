@@ -166,7 +166,6 @@ typedef struct {
     Block else_body;
 } TryStatement;
 
-// TODO: requires implementation
 typedef struct {
     Expression* ctx_manager;
     char* as;

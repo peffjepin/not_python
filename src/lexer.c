@@ -1191,6 +1191,19 @@ parse_statement(Parser* parser)
 
                 return stmt;
             }
+            case KW_WITH: {
+                discard_next_token(parser);
+                stmt.kind = STMT_WITH;
+                stmt.with_stmt = arena_alloc(parser->arena, sizeof(WithStatement));
+                stmt.with_stmt->ctx_manager = parse_expression(parser);
+                if (peek_next_token(parser).type != TOK_COLON) {
+                    expect_keyword(parser, KW_AS);
+                    stmt.with_stmt->as = expect_token_type(parser, TOK_IDENTIFIER).value;
+                }
+                expect_token_type(parser, TOK_COLON);
+                stmt.with_stmt->body = parse_block(parser, stmt.loc.col);
+                return stmt;
+            }
             default:
                 break;
         }

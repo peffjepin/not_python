@@ -409,7 +409,10 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_WITH: {
-            assert(0 && "STMT_WITH printing is unimplemented");
+            indent_printf("with %s", render_expr(stmt->with_stmt->ctx_manager).data);
+            if (stmt->with_stmt->as) printf(" as %s", stmt->with_stmt->as);
+            printf(":\n");
+            print_block(stmt->with_stmt->body, indent + 4);
             break;
         }
         case STMT_CLASS: {
