@@ -1215,6 +1215,10 @@ parse_statement(Parser* parser)
                 return stmt;
             }
             case KW_DEF: {
+                // TODO: function signatures within a class body need to be parsed a bit
+                // differently.
+                // TODO: you should be able to omit the return type and have it implied to
+                // be None
                 discard_next_token(parser);
                 stmt.kind = STMT_FUNCTION;
                 stmt.function_stmt =
@@ -1266,6 +1270,21 @@ parse_statement(Parser* parser)
                 expect_token_type(parser, TOK_COLON);
                 stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
 
+                return stmt;
+            }
+            case KW_CLASS: {
+                discard_next_token(parser);
+                stmt.kind = STMT_CLASS;
+                stmt.class_stmt = arena_alloc(parser->arena, sizeof(ClassStatement));
+                stmt.class_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+                if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
+                    discard_next_token(parser);
+                    stmt.class_stmt->base =
+                        expect_token_type(parser, TOK_IDENTIFIER).value;
+                    expect_token_type(parser, TOK_CLOSE_PARENS);
+                }
+                expect_token_type(parser, TOK_COLON);
+                stmt.class_stmt->body = parse_block(parser, stmt.loc.col);
                 return stmt;
             }
             default:

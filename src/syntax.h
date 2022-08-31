@@ -172,11 +172,9 @@ typedef struct {
     Block body;
 } WithStatement;
 
-// TODO: requires implementation
 typedef struct {
     char* name;
-    size_t bases_count;
-    char** bases;
+    char* base;
     Block body;
 } ClassStatement;
 

@@ -416,7 +416,12 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_CLASS: {
-            assert(0 && "STMT_CLASS printing is unimplemented");
+            indent_printf("class %s", stmt->class_stmt->name);
+            if (stmt->class_stmt->base) {
+                printf("(%s)", stmt->class_stmt->base);
+            }
+            printf(":\n");
+            print_block(stmt->class_stmt->body, indent + 4);
             break;
         }
         case STMT_FUNCTION: {
