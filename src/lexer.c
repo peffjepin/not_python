@@ -765,7 +765,12 @@ expect_token_type(Parser* parser, TokenType type)
 {
     Token tok = get_next_token(parser);
     if (tok.type != type)
-        SYNTAX_ERRORF(tok.loc, "expected token type `%s`", token_type_to_cstr(type));
+        SYNTAX_ERRORF(
+            tok.loc,
+            "expected token type `%s`, got `%s`",
+            token_type_to_cstr(type),
+            token_type_to_cstr(tok.type)
+        );
     return tok;
 }
 
@@ -816,7 +821,7 @@ parse_expression(Parser* parser)
                         break;
                     default:
                         SYNTAX_ERRORF(
-                            tok.loc, "not expecting keyword %s here", kw_to_cstr(tok.kw)
+                            tok.loc, "not expecting keyword `%s` here", kw_to_cstr(tok.kw)
                         );
                         break;
                 }
@@ -994,6 +999,13 @@ parse_statement(Parser* parser)
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
     // TODO: maybe we want some kind of check on indentation here
+    // this could be a stack of indentations kept on the parser
+    //
+    // when we parse a new statement and it's indentation is larger than
+    // the top of the stack we push the new indenation on
+    //
+    // when the indentation has gone down we pop off the top of the stack and
+    // should find the current indenation somewhere or its an error
     stmt.loc = peek.loc;
 
     if (peek.type == TOK_KEYWORD) {
@@ -1086,6 +1098,97 @@ parse_statement(Parser* parser)
                     expect_token_type(parser, TOK_COLON);
                     stmt.if_stmt->else_body = parse_block(parser, stmt.loc.col);
                 }
+                return stmt;
+            }
+            case KW_TRY: {
+                discard_next_token(parser);
+                expect_token_type(parser, TOK_COLON);
+                stmt.kind = STMT_TRY;
+                stmt.try_stmt = arena_alloc(parser->arena, sizeof(TryStatement));
+                stmt.try_stmt->try_body = parse_block(parser, stmt.loc.col);
+
+                ExceptStatementVector excepts = except_vector_init(parser->arena);
+                Token peek;
+
+                for (;;) {
+                    // start at expect
+                    consume_newline_tokens(parser);
+                    Token begin = expect_keyword(parser, KW_EXCEPT);
+                    if (begin.loc.col != stmt.loc.col)
+                        SYNTAX_ERROR(begin.loc, "inconsistent indentation");
+                    // we will need a str vector for exception names
+                    StringVector exceptions = str_vector_init(parser->arena);
+                    // parse either: an identifier
+                    peek = peek_next_token(parser);
+                    if (peek.type == TOK_IDENTIFIER) {
+                        discard_next_token(parser);
+                        str_vector_append(&exceptions, peek.value);
+                    }
+                    // or: open parens, variable number of identifiers, close parens
+                    else if (peek.type == TOK_OPEN_PARENS) {
+                        discard_next_token(parser);
+                        str_vector_append(
+                            &exceptions, expect_token_type(parser, TOK_IDENTIFIER).value
+                        );
+                        peek = peek_next_token(parser);
+                        while (peek.type != TOK_CLOSE_PARENS) {
+                            expect_token_type(parser, TOK_COMMA);
+                            str_vector_append(
+                                &exceptions,
+                                expect_token_type(parser, TOK_IDENTIFIER).value
+                            );
+                            peek = peek_next_token(parser);
+                        }
+                        discard_next_token(parser);
+                    }
+                    else {
+                        SYNTAX_ERRORF(
+                            peek.loc,
+                            "unexpected token type (%s) (note bare excepts not allowed)",
+                            token_type_to_cstr(peek.type)
+                        );
+                    }
+                    // done parsing exception names
+                    ExceptStatement except = {
+                        .exceptions = str_vector_finalize(&exceptions),
+                        .exceptions_count = exceptions.count};
+                    peek = peek_next_token(parser);
+                    // maybe parse as
+                    if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
+                        discard_next_token(parser);
+                        except.as = expect_token_type(parser, TOK_IDENTIFIER).value;
+                    }
+                    else
+                        except.as = NULL;
+                    expect_token_type(parser, TOK_COLON);
+                    // parse body;
+                    except.body = parse_block(parser, stmt.loc.col);
+                    // accumulate except statements and consider repeating
+                    except_vector_append(&excepts, except);
+                    consume_newline_tokens(parser);
+                    peek = peek_next_token(parser);
+                    if (peek.loc.col < stmt.loc.col || peek.type != TOK_KEYWORD ||
+                        peek.kw != KW_EXCEPT)
+                        break;
+                }
+                stmt.try_stmt->excepts = except_vector_finalize(&excepts);
+                stmt.try_stmt->excepts_count = excepts.count;
+                if (peek.loc.col < stmt.loc.col) return stmt;
+                // maybe parse else
+                if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE) {
+                    discard_next_token(parser);
+                    expect_token_type(parser, TOK_COLON);
+                    stmt.try_stmt->else_body = parse_block(parser, stmt.loc.col);
+                }
+                // maybe parse finally
+                consume_newline_tokens(parser);
+                peek = peek_next_token(parser);
+                if (peek.type == TOK_KEYWORD && peek.kw == KW_FINALLY) {
+                    discard_next_token(parser);
+                    expect_token_type(parser, TOK_COLON);
+                    stmt.try_stmt->finally_body = parse_block(parser, stmt.loc.col);
+                }
+
                 return stmt;
             }
             default:

@@ -73,6 +73,7 @@ PTR_VECTOR_DEFINITION(ItGroup, itgroup)
 VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
 VALUE_VECTOR_DEFINITION(Statement, stmt)
 VALUE_VECTOR_DEFINITION(ElifStatement, elif)
+VALUE_VECTOR_DEFINITION(ExceptStatement, except)
 
 void
 out_of_memory(void)

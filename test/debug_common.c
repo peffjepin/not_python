@@ -375,7 +375,37 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_TRY: {
-            assert(0 && "STMT_TRY printing is unimplemented");
+            // try
+            indent_print("try:\n");
+            print_block(stmt->try_stmt->try_body, indent + 4);
+            // excepts
+            for (size_t i = 0; i < stmt->try_stmt->excepts_count; i++) {
+                ExceptStatement except = stmt->try_stmt->excepts[i];
+                indent_print("except ");
+                if (except.exceptions_count > 1) {
+                    printf("(");
+                    for (size_t j = 0; j < except.exceptions_count; j++) {
+                        if (j > 0) printf(", ");
+                        printf("%s", except.exceptions[j]);
+                    }
+                    printf(")");
+                }
+                else
+                    printf("%s", except.exceptions[0]);
+                if (except.as != NULL) printf(" as %s", except.as);
+                printf(":\n");
+                print_block(except.body, indent + 4);
+            }
+            // else
+            if (stmt->try_stmt->else_body.stmts_count > 0) {
+                indent_print("else:\n");
+                print_block(stmt->try_stmt->else_body, indent + 4);
+            }
+            // finally
+            if (stmt->try_stmt->finally_body.stmts_count > 0) {
+                indent_print("finally:\n");
+                print_block(stmt->try_stmt->finally_body, indent + 4);
+            }
             break;
         }
         case STMT_WITH: {

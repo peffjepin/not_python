@@ -151,13 +151,17 @@ typedef struct {
     Block else_body;
 } IfStatement;
 
-// TODO: requires implementation
 typedef struct {
-    Block try_body;
     size_t exceptions_count;
     char** exceptions;
-    char* exception_as;
-    Block except_body;
+    char* as;
+    Block body;
+} ExceptStatement;
+
+typedef struct {
+    Block try_body;
+    size_t excepts_count;
+    ExceptStatement* excepts;
     Block finally_body;
     Block else_body;
 } TryStatement;
@@ -199,6 +203,8 @@ typedef struct {
     Operator op_type;
 } AssignementStatement;
 
+// techincally this could have an else at the end
+// but I'm not sure I care to support that
 typedef struct {
     ItGroup* it;
     Expression* iterable;
