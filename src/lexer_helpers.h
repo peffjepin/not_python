@@ -104,6 +104,15 @@ void tq_push(TokenQueue* tq, Token token);
 // cheaper option to consume the next item after peeking
 void tq_discard(TokenQueue* tq);
 
+#define INDENTATION_MAX 10
+
+typedef struct {
+    size_t count;
+    unsigned int values[INDENTATION_MAX];
+} IndentationStack;
+
+void indent_check(IndentationStack* stack, Location loc, bool begin_block);
+
 typedef struct {
     size_t count;
     size_t capacity;

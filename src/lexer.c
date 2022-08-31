@@ -294,7 +294,10 @@ push_token:
 typedef enum {
     CONSUMABLE_RULE_UNSET,
     DISALLOW_CONDITIONAL_EXPRESSION,
+    BLOCK_BEGIN,
 } ConsumableParserRule;
+
+#define INDENTATION_MAX 10
 
 typedef struct {
     Arena* arena;
@@ -303,6 +306,7 @@ typedef struct {
     Token previous;
     Token token;
     ConsumableParserRule consumable_rule;
+    IndentationStack indent_stack;
 } Parser;
 
 static inline ConsumableParserRule
@@ -917,6 +921,7 @@ parse_block(Parser* parser, unsigned int parent_indent)
 {
     StatementVector vec = stmt_vector_init(parser->arena);
 
+    parser->consumable_rule = BLOCK_BEGIN;
     Statement first_body_stmt = parse_statement(parser);
     if (first_body_stmt.loc.col <= parent_indent)
         SYNTAX_ERROR(first_body_stmt.loc, "expected indentation");
@@ -1004,19 +1009,13 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
 Statement
 parse_statement(Parser* parser)
 {
+    ConsumableParserRule rule = consume_rule(parser);
     Statement stmt = {.kind = NULL_STMT};
 
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
-    // TODO: maybe we want some kind of check on indentation here
-    // this could be a stack of indentations kept on the parser
-    //
-    // when we parse a new statement and it's indentation is larger than
-    // the top of the stack we push the new indenation on
-    //
-    // when the indentation has gone down we pop off the top of the stack and
-    // should find the current indenation somewhere or its an error
     stmt.loc = peek.loc;
+    indent_check(&parser->indent_stack, stmt.loc, rule == BLOCK_BEGIN);
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
