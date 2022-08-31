@@ -193,12 +193,11 @@ typedef struct {
     Block body;
 } FunctionStatement;
 
-// TODO: requires implementation
 typedef struct {
     Expression* storage;
     Expression* value;
     Operator op_type;
-} AssignementStatement;
+} AssignmentStatement;
 
 // techincally this could have an else at the end
 // but I'm not sure I care to support that
@@ -235,7 +234,7 @@ struct Statement {
         WithStatement* with_stmt;
         ClassStatement* class_stmt;
         FunctionStatement* function_stmt;
-        AssignementStatement* assignment_stmt;
+        AssignmentStatement* assignment_stmt;
         Expression* expr;
     };
     Location loc;

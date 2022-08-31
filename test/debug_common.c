@@ -450,7 +450,12 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_ASSIGNMENT: {
-            assert(0 && "STMT_ASSIGNMENT printing is unimplemented");
+            printf(
+                "%s %s %s\n",
+                render_expr(stmt->assignment_stmt->storage).data,
+                op_to_cstr(stmt->assignment_stmt->op_type),
+                render_expr(stmt->assignment_stmt->value).data
+            );
             break;
         }
         case STMT_NO_OP: {

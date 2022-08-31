@@ -1297,8 +1297,19 @@ parse_statement(Parser* parser)
         return stmt;
     }
 
-    stmt.kind = STMT_EXPR;
-    stmt.expr = parse_expression(parser);
+    Expression* expr = parse_expression(parser);
+
+    if (peek_next_token(parser).type != TOK_OPERATOR) {
+        stmt.kind = STMT_EXPR;
+        stmt.expr = expr;
+    }
+    else {
+        stmt.kind = STMT_ASSIGNMENT;
+        stmt.assignment_stmt = arena_alloc(parser->arena, sizeof(AssignmentStatement));
+        stmt.assignment_stmt->storage = expr;
+        stmt.assignment_stmt->op_type = expect_token_type(parser, TOK_OPERATOR).op;
+        stmt.assignment_stmt->value = parse_expression(parser);
+    }
     return stmt;
 }
 
