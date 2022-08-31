@@ -297,8 +297,6 @@ typedef enum {
     BLOCK_BEGIN,
 } ConsumableParserRule;
 
-#define INDENTATION_MAX 10
-
 typedef struct {
     Arena* arena;
     Scanner* scanner;
@@ -307,6 +305,7 @@ typedef struct {
     Token token;
     ConsumableParserRule consumable_rule;
     IndentationStack indent_stack;
+    LexicalScopeStack scope_stack;
 } Parser;
 
 static inline ConsumableParserRule
@@ -337,7 +336,8 @@ peek_next_token(Parser* parser)
 static inline Token
 peek_forward_n_tokens(Parser* parser, size_t n)
 {
-    // TODO: should consider if we need a special case for trying to peek past EOF token
+    // TODO: should consider if we need a special case for trying to peek past EOF
+    // token
     size_t required_scans = (n + 1) - parser->tq->length;
     while (required_scans-- > 0) scan_token(parser->scanner);
     return tq_peek(parser->tq, n);
@@ -411,7 +411,8 @@ parse_iterable_identifiers(Parser* parser)
             case TOK_COMMA:
                 // maybe ignoring commas is a bad idea but it seems to me they don't
                 // actually have meaning here besides being a delimiter though this
-                // will allow for some whacky syntax: `for key,,,,,value,,, in d.items():`
+                // will allow for some whacky syntax: `for key,,,,,value,,, in
+                // d.items():`
                 continue;
             case TOK_OPEN_PARENS: {
                 ItIdentifier identifier = {
@@ -1153,7 +1154,8 @@ parse_statement(Parser* parser)
                     else {
                         SYNTAX_ERRORF(
                             peek.loc,
-                            "unexpected token type (%s) (note bare excepts not allowed)",
+                            "unexpected token type (%s) (note bare excepts not "
+                            "allowed)",
                             token_type_to_cstr(peek.type)
                         );
                     }
@@ -1214,8 +1216,6 @@ parse_statement(Parser* parser)
                 return stmt;
             }
             case KW_DEF: {
-                // TODO: function signatures within a class body need to be parsed a bit
-                // differently.
                 discard_next_token(parser);
                 stmt.kind = STMT_FUNCTION;
                 stmt.function_stmt =
@@ -1232,6 +1232,22 @@ parse_statement(Parser* parser)
                 StringVector types = str_vector_init(parser->arena);
                 ExpressionVector defaults = expr_vector_init(parser->arena);
                 Token peek = peek_next_token(parser);
+
+                LexicalScope scope = scope_stack_peek(&parser->scope_stack);
+                if (scope.kind == SCOPE_FUNCTION)
+                    SYNTAX_ERROR(stmt.loc, "nested functions not supported");
+                else if (scope.kind == SCOPE_CLASS) {
+                    // parse and infer type of `self` param
+                    Token self_token = get_next_token(parser);
+                    if (self_token.type != TOK_IDENTIFIER) {
+                        SYNTAX_ERROR(
+                            self_token.loc, "expecting `self` param for method def"
+                        );
+                    }
+                    str_vector_append(&params, self_token.value);
+                    str_vector_append(&types, scope.cls->name);
+                }
+
                 while (peek.type != TOK_CLOSE_PARENS) {
                     if (params.count > 0) expect_token_type(parser, TOK_COMMA);
                     Token param = expect_token_type(parser, TOK_IDENTIFIER);
@@ -1271,7 +1287,11 @@ parse_statement(Parser* parser)
 
                 // parse body
                 expect_token_type(parser, TOK_COLON);
+                LexicalScope fn_scope = {
+                    .kind = SCOPE_FUNCTION, .func = stmt.function_stmt};
+                scope_stack_push(&parser->scope_stack, fn_scope);
                 stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
+                scope_stack_pop(&parser->scope_stack);
 
                 return stmt;
             }
@@ -1287,7 +1307,10 @@ parse_statement(Parser* parser)
                     expect_token_type(parser, TOK_CLOSE_PARENS);
                 }
                 expect_token_type(parser, TOK_COLON);
+                LexicalScope cls_scope = {.kind = SCOPE_CLASS, .cls = stmt.class_stmt};
+                scope_stack_push(&parser->scope_stack, cls_scope);
                 stmt.class_stmt->body = parse_block(parser, stmt.loc.col);
+                scope_stack_pop(&parser->scope_stack);
                 return stmt;
             }
             default:
@@ -1335,6 +1358,8 @@ lex_file(const char* filepath)
     Scanner scanner = {
         .arena = lexer.arena, .loc = start_location, .srcfile = file, .tq = &tq};
     Parser parser = {.arena = lexer.arena, .scanner = &scanner, .tq = &tq};
+    LexicalScope top_level = {0};
+    scope_stack_push(&parser.scope_stack, top_level);
 
     size_t statements_capacity = LEXER_STATEMENTS_CHUNK_SIZE;
     lexer.statements = malloc(sizeof(Statement) * statements_capacity);

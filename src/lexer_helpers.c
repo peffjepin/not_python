@@ -178,6 +178,27 @@ indent_check(IndentationStack* stack, Location loc, bool begin_block)
     }
 }
 
+LexicalScope
+scope_stack_peek(LexicalScopeStack* stack)
+{
+    assert(stack->count && "peeking empty stack");
+    return stack->scopes[stack->count - 1];
+}
+
+void
+scope_stack_push(LexicalScopeStack* stack, LexicalScope scope)
+{
+    assert(stack->count < SCOPE_STACK_MAX && "pushing to full stack");
+    stack->scopes[stack->count++] = scope;
+}
+
+LexicalScope
+scope_stack_pop(LexicalScopeStack* stack)
+{
+    assert(stack->count && "popping empty stack");
+    return stack->scopes[--stack->count];
+}
+
 void
 operation_vector_push(OperationVector* vec, Operation operation)
 {
