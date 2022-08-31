@@ -24,6 +24,7 @@ typedef enum {
     TOK_CLOSE_CURLY,
     TOK_IDENTIFIER,
     TOK_DOT,
+    TOK_ARROW,
     TOK_EOF,
 } TokenType;
 

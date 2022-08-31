@@ -180,15 +180,15 @@ typedef struct {
     Block body;
 } ClassStatement;
 
-// TODO: requires implementation
 typedef struct {
-    char** names;
+    size_t params_count;
+    char** params;
     char** types;
     size_t defaults_count;
     Expression** defaults;
+    char* return_type;
 } Signature;
 
-// TODO: requires implementation
 typedef struct {
     char* name;
     Signature sig;

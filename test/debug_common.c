@@ -420,7 +420,28 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_FUNCTION: {
-            assert(0 && "STMT_FUNCTION printing is unimplemented");
+            indent_printf("def %s(", stmt->function_stmt->name);
+            size_t positional_count = stmt->function_stmt->sig.params_count -
+                                      stmt->function_stmt->sig.defaults_count;
+            for (size_t i = 0; i < positional_count; i++) {
+                if (i > 0) printf(", ");
+                printf(
+                    "%s: %s",
+                    stmt->function_stmt->sig.params[i],
+                    stmt->function_stmt->sig.types[i]
+                );
+            }
+            for (size_t i = 0; i < stmt->function_stmt->sig.defaults_count; i++) {
+                if (i > 0 || positional_count > 0) printf(", ");
+                printf(
+                    "%s: %s = %s",
+                    stmt->function_stmt->sig.params[positional_count + i],
+                    stmt->function_stmt->sig.types[positional_count + i],
+                    render_expr(stmt->function_stmt->sig.defaults[i]).data
+                );
+            }
+            printf(") -> %s:\n", stmt->function_stmt->sig.return_type);
+            print_block(stmt->function_stmt->body, indent + 4);
             break;
         }
         case STMT_ASSIGNMENT: {

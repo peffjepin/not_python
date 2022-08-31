@@ -163,6 +163,16 @@ handle_single_char_tokens(Scanner* scanner)
                 return true;
             }
             return false;
+        case '-': {
+            // not really a single char token
+            char next = scanner_peekc(scanner);
+            if (next == '>') {
+                scanner_getc(scanner);
+                scanner->token.type = TOK_ARROW;
+                return true;
+            }
+            break;
+        }
         default:
             return false;
     }
@@ -1202,6 +1212,60 @@ parse_statement(Parser* parser)
                 }
                 expect_token_type(parser, TOK_COLON);
                 stmt.with_stmt->body = parse_block(parser, stmt.loc.col);
+                return stmt;
+            }
+            case KW_DEF: {
+                discard_next_token(parser);
+                stmt.kind = STMT_FUNCTION;
+                stmt.function_stmt =
+                    arena_alloc(parser->arena, sizeof(FunctionStatement));
+
+                // parse name
+                stmt.function_stmt->name =
+                    expect_token_type(parser, TOK_IDENTIFIER).value;
+                consume_newline_tokens(parser);
+
+                // begin signature
+                expect_token_type(parser, TOK_OPEN_PARENS);
+                StringVector params = str_vector_init(parser->arena);
+                StringVector types = str_vector_init(parser->arena);
+                ExpressionVector defaults = expr_vector_init(parser->arena);
+                Token peek = peek_next_token(parser);
+                while (peek.type != TOK_CLOSE_PARENS) {
+                    if (params.count > 0) expect_token_type(parser, TOK_COMMA);
+                    Token param = expect_token_type(parser, TOK_IDENTIFIER);
+                    str_vector_append(&params, param.value);
+                    expect_token_type(parser, TOK_COLON);
+                    str_vector_append(
+                        &types, expect_token_type(parser, TOK_IDENTIFIER).value
+                    );
+                    peek = peek_next_token(parser);
+                    if (peek.type == TOK_OPERATOR && peek.op == OPERATOR_ASSIGNMENT) {
+                        discard_next_token(parser);
+                        expr_vector_append(&defaults, parse_expression(parser));
+                        peek = peek_next_token(parser);
+                    }
+                    else if (defaults.count > 0) {
+                        SYNTAX_ERROR(
+                            param.loc, "non default argument follows default argument"
+                        );
+                    }
+                }
+                discard_next_token(parser);  // close parens
+                expect_token_type(parser, TOK_ARROW);
+                Signature sig = {
+                    .return_type = expect_token_type(parser, TOK_IDENTIFIER).value,
+                    .defaults = expr_vector_finalize(&defaults),
+                    .defaults_count = defaults.count,
+                    .params = str_vector_finalize(&params),
+                    .params_count = params.count,
+                    .types = str_vector_finalize(&types)};
+                stmt.function_stmt->sig = sig;
+
+                // parse body
+                expect_token_type(parser, TOK_COLON);
+                stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
+
                 return stmt;
             }
             default:

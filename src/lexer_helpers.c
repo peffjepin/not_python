@@ -82,7 +82,11 @@ out_of_memory(void)
     exit(1);
 }
 
-static const char* TOKEN_TYPE_TO_CSTR_TABLE[19] = {
+#define TOKEN_MAX 20
+
+static_assert(TOKEN_MAX == 20, "new token needs to be added to TOKEN_TYPE_TO_CSTR_TABLE");
+
+static const char* TOKEN_TYPE_TO_CSTR_TABLE[TOKEN_MAX] = {
     [TOK_KEYWORD] = "KEYWORD",
     [TOK_COMMA] = ",",
     [TOK_COLON] = ":",
@@ -98,13 +102,14 @@ static const char* TOKEN_TYPE_TO_CSTR_TABLE[19] = {
     [TOK_CLOSE_CURLY] = "}",
     [TOK_IDENTIFIER] = "IDENTIFIER",
     [TOK_DOT] = ".",
+    [TOK_ARROW] = "->",
     [TOK_EOF] = "EOF",
 };
 
 const char*
 token_type_to_cstr(TokenType type)
 {
-    assert(type < 19 && "token type not in table");
+    assert(type < TOKEN_MAX && "token type not in table");
     return TOKEN_TYPE_TO_CSTR_TABLE[type];
 }
 
