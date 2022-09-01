@@ -104,6 +104,20 @@ void tq_push(TokenQueue* tq, Token token);
 // cheaper option to consume the next item after peeking
 void tq_discard(TokenQueue* tq);
 
+// at the moment I'm not supporting nested classes or functions
+// so the most we would have is 3: top_level -> class -> function
+#define SCOPE_STACK_MAX 3
+LexicalScope* scope_init(Arena* arena);
+
+typedef struct {
+    size_t count;
+    LexicalScope* scopes[SCOPE_STACK_MAX];
+} LexicalScopeStack;
+
+LexicalScope* scope_stack_peek(LexicalScopeStack* stack);
+void scope_stack_push(LexicalScopeStack* stack, LexicalScope* scope);
+LexicalScope* scope_stack_pop(LexicalScopeStack* stack);
+
 #define INDENTATION_MAX 10
 
 typedef struct {
@@ -112,29 +126,6 @@ typedef struct {
 } IndentationStack;
 
 void indent_check(IndentationStack* stack, Location loc, bool begin_block);
-
-// at the moment I'm not supporting nested classes or functions
-// so the most we would have is 3: top_level -> class -> function
-#define SCOPE_STACK_MAX 3
-
-// maybe we want scope for any construct with an `as` keyword, but I'm not sure yet
-typedef struct {
-    enum { SCOPE_TOP, SCOPE_FUNCTION, SCOPE_CLASS } kind;
-    union {
-        FunctionStatement* func;
-        ClassStatement* cls;
-    };
-    // TODO: will most likely want a hashtable in here at some point
-} LexicalScope;
-
-typedef struct {
-    size_t count;
-    LexicalScope scopes[SCOPE_STACK_MAX];
-} LexicalScopeStack;
-
-LexicalScope scope_stack_peek(LexicalScopeStack* stack);
-void scope_stack_push(LexicalScopeStack* stack, LexicalScope scope);
-LexicalScope scope_stack_pop(LexicalScopeStack* stack);
 
 typedef struct {
     size_t count;

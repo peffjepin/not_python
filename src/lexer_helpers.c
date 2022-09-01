@@ -178,7 +178,15 @@ indent_check(IndentationStack* stack, Location loc, bool begin_block)
     }
 }
 
-LexicalScope
+LexicalScope*
+scope_init(Arena* arena)
+{
+    LexicalScope* scope = arena_alloc(arena, sizeof(LexicalScope));
+    scope->hm = symbol_hm_init(arena);
+    return scope;
+}
+
+LexicalScope*
 scope_stack_peek(LexicalScopeStack* stack)
 {
     assert(stack->count && "peeking empty stack");
@@ -186,13 +194,13 @@ scope_stack_peek(LexicalScopeStack* stack)
 }
 
 void
-scope_stack_push(LexicalScopeStack* stack, LexicalScope scope)
+scope_stack_push(LexicalScopeStack* stack, LexicalScope* scope)
 {
     assert(stack->count < SCOPE_STACK_MAX && "pushing to full stack");
     stack->scopes[stack->count++] = scope;
 }
 
-LexicalScope
+LexicalScope*
 scope_stack_pop(LexicalScopeStack* stack)
 {
     assert(stack->count && "popping empty stack");

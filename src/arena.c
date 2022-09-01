@@ -107,10 +107,16 @@ arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes)
         if (!ptr) out_of_static_memory();
         memcpy(ptr, dynamic_allocation, nbytes);
     }
+    arena_dynamic_free(arena, dynamic_allocation, nbytes);
+    return ptr;
+}
 
-    size_t head_chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
+void
+arena_dynamic_free(Arena* arena, void* dynamic_allocation, size_t nbytes)
+{
     // TODO: if dynamic_chunks_in_use kept the nchunks value in the head chunk position
-    // we could avoid some computation here
+    // we could avoid some computation here and not have to pass in nbytes to free chunks
+    size_t head_chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
     size_t nchunks;
     if (nbytes % ARENA_DYNAMIC_CHUNK_SIZE == 0) {
         nchunks = nbytes / ARENA_DYNAMIC_CHUNK_SIZE;
@@ -119,8 +125,6 @@ arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes)
         nchunks = nbytes / ARENA_DYNAMIC_CHUNK_SIZE + 1;
     }
     memset(arena->dynamic_chunks_in_use + head_chunk, false, sizeof(bool) * nchunks);
-
-    return ptr;
 }
 
 #define ARENA_STATIC_CHUNK_MIN_SIZE 4096
@@ -184,7 +188,7 @@ arena_copy(Arena* arena, void* data, size_t nbytes)
 Arena*
 arena_init(void)
 {
-    Arena* arena = malloc(sizeof(Arena));
+    Arena* arena = calloc(1, sizeof(Arena));
     if (!arena) out_of_static_memory();
     // set up first static block
     ArenaStaticChunk* first_static_chunk = get_next_clean_static_chunk(arena);

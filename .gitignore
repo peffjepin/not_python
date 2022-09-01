@@ -6,3 +6,4 @@ debug_tokens
 local
 main
 __pycache__
+test_symbol_hashmap

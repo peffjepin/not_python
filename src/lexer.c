@@ -1233,10 +1233,11 @@ parse_statement(Parser* parser)
                 ExpressionVector defaults = expr_vector_init(parser->arena);
                 Token peek = peek_next_token(parser);
 
-                LexicalScope scope = scope_stack_peek(&parser->scope_stack);
-                if (scope.kind == SCOPE_FUNCTION)
+                LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
+                if (parent_scope->kind == SCOPE_FUNCTION ||
+                    parent_scope->kind == SCOPE_METHOD)
                     SYNTAX_ERROR(stmt.loc, "nested functions not supported");
-                else if (scope.kind == SCOPE_CLASS) {
+                else if (parent_scope->kind == SCOPE_CLASS) {
                     // parse and infer type of `self` param
                     Token self_token = get_next_token(parser);
                     if (self_token.type != TOK_IDENTIFIER) {
@@ -1245,7 +1246,7 @@ parse_statement(Parser* parser)
                         );
                     }
                     str_vector_append(&params, self_token.value);
-                    str_vector_append(&types, scope.cls->name);
+                    str_vector_append(&types, parent_scope->cls->name);
                 }
 
                 while (peek.type != TOK_CLOSE_PARENS) {
@@ -1287,9 +1288,13 @@ parse_statement(Parser* parser)
 
                 // parse body
                 expect_token_type(parser, TOK_COLON);
-                LexicalScope fn_scope = {
-                    .kind = SCOPE_FUNCTION, .func = stmt.function_stmt};
+
+                LexicalScope* fn_scope = scope_init(parser->arena);
+                fn_scope->kind =
+                    (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
+                fn_scope->func = stmt.function_stmt;
                 scope_stack_push(&parser->scope_stack, fn_scope);
+                stmt.function_stmt->scope = fn_scope;
                 stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
                 scope_stack_pop(&parser->scope_stack);
 
@@ -1307,8 +1312,11 @@ parse_statement(Parser* parser)
                     expect_token_type(parser, TOK_CLOSE_PARENS);
                 }
                 expect_token_type(parser, TOK_COLON);
-                LexicalScope cls_scope = {.kind = SCOPE_CLASS, .cls = stmt.class_stmt};
+                LexicalScope* cls_scope = scope_init(parser->arena);
+                cls_scope->kind = SCOPE_CLASS;
+                cls_scope->cls = stmt.class_stmt;
                 scope_stack_push(&parser->scope_stack, cls_scope);
+                stmt.class_stmt->scope = cls_scope;
                 stmt.class_stmt->body = parse_block(parser, stmt.loc.col);
                 scope_stack_pop(&parser->scope_stack);
                 return stmt;
@@ -1349,17 +1357,16 @@ lex_file(const char* filepath)
         fprintf(stderr, "ERROR: failed to open file -- %s\n", strerror(errno));
         exit(1);
     }
-    Lexer lexer = {.arena = arena_init()};
+    Arena* arena = arena_init();
+    Lexer lexer = {.arena = arena, .top_level = scope_init(arena)};
     Location start_location = {
         .line = 1,
         .filename = filepath + filename_offset(filepath),
     };
     TokenQueue tq = {0};
-    Scanner scanner = {
-        .arena = lexer.arena, .loc = start_location, .srcfile = file, .tq = &tq};
-    Parser parser = {.arena = lexer.arena, .scanner = &scanner, .tq = &tq};
-    LexicalScope top_level = {0};
-    scope_stack_push(&parser.scope_stack, top_level);
+    Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};
+    Parser parser = {.arena = arena, .scanner = &scanner, .tq = &tq};
+    scope_stack_push(&parser.scope_stack, lexer.top_level);
 
     size_t statements_capacity = LEXER_STATEMENTS_CHUNK_SIZE;
     lexer.statements = malloc(sizeof(Statement) * statements_capacity);

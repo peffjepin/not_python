@@ -35,6 +35,8 @@ void* arena_dynamic_grow(Arena* arena, void* dynamic_allocation, size_t* capacit
 // once a dynamic allocation is no longer growing it can be shifted into static arena
 // memory with this function
 void* arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes);
+// for when arena_dynamic_finalize is not applicable
+void arena_dynamic_free(Arena* arena, void* dynamic_allocation, size_t nbytes);
 
 // for static allocations
 void* arena_alloc(Arena* arena, size_t nbytes);

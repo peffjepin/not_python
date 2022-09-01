@@ -1,6 +1,7 @@
 #ifndef COMPILER_TYPES_H
 #define COMPILER_TYPES_H
 
+#include "arena.h"
 #include "generated.h"
 #include "tokens.h"
 
@@ -13,6 +14,7 @@ typedef struct Operation Operation;
 typedef struct Operand Operand;
 typedef struct ItGroup ItGroup;
 typedef struct Statement Statement;
+typedef struct LexicalScope LexicalScope;
 
 typedef enum {
     OPERAND_EXPRESSION,
@@ -176,6 +178,7 @@ typedef struct {
     char* name;
     char* base;
     Block body;
+    LexicalScope* scope;
 } ClassStatement;
 
 typedef struct {
@@ -191,6 +194,7 @@ typedef struct {
     char* name;
     Signature sig;
     Block body;
+    LexicalScope* scope;
 } FunctionStatement;
 
 typedef struct {
@@ -238,6 +242,60 @@ struct Statement {
         Expression* expr;
     };
     Location loc;
+};
+
+// TODO: not sure if the following belongs in this header or not yet.
+// it lives here for now
+
+typedef enum {
+    PYTYPE_INT,
+    PYTYPE_FLOAT,
+    PYTYPE_STRING,
+    PYTYPE_LIST,
+    PYTYPE_TUPLE,
+    PYTYPE_DICT,
+    PYTYPE_OBJECT
+} PythonType;
+
+typedef struct {
+    enum { STORAGE_VARIABLE, STORAGE_MEMBER } kind;
+    char* identifier;
+    PythonType type;
+} Storage;
+
+typedef struct {
+    enum { SYM_STORAGE, SYM_FUNCTION, SYM_CLASS } kind;
+    union {
+        Storage* storage;
+        FunctionStatement* func;
+        ClassStatement* cls;
+    };
+} Symbol;
+
+typedef struct {
+    bool finalized;
+    Arena* arena;
+    size_t bytes;
+    uint8_t* buffer;
+    size_t elements_capacity;
+    size_t elements_count;
+    Symbol* elements;
+    size_t lookup_capacity;
+    int* lookup_table;
+} SymbolHashmap;
+
+SymbolHashmap symbol_hm_init(Arena* arena);
+void symbol_hm_put(SymbolHashmap* hm, Symbol element);
+Symbol* symbol_hm_get(SymbolHashmap* hm, char* identifier);
+void symbol_hm_finalize(SymbolHashmap* hm);
+
+struct LexicalScope {
+    enum { SCOPE_TOP, SCOPE_FUNCTION, SCOPE_METHOD, SCOPE_CLASS } kind;
+    union {
+        FunctionStatement* func;
+        ClassStatement* cls;
+    };
+    SymbolHashmap hm;
 };
 
 #endif

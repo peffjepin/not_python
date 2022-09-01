@@ -5,13 +5,14 @@
 #include <stdlib.h>
 
 #include "arena.h"
-#include "syntax.h"
 #include "generated.h"
+#include "syntax.h"
 
 typedef struct {
     Arena* arena;
     size_t n_statements;
     Statement* statements;
+    LexicalScope* top_level;
 } Lexer;
 
 Lexer lex_file(const char* filepath);
