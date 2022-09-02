@@ -1033,11 +1033,11 @@ static WhileStatement*
 parse_while_loop(Parser* parser, unsigned int indent)
 {
     discard_next_token(parser);
-    WhileStatement* while_stmt = arena_alloc(parser->arena, sizeof(WhileStatement));
-    while_stmt->condition = parse_expression(parser);
+    WhileStatement* while_loop = arena_alloc(parser->arena, sizeof(WhileStatement));
+    while_loop->condition = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
-    while_stmt->body = parse_block(parser, indent);
-    return while_stmt;
+    while_loop->body = parse_block(parser, indent);
+    return while_loop;
 }
 
 static ImportStatement*
@@ -1055,15 +1055,15 @@ parse_import_statement(Parser* parser)
     return import;
 }
 
-static IfStatement*
+static ConditionalStatement*
 parse_if_statement(Parser* parser, unsigned int indent)
 {
     // parse if condition and body
     discard_next_token(parser);
-    IfStatement* if_stmt = arena_alloc(parser->arena, sizeof(IfStatement));
-    if_stmt->condition = parse_expression(parser);
+    ConditionalStatement* conditional = arena_alloc(parser->arena, sizeof(ConditionalStatement));
+    conditional->condition = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
-    if_stmt->body = parse_block(parser, indent);
+    conditional->body = parse_block(parser, indent);
 
     // parse variable number of elif statements
     // as long as the indentation level hasn't changed
@@ -1084,17 +1084,17 @@ parse_if_statement(Parser* parser, unsigned int indent)
             break;
         }
     }
-    if_stmt->elifs = elif_vector_finalize(&vec);
-    if_stmt->elifs_count = vec.count;
+    conditional->elifs = elif_vector_finalize(&vec);
+    conditional->elifs_count = vec.count;
 
     // maybe there is an else statment,
     // we have the next token in `peek` already
     if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE && peek.loc.col == indent) {
         discard_next_token(parser);
         expect_token_type(parser, TOK_COLON);
-        if_stmt->else_body = parse_block(parser, indent);
+        conditional->else_body = parse_block(parser, indent);
     }
-    return if_stmt;
+    return conditional;
 }
 
 static TryStatement*
@@ -1192,26 +1192,26 @@ static WithStatement*
 parse_with_statement(Parser* parser, unsigned int indent)
 {
     discard_next_token(parser);
-    WithStatement* with_stmt = arena_alloc(parser->arena, sizeof(WithStatement));
-    with_stmt->ctx_manager = parse_expression(parser);
+    WithStatement* with = arena_alloc(parser->arena, sizeof(WithStatement));
+    with->ctx_manager = parse_expression(parser);
     if (peek_next_token(parser).type != TOK_COLON) {
         expect_keyword(parser, KW_AS);
-        with_stmt->as = expect_token_type(parser, TOK_IDENTIFIER).value;
+        with->as = expect_token_type(parser, TOK_IDENTIFIER).value;
     }
     expect_token_type(parser, TOK_COLON);
-    with_stmt->body = parse_block(parser, indent);
-    return with_stmt;
+    with->body = parse_block(parser, indent);
+    return with;
 }
 
 static FunctionStatement*
 parse_function_statement(Parser* parser, Location loc)
 {
     discard_next_token(parser);
-    FunctionStatement* function_stmt =
+    FunctionStatement* func =
         arena_alloc(parser->arena, sizeof(FunctionStatement));
 
     // parse name
-    function_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    func->name = expect_token_type(parser, TOK_IDENTIFIER).value;
     consume_newline_tokens(parser);
 
     // begin signature
@@ -1267,13 +1267,13 @@ parse_function_statement(Parser* parser, Location loc)
         .params = str_vector_finalize(&params),
         .params_count = params.count,
         .types = typing_vector_finalize(&types)};
-    function_stmt->sig = sig;
+    func->sig = sig;
 
     // init functions lexical scope
     expect_token_type(parser, TOK_COLON);
     LexicalScope* fn_scope = scope_init(parser->arena);
     fn_scope->kind = (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
-    fn_scope->func = function_stmt;
+    fn_scope->func = func;
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->identifier = sig.params[i];
@@ -1284,49 +1284,49 @@ parse_function_statement(Parser* parser, Location loc)
 
     // parse body
     scope_stack_push(&parser->scope_stack, fn_scope);
-    function_stmt->scope = fn_scope;
-    function_stmt->body = parse_block(parser, loc.col);
+    func->scope = fn_scope;
+    func->body = parse_block(parser, loc.col);
     scope_stack_pop(&parser->scope_stack);
 
     // add function to parents lexical scope
-    Symbol sym = {.kind = SYM_FUNCTION, .func = function_stmt};
+    Symbol sym = {.kind = SYM_FUNCTION, .func = func};
     symbol_hm_put(&parent_scope->hm, sym);
-    return function_stmt;
+    return func;
 }
 
 static ClassStatement*
 parse_class_statement(Parser* parser, unsigned int indent)
 {
     discard_next_token(parser);
-    ClassStatement* class_stmt = arena_alloc(parser->arena, sizeof(ClassStatement));
-    class_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    ClassStatement* cls = arena_alloc(parser->arena, sizeof(ClassStatement));
+    cls->name = expect_token_type(parser, TOK_IDENTIFIER).value;
     if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
         discard_next_token(parser);
-        class_stmt->base = expect_token_type(parser, TOK_IDENTIFIER).value;
+        cls->base = expect_token_type(parser, TOK_IDENTIFIER).value;
         expect_token_type(parser, TOK_CLOSE_PARENS);
     }
     expect_token_type(parser, TOK_COLON);
     LexicalScope* cls_scope = scope_init(parser->arena);
     cls_scope->kind = SCOPE_CLASS;
-    cls_scope->cls = class_stmt;
+    cls_scope->cls = cls;
     scope_stack_push(&parser->scope_stack, cls_scope);
-    class_stmt->scope = cls_scope;
-    class_stmt->body = parse_block(parser, indent);
+    cls->scope = cls_scope;
+    cls->body = parse_block(parser, indent);
     scope_stack_pop(&parser->scope_stack);
-    Symbol sym = {.kind = SYM_CLASS, .cls = class_stmt};
+    Symbol sym = {.kind = SYM_CLASS, .cls = cls};
     symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
-    return class_stmt;
+    return cls;
 }
 
 static AssignmentStatement*
 parse_assignment_statement(Parser* parser, Expression* assign_to)
 {
-    AssignmentStatement* assignment_stmt =
+    AssignmentStatement* assignment =
         arena_alloc(parser->arena, sizeof(AssignmentStatement));
-    assignment_stmt->storage = assign_to;
-    assignment_stmt->op_type = expect_token_type(parser, TOK_OPERATOR).op;
-    assignment_stmt->value = parse_expression(parser);
-    if (assignment_stmt->op_type == OPERATOR_ASSIGNMENT &&
+    assignment->storage = assign_to;
+    assignment->op_type = expect_token_type(parser, TOK_OPERATOR).op;
+    assignment->value = parse_expression(parser);
+    if (assignment->op_type == OPERATOR_ASSIGNMENT &&
         assign_to->operations_count == 0) {
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
@@ -1335,7 +1335,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
         symbol_hm_put(&scope->hm, sym);
     }
-    return assignment_stmt;
+    return assignment;
 }
 
 Statement
@@ -1363,26 +1363,26 @@ parse_statement(Parser* parser)
                 return stmt;
             case KW_WHILE: {
                 stmt.kind = STMT_WHILE;
-                stmt.while_stmt = parse_while_loop(parser, stmt.loc.col);
+                stmt.while_loop = parse_while_loop(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_IMPORT: {
                 stmt.kind = STMT_IMPORT;
-                stmt.import_stmt = parse_import_statement(parser);
+                stmt.import = parse_import_statement(parser);
                 return stmt;
             }
             case KW_FROM: {
                 discard_next_token(parser);
                 stmt.kind = STMT_IMPORT;
-                stmt.import_stmt = arena_alloc(parser->arena, sizeof(ImportStatement));
-                stmt.import_stmt->from = parse_import_path(parser);
+                stmt.import = arena_alloc(parser->arena, sizeof(ImportStatement));
+                stmt.import->from = parse_import_path(parser);
                 expect_keyword(parser, KW_IMPORT);
-                parse_import_group(parser, stmt.import_stmt);
+                parse_import_group(parser, stmt.import);
                 return stmt;
             }
             case KW_IF: {
                 stmt.kind = STMT_IF;
-                stmt.if_stmt = parse_if_statement(parser, stmt.loc.col);
+                stmt.conditional = parse_if_statement(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_TRY: {
@@ -1392,17 +1392,17 @@ parse_statement(Parser* parser)
             }
             case KW_WITH: {
                 stmt.kind = STMT_WITH;
-                stmt.with_stmt = parse_with_statement(parser, stmt.loc.col);
+                stmt.with = parse_with_statement(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_DEF: {
                 stmt.kind = STMT_FUNCTION;
-                stmt.function_stmt = parse_function_statement(parser, stmt.loc);
+                stmt.func = parse_function_statement(parser, stmt.loc);
                 return stmt;
             }
             case KW_CLASS: {
                 stmt.kind = STMT_CLASS;
-                stmt.class_stmt = parse_class_statement(parser, stmt.loc.col);
+                stmt.cls = parse_class_statement(parser, stmt.loc.col);
                 return stmt;
             }
             default:
@@ -1423,7 +1423,7 @@ parse_statement(Parser* parser)
     }
     else {
         stmt.kind = STMT_ASSIGNMENT;
-        stmt.assignment_stmt = parse_assignment_statement(parser, expr);
+        stmt.assignment = parse_assignment_statement(parser, expr);
     }
     return stmt;
 }

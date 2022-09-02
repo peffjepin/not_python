@@ -170,7 +170,7 @@ typedef struct {
     size_t elifs_count;
     ElifStatement* elifs;
     Block else_body;
-} IfStatement;
+} ConditionalStatement;
 
 typedef struct {
     size_t exceptions_count;
@@ -250,14 +250,14 @@ struct Statement {
     StatementKind kind;
     union {
         ForLoopStatement* for_loop;
-        ImportStatement* import_stmt;
-        WhileStatement* while_stmt;
-        IfStatement* if_stmt;
+        ImportStatement* import;
+        WhileStatement* while_loop;
+        ConditionalStatement* conditional;
         TryStatement* try_stmt;
-        WithStatement* with_stmt;
-        ClassStatement* class_stmt;
-        FunctionStatement* function_stmt;
-        AssignmentStatement* assignment_stmt;
+        WithStatement* with;
+        ClassStatement* cls;
+        FunctionStatement* func;
+        AssignmentStatement* assignment;
         Expression* expr;
     };
     Location loc;

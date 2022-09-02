@@ -390,45 +390,45 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_IMPORT: {
-            if (stmt->import_stmt->what) {
+            if (stmt->import->what) {
                 printf("from ");
-                print_import_path(stmt->import_stmt->from);
+                print_import_path(stmt->import->from);
                 printf(" import ");
-                for (size_t i = 0; i < stmt->import_stmt->what_count; i++) {
+                for (size_t i = 0; i < stmt->import->what_count; i++) {
                     if (i > 0) printf(", ");
-                    printf("%s", stmt->import_stmt->what[i]);
-                    char* as = stmt->import_stmt->as[i];
+                    printf("%s", stmt->import->what[i]);
+                    char* as = stmt->import->as[i];
                     if (as) printf(" as %s", as);
                 }
                 printf("\n");
             }
             else {
                 printf("import ");
-                print_import_path(stmt->import_stmt->from);
-                if (stmt->import_stmt->as)
-                    printf(" as %s\n", stmt->import_stmt->as[0]);
+                print_import_path(stmt->import->from);
+                if (stmt->import->as)
+                    printf(" as %s\n", stmt->import->as[0]);
                 else
                     printf("\n");
             }
             break;
         }
         case STMT_WHILE: {
-            indent_printf("while %s:\n", render_expr(stmt->while_stmt->condition).data);
-            print_block(stmt->while_stmt->body, indent + 4);
+            indent_printf("while %s:\n", render_expr(stmt->while_loop->condition).data);
+            print_block(stmt->while_loop->body, indent + 4);
             break;
         }
         case STMT_IF: {
-            indent_printf("if %s:\n", render_expr(stmt->if_stmt->condition).data);
-            print_block(stmt->if_stmt->body, indent + 4);
-            for (size_t i = 0; i < stmt->if_stmt->elifs_count; i++) {
+            indent_printf("if %s:\n", render_expr(stmt->conditional->condition).data);
+            print_block(stmt->conditional->body, indent + 4);
+            for (size_t i = 0; i < stmt->conditional->elifs_count; i++) {
                 indent_printf(
-                    "elif %s:\n", render_expr(stmt->if_stmt->elifs[i].condition).data
+                    "elif %s:\n", render_expr(stmt->conditional->elifs[i].condition).data
                 );
-                print_block(stmt->if_stmt->elifs[i].body, indent + 4);
+                print_block(stmt->conditional->elifs[i].body, indent + 4);
             }
-            if (stmt->if_stmt->else_body.stmts_count > 0) {
+            if (stmt->conditional->else_body.stmts_count > 0) {
                 indent_print("else:\n");
-                print_block(stmt->if_stmt->else_body, indent + 4);
+                print_block(stmt->conditional->else_body, indent + 4);
             }
             break;
         }
@@ -467,28 +467,28 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_WITH: {
-            indent_printf("with %s", render_expr(stmt->with_stmt->ctx_manager).data);
-            if (stmt->with_stmt->as) printf(" as %s", stmt->with_stmt->as);
+            indent_printf("with %s", render_expr(stmt->with->ctx_manager).data);
+            if (stmt->with->as) printf(" as %s", stmt->with->as);
             printf(":\n");
-            print_block(stmt->with_stmt->body, indent + 4);
+            print_block(stmt->with->body, indent + 4);
             break;
         }
         case STMT_CLASS: {
-            print_class_definition(stmt->class_stmt, indent);
-            print_block(stmt->class_stmt->body, indent + 4);
+            print_class_definition(stmt->cls, indent);
+            print_block(stmt->cls->body, indent + 4);
             break;
         }
         case STMT_FUNCTION: {
-            print_function_definition(stmt->function_stmt, indent);
-            print_block(stmt->function_stmt->body, indent + 4);
+            print_function_definition(stmt->func, indent);
+            print_block(stmt->func->body, indent + 4);
             break;
         }
         case STMT_ASSIGNMENT: {
             printf(
                 "%s %s %s\n",
-                render_expr(stmt->assignment_stmt->storage).data,
-                op_to_cstr(stmt->assignment_stmt->op_type),
-                render_expr(stmt->assignment_stmt->value).data
+                render_expr(stmt->assignment->storage).data,
+                op_to_cstr(stmt->assignment->op_type),
+                render_expr(stmt->assignment->value).data
             );
             break;
         }
