@@ -1,4 +1,2 @@
-type hint on assignement statements
-proper type hint parsing (particularly for containers, ex. List[str])
 global keyword
-type annotations on classes
+type hinting for callables

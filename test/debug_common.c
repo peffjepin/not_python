@@ -306,31 +306,62 @@ print_import_path(ImportPath path)
     }
 }
 
-static char*
-type_info_to_cstr(TypeInfo info)
+static StringBuffer render_type_info(TypeInfo info);
+
+static StringBuffer
+render_inner_type_info(TypeInfoInner* inner)
 {
+    StringBuffer str = {0};
+    str_append_char(&str, '[');
+    for (size_t i = 0; i < inner->count; i++) {
+        if (i > 0) str_concat_cstr(&str, ", ");
+        StringBuffer this_info = render_type_info(inner->types[i]);
+        str_concat(&str, &this_info);
+    }
+    str_append_char(&str, ']');
+    return str;
+}
+
+static StringBuffer
+render_type_info(TypeInfo info)
+{
+    StringBuffer str = {0};
     switch (info.type) {
         case PYTYPE_UNTYPED:
-            return "Untyped";
+            str_concat_cstr(&str, "Untyped");
+            break;
         case PYTYPE_NONE:
-            return "None";
+            str_concat_cstr(&str, "None");
+            break;
         case PYTYPE_INT:
-            return "int";
+            str_concat_cstr(&str, "int");
+            break;
         case PYTYPE_FLOAT:
-            return "float";
+            str_concat_cstr(&str, "float");
+            break;
         case PYTYPE_STRING:
-            return "str";
+            str_concat_cstr(&str, "str");
+            break;
         case PYTYPE_LIST:
-            return "List";
+            str_concat_cstr(&str, "List");
+            str_concat_cstr(&str, render_inner_type_info(info.inner).data);
+            break;
         case PYTYPE_DICT:
-            return "Dict";
+            str_concat_cstr(&str, "Dict");
+            str_concat_cstr(&str, render_inner_type_info(info.inner).data);
+            break;
         case PYTYPE_TUPLE:
-            return "Tuple";
+            str_concat_cstr(&str, "Tuple");
+            str_concat_cstr(&str, render_inner_type_info(info.inner).data);
+            break;
         case PYTYPE_OBJECT:
-            return info.class_name;
+            str_concat_cstr(&str, info.class_name);
+            break;
         default:
-            return "UnrecognizedTypeInfo";
+            str_concat_cstr(&str, "UnrecognizedTypeInfo");
+            break;
     }
+    return str;
 }
 
 void
@@ -350,18 +381,18 @@ print_function_definition(FunctionStatement* func, int indent)
     size_t positional_count = func->sig.params_count - func->sig.defaults_count;
     for (size_t i = 0; i < positional_count; i++) {
         if (i > 0) printf(", ");
-        printf("%s: %s", func->sig.params[i], type_info_to_cstr(func->sig.types[i]));
+        printf("%s: %s", func->sig.params[i], render_type_info(func->sig.types[i]).data);
     }
     for (size_t i = 0; i < func->sig.defaults_count; i++) {
         if (i > 0 || positional_count > 0) printf(", ");
         printf(
             "%s: %s = %s",
             func->sig.params[positional_count + i],
-            type_info_to_cstr(func->sig.types[positional_count + i]),
+            render_type_info(func->sig.types[positional_count + i]).data,
             render_expr(func->sig.defaults[i]).data
         );
     }
-    printf(") -> %s:\n", type_info_to_cstr(func->sig.return_type));
+    printf(") -> %s:\n", render_type_info(func->sig.return_type).data);
 }
 
 void
@@ -500,7 +531,7 @@ print_statement(Statement* stmt, int indent)
             indent_printf(
                 "%s: %s",
                 stmt->annotation->identifier,
-                type_info_to_cstr(stmt->annotation->type)
+                render_type_info(stmt->annotation->type).data
             );
             if (stmt->annotation->initial)
                 printf(" = %s", render_expr(stmt->annotation->initial).data);

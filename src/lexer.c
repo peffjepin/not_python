@@ -1012,8 +1012,50 @@ parse_type_hint(Parser* parser)
 {
     char* ident_str = expect_token_type(parser, TOK_IDENTIFIER).value;
     PythonType type = cstr_to_python_type(ident_str);
-    return (TypeInfo){
+    TypeInfo info = {
         .type = type, .class_name = (type == PYTYPE_OBJECT) ? ident_str : NULL};
+
+    switch (type) {
+        case PYTYPE_TUPLE: {
+            info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
+            TypeInfoVector vec = typing_vector_init(parser->arena);
+            expect_token_type(parser, TOK_OPEN_SQUARE);
+            typing_vector_append(&vec, parse_type_hint(parser));
+            while (peek_next_token(parser).type != TOK_CLOSE_SQUARE) {
+                expect_token_type(parser, TOK_COMMA);
+                typing_vector_append(&vec, parse_type_hint(parser));
+            }
+            discard_next_token(parser);
+            info.inner->types = typing_vector_finalize(&vec);
+            info.inner->count = vec.count;
+            return info;
+        }
+        case PYTYPE_LIST: {
+            info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
+            TypeInfoVector vec = typing_vector_init(parser->arena);
+            expect_token_type(parser, TOK_OPEN_SQUARE);
+            typing_vector_append(&vec, parse_type_hint(parser));
+            expect_token_type(parser, TOK_CLOSE_SQUARE);
+            info.inner->types = typing_vector_finalize(&vec);
+            info.inner->count = vec.count;
+            return info;
+        }
+        case PYTYPE_DICT: {
+            info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
+            TypeInfoVector vec = typing_vector_init(parser->arena);
+            expect_token_type(parser, TOK_OPEN_SQUARE);
+            typing_vector_append(&vec, parse_type_hint(parser));
+            expect_token_type(parser, TOK_COMMA);
+            typing_vector_append(&vec, parse_type_hint(parser));
+            expect_token_type(parser, TOK_CLOSE_SQUARE);
+            info.inner->types = typing_vector_finalize(&vec);
+            info.inner->count = vec.count;
+            return info;
+        }
+        default:
+            return info;
+    }
+    return info;
 }
 
 static ForLoopStatement*

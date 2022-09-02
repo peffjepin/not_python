@@ -15,6 +15,7 @@ typedef struct Operand Operand;
 typedef struct ItGroup ItGroup;
 typedef struct Statement Statement;
 typedef struct LexicalScope LexicalScope;
+typedef struct TypeInfo TypeInfo;
 
 typedef enum {
     PYTYPE_UNTYPED,
@@ -29,11 +30,17 @@ typedef enum {
 } PythonType;
 
 typedef struct {
+    size_t count;
+    TypeInfo* types;
+} TypeInfoInner;
+
+struct TypeInfo {
     PythonType type;
-    // TODO: this field is probably a union because some type hints are nested ->
-    // List[List[str]]
-    char* class_name;
-} TypeInfo;
+    union {
+        char* class_name;
+        TypeInfoInner* inner;
+    };
+};
 
 typedef enum {
     OPERAND_EXPRESSION,
