@@ -1007,12 +1007,12 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
     stmt->as = str_vector_finalize(&as_vec);
 }
 
-static TypeHint
+static TypeInfo
 parse_type_hint(Parser* parser)
 {
     char* ident_str = expect_token_type(parser, TOK_IDENTIFIER).value;
     PythonType type = cstr_to_python_type(ident_str);
-    return (TypeHint){
+    return (TypeInfo){
         .type = type, .class_name = (type == PYTYPE_OBJECT) ? ident_str : NULL};
 }
 
@@ -1238,9 +1238,8 @@ parse_statement(Parser* parser)
                 // begin signature
                 expect_token_type(parser, TOK_OPEN_PARENS);
                 StringVector params = str_vector_init(parser->arena);
-                TypeHintVector types = typing_vector_init(parser->arena);
+                TypeInfoVector types = typing_vector_init(parser->arena);
                 ExpressionVector defaults = expr_vector_init(parser->arena);
-                Token peek = peek_next_token(parser);
 
                 LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
                 if (parent_scope->kind == SCOPE_FUNCTION ||
@@ -1255,10 +1254,12 @@ parse_statement(Parser* parser)
                         );
                     }
                     str_vector_append(&params, self_token.value);
-                    TypeHint typing = {
+                    TypeInfo typing = {
                         .type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
                     typing_vector_append(&types, typing);
                 }
+
+                Token peek = peek_next_token(parser);
 
                 while (peek.type != TOK_CLOSE_PARENS) {
                     if (params.count > 0) expect_token_type(parser, TOK_COMMA);
@@ -1280,7 +1281,7 @@ parse_statement(Parser* parser)
                 }
                 discard_next_token(parser);  // close parens
 
-                TypeHint return_type = {.type = PYTYPE_NONE};
+                TypeInfo return_type = {.type = PYTYPE_NONE};
                 if (peek_next_token(parser).type == TOK_ARROW) {
                     discard_next_token(parser);
                     return_type = parse_type_hint(parser);
@@ -1295,18 +1296,29 @@ parse_statement(Parser* parser)
                     .types = typing_vector_finalize(&types)};
                 stmt.function_stmt->sig = sig;
 
-                // parse body
+                // init functions lexical scope
                 expect_token_type(parser, TOK_COLON);
-
                 LexicalScope* fn_scope = scope_init(parser->arena);
                 fn_scope->kind =
                     (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
                 fn_scope->func = stmt.function_stmt;
+                for (size_t i = 0; i < sig.params_count; i++) {
+                    Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
+                    local_var->identifier = sig.params[i];
+                    local_var->type = sig.types[i];
+                    Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
+                    symbol_hm_put(&fn_scope->hm, local_sym);
+                }
+
+                // parse body
                 scope_stack_push(&parser->scope_stack, fn_scope);
                 stmt.function_stmt->scope = fn_scope;
                 stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
                 scope_stack_pop(&parser->scope_stack);
 
+                // add function to parents lexical scope
+                Symbol sym = {.kind = SYM_FUNCTION, .func = stmt.function_stmt};
+                symbol_hm_put(&parent_scope->hm, sym);
                 return stmt;
             }
             case KW_CLASS: {
@@ -1328,6 +1340,8 @@ parse_statement(Parser* parser)
                 stmt.class_stmt->scope = cls_scope;
                 stmt.class_stmt->body = parse_block(parser, stmt.loc.col);
                 scope_stack_pop(&parser->scope_stack);
+                Symbol sym = {.kind = SYM_CLASS, .cls = stmt.class_stmt};
+                symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
                 return stmt;
             }
             default:
@@ -1352,6 +1366,15 @@ parse_statement(Parser* parser)
         stmt.assignment_stmt->storage = expr;
         stmt.assignment_stmt->op_type = expect_token_type(parser, TOK_OPERATOR).op;
         stmt.assignment_stmt->value = parse_expression(parser);
+        if (stmt.assignment_stmt->op_type == OPERATOR_ASSIGNMENT &&
+            expr->operations_count == 0) {
+            LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
+            Variable* var = arena_alloc(parser->arena, sizeof(Variable));
+            var->identifier = expr->operands[0].token.value;
+            var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
+            Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
+            symbol_hm_put(&scope->hm, sym);
+        }
     }
     return stmt;
 }

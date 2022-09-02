@@ -7,6 +7,7 @@ DEBUG_SOURCES = test/debug_common.c
 clean:
 	-rm debug_tokens
 	-rm debug_statements
+	-rm debug_lexical_scopes
 	-rm test_symbol_hashmap
 	-rm -rf codegen
 	-rm -rf backup
@@ -19,27 +20,36 @@ debug_tokens: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_tokenization.c
 debug_statements: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_statements.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
+debug_lexical_scopes: $(COMPILER_SOURCES) $(DEBUG_SOURCES) test/debug_lexical_scopes.c
+	$(CC) $(DEBUG_CFLAGS) -o $@ $^
+
 test_symbol_hashmap: $(COMPILER_SOURCES) test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
 run_test_symbol_hashmap: test_symbol_hashmap
 	./$^
 
-test: test_tokens test_statements run_test_symbol_hashmap
+test: test_tokens test_statements test_lexical_scopes run_test_symbol_hashmap
 
-test_update: test_tokens_interactive test_statements_interactive
+test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive
+
+test_lexical_scopes: debug_lexical_scopes
+	./scripts/test.py ./$^ ./test/samples/scoping
+
+test_lexical_scopes_interactive: debug_lexical_scopes
+	./scripts/test.py ./$^ ./test/samples/scoping -i
 
 test_tokens: debug_tokens
-	./scripts/test.py ./debug_tokens ./test/samples/tokenization
+	./scripts/test.py ./$^ ./test/samples/tokenization
 
 test_tokens_interactive: debug_tokens
-	./scripts/test.py ./debug_tokens ./test/samples/tokenization -i
+	./scripts/test.py ./$^ ./test/samples/tokenization -i
 
 test_statements: debug_statements
-	./scripts/test.py ./debug_statements ./test/samples/statements
+	./scripts/test.py ./$^ ./test/samples/statements
 
 test_statements_interactive: debug_statements
-	./scripts/test.py ./debug_statements ./test/samples/statements -i
+	./scripts/test.py ./$^ ./test/samples/statements -i
 
 regenerate:
 	-mkdir backup

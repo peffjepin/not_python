@@ -76,7 +76,7 @@ VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
 VALUE_VECTOR_DEFINITION(Statement, stmt)
 VALUE_VECTOR_DEFINITION(ElifStatement, elif)
 VALUE_VECTOR_DEFINITION(ExceptStatement, except)
-VALUE_VECTOR_DEFINITION(TypeHint, typing)
+VALUE_VECTOR_DEFINITION(TypeInfo, typing)
 
 void
 out_of_memory(void)
@@ -207,7 +207,9 @@ LexicalScope*
 scope_stack_pop(LexicalScopeStack* stack)
 {
     assert(stack->count && "popping empty stack");
-    return stack->scopes[--stack->count];
+    LexicalScope* scope = stack->scopes[--stack->count];
+    symbol_hm_finalize(&scope->hm);
+    return scope;
 }
 
 void

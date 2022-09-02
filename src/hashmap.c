@@ -23,8 +23,8 @@ symbol_to_key(Symbol sym)
             return sym.cls->name;
         case SYM_FUNCTION:
             return sym.func->name;
-        case SYM_STORAGE:
-            return sym.storage->identifier;
+        case SYM_VARIABLE:
+            return sym.variable->identifier;
     }
     UNREACHABLE("symbol to key");
 }
@@ -116,7 +116,7 @@ void
 symbol_hm_put(SymbolHashmap* hm, Symbol element)
 {
     if (hm->finalized) {
-        fprintf(stderr, "ERROR: storage hashmap cannot be added to after finalization");
+        fprintf(stderr, "ERROR: symbol hashmap cannot be added to after finalization");
         exit(1);
     }
     if (hm->elements_count == hm->elements_capacity) {

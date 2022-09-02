@@ -85,7 +85,7 @@ VALUE_VECTOR_DECLARATION(ItIdentifier, itid)
 VALUE_VECTOR_DECLARATION(Statement, stmt)
 VALUE_VECTOR_DECLARATION(ElifStatement, elif)
 VALUE_VECTOR_DECLARATION(ExceptStatement, except)
-VALUE_VECTOR_DECLARATION(TypeHint, typing)
+VALUE_VECTOR_DECLARATION(TypeInfo, typing)
 
 void out_of_memory(void);
 

@@ -307,9 +307,11 @@ print_import_path(ImportPath path)
 }
 
 static char*
-type_hint_to_cstr(TypeHint hint)
+type_info_to_cstr(TypeInfo info)
 {
-    switch (hint.type) {
+    switch (info.type) {
+        case PYTYPE_UNTYPED:
+            return "Untyped";
         case PYTYPE_NONE:
             return "None";
         case PYTYPE_INT:
@@ -325,10 +327,41 @@ type_hint_to_cstr(TypeHint hint)
         case PYTYPE_TUPLE:
             return "Tuple";
         case PYTYPE_OBJECT:
-            return hint.class_name;
+            return info.class_name;
         default:
-            return "UnrecognizedTypeHint";
+            return "UnrecognizedTypeInfo";
     }
+}
+
+void
+print_class_definition(ClassStatement* cls, int indent)
+{
+    indent_printf("class %s", cls->name);
+    if (cls->base) {
+        printf("(%s)", cls->base);
+    }
+    printf(":\n");
+}
+
+void
+print_function_definition(FunctionStatement* func, int indent)
+{
+    indent_printf("def %s(", func->name);
+    size_t positional_count = func->sig.params_count - func->sig.defaults_count;
+    for (size_t i = 0; i < positional_count; i++) {
+        if (i > 0) printf(", ");
+        printf("%s: %s", func->sig.params[i], type_info_to_cstr(func->sig.types[i]));
+    }
+    for (size_t i = 0; i < func->sig.defaults_count; i++) {
+        if (i > 0 || positional_count > 0) printf(", ");
+        printf(
+            "%s: %s = %s",
+            func->sig.params[positional_count + i],
+            type_info_to_cstr(func->sig.types[positional_count + i]),
+            render_expr(func->sig.defaults[i]).data
+        );
+    }
+    printf(") -> %s:\n", type_info_to_cstr(func->sig.return_type));
 }
 
 void
@@ -441,37 +474,12 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_CLASS: {
-            indent_printf("class %s", stmt->class_stmt->name);
-            if (stmt->class_stmt->base) {
-                printf("(%s)", stmt->class_stmt->base);
-            }
-            printf(":\n");
+            print_class_definition(stmt->class_stmt, indent);
             print_block(stmt->class_stmt->body, indent + 4);
             break;
         }
         case STMT_FUNCTION: {
-            indent_printf("def %s(", stmt->function_stmt->name);
-            size_t positional_count = stmt->function_stmt->sig.params_count -
-                                      stmt->function_stmt->sig.defaults_count;
-            for (size_t i = 0; i < positional_count; i++) {
-                if (i > 0) printf(", ");
-                printf(
-                    "%s: %s",
-                    stmt->function_stmt->sig.params[i],
-                    type_hint_to_cstr(stmt->function_stmt->sig.types[i])
-                );
-            }
-            for (size_t i = 0; i < stmt->function_stmt->sig.defaults_count; i++) {
-                if (i > 0 || positional_count > 0) printf(", ");
-                printf(
-                    "%s: %s = %s",
-                    stmt->function_stmt->sig.params[positional_count + i],
-                    type_hint_to_cstr(stmt->function_stmt->sig.types[positional_count + i]
-                    ),
-                    render_expr(stmt->function_stmt->sig.defaults[i]).data
-                );
-            }
-            printf(") -> %s:\n", type_hint_to_cstr(stmt->function_stmt->sig.return_type));
+            print_function_definition(stmt->function_stmt, indent);
             print_block(stmt->function_stmt->body, indent + 4);
             break;
         }
@@ -514,4 +522,38 @@ print_token(Token tok)
         printf("%s", tok.value);
     }
     printf("\n");
+}
+
+void
+print_symbol(Symbol sym, int indent)
+{
+    switch (sym.kind) {
+        case SYM_VARIABLE:
+            indent_printf("%s\n", sym.variable->identifier);
+            break;
+        case SYM_FUNCTION:
+            indent_printf("%s:\n", sym.func->name);
+            for (size_t i = 0; i < sym.func->scope->hm.elements_count; i++) {
+                Symbol inner = sym.func->scope->hm.elements[i];
+                print_symbol(inner, indent + 4);
+            }
+            break;
+        case SYM_CLASS:
+            indent_printf("%s:\n", sym.cls->name);
+            for (size_t i = 0; i < sym.cls->scope->hm.elements_count; i++) {
+                Symbol inner = sym.cls->scope->hm.elements[i];
+                print_symbol(inner, indent + 4);
+            }
+            break;
+    }
+}
+
+void
+print_scopes(Lexer* lexer)
+{
+    LexicalScope* top_level = lexer->top_level;
+    for (size_t i = 0; i < top_level->hm.elements_count; i++) {
+        Symbol sym = top_level->hm.elements[i];
+        print_symbol(sym, 0);
+    }
 }
