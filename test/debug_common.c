@@ -306,6 +306,31 @@ print_import_path(ImportPath path)
     }
 }
 
+static char*
+type_hint_to_cstr(TypeHint hint)
+{
+    switch (hint.type) {
+        case PYTYPE_NONE:
+            return "None";
+        case PYTYPE_INT:
+            return "int";
+        case PYTYPE_FLOAT:
+            return "float";
+        case PYTYPE_STRING:
+            return "str";
+        case PYTYPE_LIST:
+            return "List";
+        case PYTYPE_DICT:
+            return "Dict";
+        case PYTYPE_TUPLE:
+            return "Tuple";
+        case PYTYPE_OBJECT:
+            return hint.class_name;
+        default:
+            return "UnrecognizedTypeHint";
+    }
+}
+
 void
 print_statement(Statement* stmt, int indent)
 {
@@ -433,7 +458,7 @@ print_statement(Statement* stmt, int indent)
                 printf(
                     "%s: %s",
                     stmt->function_stmt->sig.params[i],
-                    stmt->function_stmt->sig.types[i]
+                    type_hint_to_cstr(stmt->function_stmt->sig.types[i])
                 );
             }
             for (size_t i = 0; i < stmt->function_stmt->sig.defaults_count; i++) {
@@ -441,11 +466,12 @@ print_statement(Statement* stmt, int indent)
                 printf(
                     "%s: %s = %s",
                     stmt->function_stmt->sig.params[positional_count + i],
-                    stmt->function_stmt->sig.types[positional_count + i],
+                    type_hint_to_cstr(stmt->function_stmt->sig.types[positional_count + i]
+                    ),
                     render_expr(stmt->function_stmt->sig.defaults[i]).data
                 );
             }
-            printf(") -> %s:\n", stmt->function_stmt->sig.return_type);
+            printf(") -> %s:\n", type_hint_to_cstr(stmt->function_stmt->sig.return_type));
             print_block(stmt->function_stmt->body, indent + 4);
             break;
         }

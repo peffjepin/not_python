@@ -17,6 +17,27 @@ typedef struct Statement Statement;
 typedef struct LexicalScope LexicalScope;
 
 typedef enum {
+    PYTYPE_NONE,
+    PYTYPE_INT,
+    PYTYPE_FLOAT,
+    PYTYPE_STRING,
+    PYTYPE_LIST,
+    PYTYPE_TUPLE,
+    PYTYPE_DICT,
+    PYTYPE_OBJECT
+} PythonType;
+
+// TODO: TypeHint might not be the best name since this struct will also be used in
+// context where its not refering to a type hint but is actually the definitive definition
+// of a variables type.
+typedef struct {
+    PythonType type;
+    // TODO: this field is probably a union because some type hints are nested ->
+    // List[List[str]]
+    char* class_name;
+} TypeHint;
+
+typedef enum {
     OPERAND_EXPRESSION,
     OPERAND_ENCLOSURE_LITERAL,
     OPERAND_COMPREHENSION,
@@ -184,10 +205,10 @@ typedef struct {
 typedef struct {
     size_t params_count;
     char** params;
-    char** types;
+    TypeHint* types;
     size_t defaults_count;
     Expression** defaults;
-    char* return_type;
+    TypeHint return_type;
 } Signature;
 
 typedef struct {
@@ -247,20 +268,10 @@ struct Statement {
 // TODO: not sure if the following belongs in this header or not yet.
 // it lives here for now
 
-typedef enum {
-    PYTYPE_INT,
-    PYTYPE_FLOAT,
-    PYTYPE_STRING,
-    PYTYPE_LIST,
-    PYTYPE_TUPLE,
-    PYTYPE_DICT,
-    PYTYPE_OBJECT
-} PythonType;
-
 typedef struct {
     enum { STORAGE_VARIABLE, STORAGE_MEMBER } kind;
     char* identifier;
-    PythonType type;
+    TypeHint type;
 } Storage;
 
 typedef struct {

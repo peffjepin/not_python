@@ -19,6 +19,8 @@
  * and when finalized return type*
  */
 
+#define UNREACHABLE(msg) assert(0 && msg)
+
 #define PTR_VECTOR_DEFINITION(type, prefix)                                              \
     type##Vector prefix##_vector_init(Arena* arena)                                      \
     {                                                                                    \
@@ -74,6 +76,7 @@ VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
 VALUE_VECTOR_DEFINITION(Statement, stmt)
 VALUE_VECTOR_DEFINITION(ElifStatement, elif)
 VALUE_VECTOR_DEFINITION(ExceptStatement, except)
+VALUE_VECTOR_DEFINITION(TypeHint, typing)
 
 void
 out_of_memory(void)
@@ -295,6 +298,35 @@ et_to_expr(ExpressionTable* et)
         free(vec.operations);
     }
     return expr;
+}
+
+PythonType
+cstr_to_python_type(char* cstr)
+{
+    switch (cstr[0]) {
+        case 'N':
+            if (strcmp(cstr, "None") == 0) return PYTYPE_NONE;
+            return PYTYPE_OBJECT;
+        case 'L':
+            if (strcmp(cstr, "List") == 0) return PYTYPE_LIST;
+            return PYTYPE_OBJECT;
+        case 'D':
+            if (strcmp(cstr, "Dict") == 0) return PYTYPE_DICT;
+            return PYTYPE_OBJECT;
+        case 'T':
+            if (strcmp(cstr, "Tuple") == 0) return PYTYPE_TUPLE;
+            return PYTYPE_OBJECT;
+        case 'i':
+            if (strcmp(cstr, "int") == 0) return PYTYPE_INT;
+            return PYTYPE_OBJECT;
+        case 'f':
+            if (strcmp(cstr, "float") == 0) return PYTYPE_FLOAT;
+            return PYTYPE_OBJECT;
+        case 's':
+            if (strcmp(cstr, "str") == 0) return PYTYPE_STRING;
+            return PYTYPE_OBJECT;
+    }
+    UNREACHABLE("cstr_to_python_type");
 }
 
 // TODO: portability

@@ -1007,6 +1007,15 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
     stmt->as = str_vector_finalize(&as_vec);
 }
 
+static TypeHint
+parse_type_hint(Parser* parser)
+{
+    char* ident_str = expect_token_type(parser, TOK_IDENTIFIER).value;
+    PythonType type = cstr_to_python_type(ident_str);
+    return (TypeHint){
+        .type = type, .class_name = (type == PYTYPE_OBJECT) ? ident_str : NULL};
+}
+
 Statement
 parse_statement(Parser* parser)
 {
@@ -1229,7 +1238,7 @@ parse_statement(Parser* parser)
                 // begin signature
                 expect_token_type(parser, TOK_OPEN_PARENS);
                 StringVector params = str_vector_init(parser->arena);
-                StringVector types = str_vector_init(parser->arena);
+                TypeHintVector types = typing_vector_init(parser->arena);
                 ExpressionVector defaults = expr_vector_init(parser->arena);
                 Token peek = peek_next_token(parser);
 
@@ -1246,7 +1255,9 @@ parse_statement(Parser* parser)
                         );
                     }
                     str_vector_append(&params, self_token.value);
-                    str_vector_append(&types, parent_scope->cls->name);
+                    TypeHint typing = {
+                        .type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
+                    typing_vector_append(&types, typing);
                 }
 
                 while (peek.type != TOK_CLOSE_PARENS) {
@@ -1254,9 +1265,7 @@ parse_statement(Parser* parser)
                     Token param = expect_token_type(parser, TOK_IDENTIFIER);
                     str_vector_append(&params, param.value);
                     expect_token_type(parser, TOK_COLON);
-                    str_vector_append(
-                        &types, expect_token_type(parser, TOK_IDENTIFIER).value
-                    );
+                    typing_vector_append(&types, parse_type_hint(parser));
                     peek = peek_next_token(parser);
                     if (peek.type == TOK_OPERATOR && peek.op == OPERATOR_ASSIGNMENT) {
                         discard_next_token(parser);
@@ -1271,10 +1280,10 @@ parse_statement(Parser* parser)
                 }
                 discard_next_token(parser);  // close parens
 
-                char* return_type = "None";
+                TypeHint return_type = {.type = PYTYPE_NONE};
                 if (peek_next_token(parser).type == TOK_ARROW) {
                     discard_next_token(parser);
-                    return_type = expect_token_type(parser, TOK_IDENTIFIER).value;
+                    return_type = parse_type_hint(parser);
                 }
 
                 Signature sig = {
@@ -1283,7 +1292,7 @@ parse_statement(Parser* parser)
                     .defaults_count = defaults.count,
                     .params = str_vector_finalize(&params),
                     .params_count = params.count,
-                    .types = str_vector_finalize(&types)};
+                    .types = typing_vector_finalize(&types)};
                 stmt.function_stmt->sig = sig;
 
                 // parse body
