@@ -496,6 +496,17 @@ print_statement(Statement* stmt, int indent)
             indent_print("NO_OP\n");
             break;
         }
+        case STMT_ANNOTATION: {
+            indent_printf(
+                "%s: %s",
+                stmt->annotation->identifier,
+                type_info_to_cstr(stmt->annotation->type)
+            );
+            if (stmt->annotation->initial)
+                printf(" = %s", render_expr(stmt->annotation->initial).data);
+            printf("\n");
+            break;
+        }
         default:
             assert(0 && "unimplemented");
     }

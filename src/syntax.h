@@ -222,6 +222,12 @@ typedef struct {
     Operator op_type;
 } AssignmentStatement;
 
+typedef struct {
+    char* identifier;
+    TypeInfo type;
+    Expression* initial;
+} AnnotationStatement;
+
 // techincally this could have an else at the end
 // but I'm not sure I care to support that
 typedef struct {
@@ -243,6 +249,7 @@ typedef enum {
     STMT_CLASS,
     STMT_FUNCTION,
     STMT_ASSIGNMENT,
+    STMT_ANNOTATION,
     STMT_EOF,
 } StatementKind;
 
@@ -258,6 +265,7 @@ struct Statement {
         ClassStatement* cls;
         FunctionStatement* func;
         AssignmentStatement* assignment;
+        AnnotationStatement* annotation;
         Expression* expr;
     };
     Location loc;

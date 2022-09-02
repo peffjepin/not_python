@@ -1060,7 +1060,8 @@ parse_if_statement(Parser* parser, unsigned int indent)
 {
     // parse if condition and body
     discard_next_token(parser);
-    ConditionalStatement* conditional = arena_alloc(parser->arena, sizeof(ConditionalStatement));
+    ConditionalStatement* conditional =
+        arena_alloc(parser->arena, sizeof(ConditionalStatement));
     conditional->condition = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
     conditional->body = parse_block(parser, indent);
@@ -1207,8 +1208,7 @@ static FunctionStatement*
 parse_function_statement(Parser* parser, Location loc)
 {
     discard_next_token(parser);
-    FunctionStatement* func =
-        arena_alloc(parser->arena, sizeof(FunctionStatement));
+    FunctionStatement* func = arena_alloc(parser->arena, sizeof(FunctionStatement));
 
     // parse name
     func->name = expect_token_type(parser, TOK_IDENTIFIER).value;
@@ -1326,8 +1326,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
     assignment->storage = assign_to;
     assignment->op_type = expect_token_type(parser, TOK_OPERATOR).op;
     assignment->value = parse_expression(parser);
-    if (assignment->op_type == OPERATOR_ASSIGNMENT &&
-        assign_to->operations_count == 0) {
+    if (assignment->op_type == OPERATOR_ASSIGNMENT && assign_to->operations_count == 0) {
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
         var->identifier = assign_to->operands[0].token.value;
@@ -1336,6 +1335,40 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         symbol_hm_put(&scope->hm, sym);
     }
     return assignment;
+}
+
+static AnnotationStatement*
+parse_annotation_statement(Parser* parser, char* identifier)
+{
+    AnnotationStatement* annotation =
+        arena_alloc(parser->arena, sizeof(AnnotationStatement));
+    annotation->identifier = identifier;
+    discard_next_token(parser);
+    annotation->type = parse_type_hint(parser);
+
+    Token peek = peek_next_token(parser);
+    if (peek.type != TOK_NEWLINE) {
+        if (peek.type != TOK_OPERATOR && peek.op != OPERATOR_ASSIGNMENT)
+            SYNTAX_ERROR(peek.loc, "expecting either `newline` or `=`");
+        discard_next_token(parser);
+        annotation->initial = parse_expression(parser);
+        expect_token_type(parser, TOK_NEWLINE);
+    }
+
+    LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
+    if (scope->kind == SCOPE_CLASS) {
+        // TODO: implement class members
+        return annotation;
+    }
+    else {
+        Symbol sym = {
+            .kind = SYM_VARIABLE,
+            .variable = arena_alloc(parser->arena, sizeof(Variable))};
+        sym.variable->identifier = identifier;
+        sym.variable->type = annotation->type;
+        symbol_hm_put(&scope->hm, sym);
+    }
+    return annotation;
 }
 
 Statement
@@ -1417,13 +1450,23 @@ parse_statement(Parser* parser)
 
     Expression* expr = parse_expression(parser);
 
-    if (peek_next_token(parser).type != TOK_OPERATOR) {
-        stmt.kind = STMT_EXPR;
-        stmt.expr = expr;
-    }
-    else {
-        stmt.kind = STMT_ASSIGNMENT;
-        stmt.assignment = parse_assignment_statement(parser, expr);
+    switch (peek_next_token(parser).type) {
+        case TOK_OPERATOR:
+            stmt.kind = STMT_ASSIGNMENT;
+            stmt.assignment = parse_assignment_statement(parser, expr);
+            break;
+        case TOK_COLON:
+            assert(
+                expr->operations_count == 0 &&
+                "annotations left expresson should just be an identifier"
+            );
+            stmt.kind = STMT_ANNOTATION;
+            stmt.annotation =
+                parse_annotation_statement(parser, expr->operands[0].token.value);
+            break;
+        default:
+            stmt.kind = STMT_EXPR;
+            stmt.expr = expr;
     }
     return stmt;
 }
