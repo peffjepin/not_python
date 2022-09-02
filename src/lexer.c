@@ -1016,6 +1016,328 @@ parse_type_hint(Parser* parser)
         .type = type, .class_name = (type == PYTYPE_OBJECT) ? ident_str : NULL};
 }
 
+static ForLoopStatement*
+parse_for_loop(Parser* parser, unsigned int indent)
+{
+    ForLoopStatement* for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
+    discard_next_token(parser);
+    for_loop->it = parse_iterable_identifiers(parser);
+    expect_keyword(parser, KW_IN);
+    for_loop->iterable = parse_expression(parser);
+    expect_token_type(parser, TOK_COLON);
+    for_loop->body = parse_block(parser, indent);
+    return for_loop;
+}
+
+static WhileStatement*
+parse_while_loop(Parser* parser, unsigned int indent)
+{
+    discard_next_token(parser);
+    WhileStatement* while_stmt = arena_alloc(parser->arena, sizeof(WhileStatement));
+    while_stmt->condition = parse_expression(parser);
+    expect_token_type(parser, TOK_COLON);
+    while_stmt->body = parse_block(parser, indent);
+    return while_stmt;
+}
+
+static ImportStatement*
+parse_import_statement(Parser* parser)
+{
+    ImportStatement* import = arena_alloc(parser->arena, sizeof(ImportStatement));
+    discard_next_token(parser);
+    import->from = parse_import_path(parser);
+    Token peek = peek_next_token(parser);
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
+        discard_next_token(parser);
+        import->as = arena_alloc(parser->arena, sizeof(char**));
+        import->as[0] = expect_token_type(parser, TOK_IDENTIFIER).value;
+    }
+    return import;
+}
+
+static IfStatement*
+parse_if_statement(Parser* parser, unsigned int indent)
+{
+    // parse if condition and body
+    discard_next_token(parser);
+    IfStatement* if_stmt = arena_alloc(parser->arena, sizeof(IfStatement));
+    if_stmt->condition = parse_expression(parser);
+    expect_token_type(parser, TOK_COLON);
+    if_stmt->body = parse_block(parser, indent);
+
+    // parse variable number of elif statements
+    // as long as the indentation level hasn't changed
+    ElifStatementVector vec = elif_vector_init(parser->arena);
+    Token peek;
+    for (;;) {
+        consume_newline_tokens(parser);
+        peek = peek_next_token(parser);
+        if (peek.type == TOK_KEYWORD && peek.kw == KW_ELIF && peek.loc.col == indent) {
+            discard_next_token(parser);
+            ElifStatement elif = {0};
+            elif.condition = parse_expression(parser);
+            expect_token_type(parser, TOK_COLON);
+            elif.body = parse_block(parser, indent);
+            elif_vector_append(&vec, elif);
+        }
+        else {
+            break;
+        }
+    }
+    if_stmt->elifs = elif_vector_finalize(&vec);
+    if_stmt->elifs_count = vec.count;
+
+    // maybe there is an else statment,
+    // we have the next token in `peek` already
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE && peek.loc.col == indent) {
+        discard_next_token(parser);
+        expect_token_type(parser, TOK_COLON);
+        if_stmt->else_body = parse_block(parser, indent);
+    }
+    return if_stmt;
+}
+
+static TryStatement*
+parse_try_statement(Parser* parser, unsigned int indent)
+{
+    discard_next_token(parser);
+    expect_token_type(parser, TOK_COLON);
+    TryStatement* try_stmt = arena_alloc(parser->arena, sizeof(TryStatement));
+    try_stmt->try_body = parse_block(parser, indent);
+
+    ExceptStatementVector excepts = except_vector_init(parser->arena);
+    Token peek;
+
+    for (;;) {
+        // start at expect
+        consume_newline_tokens(parser);
+        Token begin = expect_keyword(parser, KW_EXCEPT);
+        if (begin.loc.col != indent) SYNTAX_ERROR(begin.loc, "inconsistent indentation");
+        // we will need a str vector for exception names
+        StringVector exceptions = str_vector_init(parser->arena);
+        // parse either: an identifier
+        peek = peek_next_token(parser);
+        if (peek.type == TOK_IDENTIFIER) {
+            discard_next_token(parser);
+            str_vector_append(&exceptions, peek.value);
+        }
+        // or: open parens, variable number of identifiers, close parens
+        else if (peek.type == TOK_OPEN_PARENS) {
+            discard_next_token(parser);
+            str_vector_append(
+                &exceptions, expect_token_type(parser, TOK_IDENTIFIER).value
+            );
+            peek = peek_next_token(parser);
+            while (peek.type != TOK_CLOSE_PARENS) {
+                expect_token_type(parser, TOK_COMMA);
+                str_vector_append(
+                    &exceptions, expect_token_type(parser, TOK_IDENTIFIER).value
+                );
+                peek = peek_next_token(parser);
+            }
+            discard_next_token(parser);
+        }
+        else {
+            SYNTAX_ERRORF(
+                peek.loc,
+                "unexpected token type (%s) (note bare excepts not "
+                "allowed)",
+                token_type_to_cstr(peek.type)
+            );
+        }
+        // done parsing exception names
+        ExceptStatement except = {
+            .exceptions = str_vector_finalize(&exceptions),
+            .exceptions_count = exceptions.count};
+        peek = peek_next_token(parser);
+        // maybe parse as
+        if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
+            discard_next_token(parser);
+            except.as = expect_token_type(parser, TOK_IDENTIFIER).value;
+        }
+        else
+            except.as = NULL;
+        expect_token_type(parser, TOK_COLON);
+        // parse body;
+        except.body = parse_block(parser, indent);
+        // accumulate except statements and consider repeating
+        except_vector_append(&excepts, except);
+        consume_newline_tokens(parser);
+        peek = peek_next_token(parser);
+        if (peek.loc.col < indent || peek.type != TOK_KEYWORD || peek.kw != KW_EXCEPT)
+            break;
+    }
+    try_stmt->excepts = except_vector_finalize(&excepts);
+    try_stmt->excepts_count = excepts.count;
+    if (peek.loc.col < indent) return try_stmt;
+    // maybe parse else
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE) {
+        discard_next_token(parser);
+        expect_token_type(parser, TOK_COLON);
+        try_stmt->else_body = parse_block(parser, indent);
+    }
+    // maybe parse finally
+    consume_newline_tokens(parser);
+    peek = peek_next_token(parser);
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_FINALLY) {
+        discard_next_token(parser);
+        expect_token_type(parser, TOK_COLON);
+        try_stmt->finally_body = parse_block(parser, indent);
+    }
+
+    return try_stmt;
+}
+
+static WithStatement*
+parse_with_statement(Parser* parser, unsigned int indent)
+{
+    discard_next_token(parser);
+    WithStatement* with_stmt = arena_alloc(parser->arena, sizeof(WithStatement));
+    with_stmt->ctx_manager = parse_expression(parser);
+    if (peek_next_token(parser).type != TOK_COLON) {
+        expect_keyword(parser, KW_AS);
+        with_stmt->as = expect_token_type(parser, TOK_IDENTIFIER).value;
+    }
+    expect_token_type(parser, TOK_COLON);
+    with_stmt->body = parse_block(parser, indent);
+    return with_stmt;
+}
+
+static FunctionStatement*
+parse_function_statement(Parser* parser, Location loc)
+{
+    discard_next_token(parser);
+    FunctionStatement* function_stmt =
+        arena_alloc(parser->arena, sizeof(FunctionStatement));
+
+    // parse name
+    function_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    consume_newline_tokens(parser);
+
+    // begin signature
+    expect_token_type(parser, TOK_OPEN_PARENS);
+    StringVector params = str_vector_init(parser->arena);
+    TypeInfoVector types = typing_vector_init(parser->arena);
+    ExpressionVector defaults = expr_vector_init(parser->arena);
+
+    LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
+    if (parent_scope->kind == SCOPE_FUNCTION || parent_scope->kind == SCOPE_METHOD)
+        SYNTAX_ERROR(loc, "nested functions not supported");
+    else if (parent_scope->kind == SCOPE_CLASS) {
+        // parse and infer type of `self` param
+        Token self_token = get_next_token(parser);
+        if (self_token.type != TOK_IDENTIFIER) {
+            SYNTAX_ERROR(self_token.loc, "expecting `self` param for method def");
+        }
+        str_vector_append(&params, self_token.value);
+        TypeInfo typing = {.type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
+        typing_vector_append(&types, typing);
+    }
+
+    Token peek = peek_next_token(parser);
+
+    while (peek.type != TOK_CLOSE_PARENS) {
+        if (params.count > 0) expect_token_type(parser, TOK_COMMA);
+        Token param = expect_token_type(parser, TOK_IDENTIFIER);
+        str_vector_append(&params, param.value);
+        expect_token_type(parser, TOK_COLON);
+        typing_vector_append(&types, parse_type_hint(parser));
+        peek = peek_next_token(parser);
+        if (peek.type == TOK_OPERATOR && peek.op == OPERATOR_ASSIGNMENT) {
+            discard_next_token(parser);
+            expr_vector_append(&defaults, parse_expression(parser));
+            peek = peek_next_token(parser);
+        }
+        else if (defaults.count > 0) {
+            SYNTAX_ERROR(param.loc, "non default argument follows default argument");
+        }
+    }
+    discard_next_token(parser);  // close parens
+
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    if (peek_next_token(parser).type == TOK_ARROW) {
+        discard_next_token(parser);
+        return_type = parse_type_hint(parser);
+    }
+
+    Signature sig = {
+        .return_type = return_type,
+        .defaults = expr_vector_finalize(&defaults),
+        .defaults_count = defaults.count,
+        .params = str_vector_finalize(&params),
+        .params_count = params.count,
+        .types = typing_vector_finalize(&types)};
+    function_stmt->sig = sig;
+
+    // init functions lexical scope
+    expect_token_type(parser, TOK_COLON);
+    LexicalScope* fn_scope = scope_init(parser->arena);
+    fn_scope->kind = (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
+    fn_scope->func = function_stmt;
+    for (size_t i = 0; i < sig.params_count; i++) {
+        Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
+        local_var->identifier = sig.params[i];
+        local_var->type = sig.types[i];
+        Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
+        symbol_hm_put(&fn_scope->hm, local_sym);
+    }
+
+    // parse body
+    scope_stack_push(&parser->scope_stack, fn_scope);
+    function_stmt->scope = fn_scope;
+    function_stmt->body = parse_block(parser, loc.col);
+    scope_stack_pop(&parser->scope_stack);
+
+    // add function to parents lexical scope
+    Symbol sym = {.kind = SYM_FUNCTION, .func = function_stmt};
+    symbol_hm_put(&parent_scope->hm, sym);
+    return function_stmt;
+}
+
+static ClassStatement*
+parse_class_statement(Parser* parser, unsigned int indent)
+{
+    discard_next_token(parser);
+    ClassStatement* class_stmt = arena_alloc(parser->arena, sizeof(ClassStatement));
+    class_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
+        discard_next_token(parser);
+        class_stmt->base = expect_token_type(parser, TOK_IDENTIFIER).value;
+        expect_token_type(parser, TOK_CLOSE_PARENS);
+    }
+    expect_token_type(parser, TOK_COLON);
+    LexicalScope* cls_scope = scope_init(parser->arena);
+    cls_scope->kind = SCOPE_CLASS;
+    cls_scope->cls = class_stmt;
+    scope_stack_push(&parser->scope_stack, cls_scope);
+    class_stmt->scope = cls_scope;
+    class_stmt->body = parse_block(parser, indent);
+    scope_stack_pop(&parser->scope_stack);
+    Symbol sym = {.kind = SYM_CLASS, .cls = class_stmt};
+    symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
+    return class_stmt;
+}
+
+static AssignmentStatement*
+parse_assignment_statement(Parser* parser, Expression* assign_to)
+{
+    AssignmentStatement* assignment_stmt =
+        arena_alloc(parser->arena, sizeof(AssignmentStatement));
+    assignment_stmt->storage = assign_to;
+    assignment_stmt->op_type = expect_token_type(parser, TOK_OPERATOR).op;
+    assignment_stmt->value = parse_expression(parser);
+    if (assignment_stmt->op_type == OPERATOR_ASSIGNMENT &&
+        assign_to->operations_count == 0) {
+        LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
+        Variable* var = arena_alloc(parser->arena, sizeof(Variable));
+        var->identifier = assign_to->operands[0].token.value;
+        var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
+        Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
+        symbol_hm_put(&scope->hm, sym);
+    }
+    return assignment_stmt;
+}
+
 Statement
 parse_statement(Parser* parser)
 {
@@ -1030,14 +1352,8 @@ parse_statement(Parser* parser)
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
             case KW_FOR: {
-                discard_next_token(parser);
                 stmt.kind = STMT_FOR_LOOP;
-                stmt.for_loop = arena_alloc(parser->arena, sizeof(ForLoopStatement));
-                stmt.for_loop->it = parse_iterable_identifiers(parser);
-                expect_keyword(parser, KW_IN);
-                stmt.for_loop->iterable = parse_expression(parser);
-                expect_token_type(parser, TOK_COLON);
-                stmt.for_loop->body = parse_block(parser, stmt.loc.col);
+                stmt.for_loop = parse_for_loop(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_PASS:
@@ -1046,26 +1362,13 @@ parse_statement(Parser* parser)
                 stmt.kind = STMT_NO_OP;
                 return stmt;
             case KW_WHILE: {
-                discard_next_token(parser);
                 stmt.kind = STMT_WHILE;
-                stmt.while_stmt = arena_alloc(parser->arena, sizeof(WhileStatement));
-                stmt.while_stmt->condition = parse_expression(parser);
-                expect_token_type(parser, TOK_COLON);
-                stmt.while_stmt->body = parse_block(parser, stmt.loc.col);
+                stmt.while_stmt = parse_while_loop(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_IMPORT: {
-                discard_next_token(parser);
                 stmt.kind = STMT_IMPORT;
-                stmt.import_stmt = arena_alloc(parser->arena, sizeof(ImportStatement));
-                stmt.import_stmt->from = parse_import_path(parser);
-                Token peek = peek_next_token(parser);
-                if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
-                    discard_next_token(parser);
-                    stmt.import_stmt->as = arena_alloc(parser->arena, sizeof(char**));
-                    stmt.import_stmt->as[0] =
-                        expect_token_type(parser, TOK_IDENTIFIER).value;
-                }
+                stmt.import_stmt = parse_import_statement(parser);
                 return stmt;
             }
             case KW_FROM: {
@@ -1078,270 +1381,28 @@ parse_statement(Parser* parser)
                 return stmt;
             }
             case KW_IF: {
-                // parse if condition and body
-                discard_next_token(parser);
                 stmt.kind = STMT_IF;
-                stmt.if_stmt = arena_alloc(parser->arena, sizeof(IfStatement));
-                stmt.if_stmt->condition = parse_expression(parser);
-                expect_token_type(parser, TOK_COLON);
-                stmt.if_stmt->body = parse_block(parser, stmt.loc.col);
-
-                // parse variable number of elif statements
-                // as long as the indentation level hasn't changed
-                ElifStatementVector vec = elif_vector_init(parser->arena);
-                Token peek;
-                for (;;) {
-                    consume_newline_tokens(parser);
-                    peek = peek_next_token(parser);
-                    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELIF &&
-                        peek.loc.col == stmt.loc.col) {
-                        discard_next_token(parser);
-                        ElifStatement elif = {0};
-                        elif.condition = parse_expression(parser);
-                        expect_token_type(parser, TOK_COLON);
-                        elif.body = parse_block(parser, stmt.loc.col);
-                        elif_vector_append(&vec, elif);
-                    }
-                    else {
-                        break;
-                    }
-                }
-                stmt.if_stmt->elifs = elif_vector_finalize(&vec);
-                stmt.if_stmt->elifs_count = vec.count;
-
-                // maybe there is an else statment,
-                // we have the next token in `peek` already
-                if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE &&
-                    peek.loc.col == stmt.loc.col) {
-                    discard_next_token(parser);
-                    expect_token_type(parser, TOK_COLON);
-                    stmt.if_stmt->else_body = parse_block(parser, stmt.loc.col);
-                }
+                stmt.if_stmt = parse_if_statement(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_TRY: {
-                discard_next_token(parser);
-                expect_token_type(parser, TOK_COLON);
                 stmt.kind = STMT_TRY;
-                stmt.try_stmt = arena_alloc(parser->arena, sizeof(TryStatement));
-                stmt.try_stmt->try_body = parse_block(parser, stmt.loc.col);
-
-                ExceptStatementVector excepts = except_vector_init(parser->arena);
-                Token peek;
-
-                for (;;) {
-                    // start at expect
-                    consume_newline_tokens(parser);
-                    Token begin = expect_keyword(parser, KW_EXCEPT);
-                    if (begin.loc.col != stmt.loc.col)
-                        SYNTAX_ERROR(begin.loc, "inconsistent indentation");
-                    // we will need a str vector for exception names
-                    StringVector exceptions = str_vector_init(parser->arena);
-                    // parse either: an identifier
-                    peek = peek_next_token(parser);
-                    if (peek.type == TOK_IDENTIFIER) {
-                        discard_next_token(parser);
-                        str_vector_append(&exceptions, peek.value);
-                    }
-                    // or: open parens, variable number of identifiers, close parens
-                    else if (peek.type == TOK_OPEN_PARENS) {
-                        discard_next_token(parser);
-                        str_vector_append(
-                            &exceptions, expect_token_type(parser, TOK_IDENTIFIER).value
-                        );
-                        peek = peek_next_token(parser);
-                        while (peek.type != TOK_CLOSE_PARENS) {
-                            expect_token_type(parser, TOK_COMMA);
-                            str_vector_append(
-                                &exceptions,
-                                expect_token_type(parser, TOK_IDENTIFIER).value
-                            );
-                            peek = peek_next_token(parser);
-                        }
-                        discard_next_token(parser);
-                    }
-                    else {
-                        SYNTAX_ERRORF(
-                            peek.loc,
-                            "unexpected token type (%s) (note bare excepts not "
-                            "allowed)",
-                            token_type_to_cstr(peek.type)
-                        );
-                    }
-                    // done parsing exception names
-                    ExceptStatement except = {
-                        .exceptions = str_vector_finalize(&exceptions),
-                        .exceptions_count = exceptions.count};
-                    peek = peek_next_token(parser);
-                    // maybe parse as
-                    if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
-                        discard_next_token(parser);
-                        except.as = expect_token_type(parser, TOK_IDENTIFIER).value;
-                    }
-                    else
-                        except.as = NULL;
-                    expect_token_type(parser, TOK_COLON);
-                    // parse body;
-                    except.body = parse_block(parser, stmt.loc.col);
-                    // accumulate except statements and consider repeating
-                    except_vector_append(&excepts, except);
-                    consume_newline_tokens(parser);
-                    peek = peek_next_token(parser);
-                    if (peek.loc.col < stmt.loc.col || peek.type != TOK_KEYWORD ||
-                        peek.kw != KW_EXCEPT)
-                        break;
-                }
-                stmt.try_stmt->excepts = except_vector_finalize(&excepts);
-                stmt.try_stmt->excepts_count = excepts.count;
-                if (peek.loc.col < stmt.loc.col) return stmt;
-                // maybe parse else
-                if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE) {
-                    discard_next_token(parser);
-                    expect_token_type(parser, TOK_COLON);
-                    stmt.try_stmt->else_body = parse_block(parser, stmt.loc.col);
-                }
-                // maybe parse finally
-                consume_newline_tokens(parser);
-                peek = peek_next_token(parser);
-                if (peek.type == TOK_KEYWORD && peek.kw == KW_FINALLY) {
-                    discard_next_token(parser);
-                    expect_token_type(parser, TOK_COLON);
-                    stmt.try_stmt->finally_body = parse_block(parser, stmt.loc.col);
-                }
-
+                stmt.try_stmt = parse_try_statement(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_WITH: {
-                discard_next_token(parser);
                 stmt.kind = STMT_WITH;
-                stmt.with_stmt = arena_alloc(parser->arena, sizeof(WithStatement));
-                stmt.with_stmt->ctx_manager = parse_expression(parser);
-                if (peek_next_token(parser).type != TOK_COLON) {
-                    expect_keyword(parser, KW_AS);
-                    stmt.with_stmt->as = expect_token_type(parser, TOK_IDENTIFIER).value;
-                }
-                expect_token_type(parser, TOK_COLON);
-                stmt.with_stmt->body = parse_block(parser, stmt.loc.col);
+                stmt.with_stmt = parse_with_statement(parser, stmt.loc.col);
                 return stmt;
             }
             case KW_DEF: {
-                discard_next_token(parser);
                 stmt.kind = STMT_FUNCTION;
-                stmt.function_stmt =
-                    arena_alloc(parser->arena, sizeof(FunctionStatement));
-
-                // parse name
-                stmt.function_stmt->name =
-                    expect_token_type(parser, TOK_IDENTIFIER).value;
-                consume_newline_tokens(parser);
-
-                // begin signature
-                expect_token_type(parser, TOK_OPEN_PARENS);
-                StringVector params = str_vector_init(parser->arena);
-                TypeInfoVector types = typing_vector_init(parser->arena);
-                ExpressionVector defaults = expr_vector_init(parser->arena);
-
-                LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
-                if (parent_scope->kind == SCOPE_FUNCTION ||
-                    parent_scope->kind == SCOPE_METHOD)
-                    SYNTAX_ERROR(stmt.loc, "nested functions not supported");
-                else if (parent_scope->kind == SCOPE_CLASS) {
-                    // parse and infer type of `self` param
-                    Token self_token = get_next_token(parser);
-                    if (self_token.type != TOK_IDENTIFIER) {
-                        SYNTAX_ERROR(
-                            self_token.loc, "expecting `self` param for method def"
-                        );
-                    }
-                    str_vector_append(&params, self_token.value);
-                    TypeInfo typing = {
-                        .type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
-                    typing_vector_append(&types, typing);
-                }
-
-                Token peek = peek_next_token(parser);
-
-                while (peek.type != TOK_CLOSE_PARENS) {
-                    if (params.count > 0) expect_token_type(parser, TOK_COMMA);
-                    Token param = expect_token_type(parser, TOK_IDENTIFIER);
-                    str_vector_append(&params, param.value);
-                    expect_token_type(parser, TOK_COLON);
-                    typing_vector_append(&types, parse_type_hint(parser));
-                    peek = peek_next_token(parser);
-                    if (peek.type == TOK_OPERATOR && peek.op == OPERATOR_ASSIGNMENT) {
-                        discard_next_token(parser);
-                        expr_vector_append(&defaults, parse_expression(parser));
-                        peek = peek_next_token(parser);
-                    }
-                    else if (defaults.count > 0) {
-                        SYNTAX_ERROR(
-                            param.loc, "non default argument follows default argument"
-                        );
-                    }
-                }
-                discard_next_token(parser);  // close parens
-
-                TypeInfo return_type = {.type = PYTYPE_NONE};
-                if (peek_next_token(parser).type == TOK_ARROW) {
-                    discard_next_token(parser);
-                    return_type = parse_type_hint(parser);
-                }
-
-                Signature sig = {
-                    .return_type = return_type,
-                    .defaults = expr_vector_finalize(&defaults),
-                    .defaults_count = defaults.count,
-                    .params = str_vector_finalize(&params),
-                    .params_count = params.count,
-                    .types = typing_vector_finalize(&types)};
-                stmt.function_stmt->sig = sig;
-
-                // init functions lexical scope
-                expect_token_type(parser, TOK_COLON);
-                LexicalScope* fn_scope = scope_init(parser->arena);
-                fn_scope->kind =
-                    (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
-                fn_scope->func = stmt.function_stmt;
-                for (size_t i = 0; i < sig.params_count; i++) {
-                    Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-                    local_var->identifier = sig.params[i];
-                    local_var->type = sig.types[i];
-                    Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
-                    symbol_hm_put(&fn_scope->hm, local_sym);
-                }
-
-                // parse body
-                scope_stack_push(&parser->scope_stack, fn_scope);
-                stmt.function_stmt->scope = fn_scope;
-                stmt.function_stmt->body = parse_block(parser, stmt.loc.col);
-                scope_stack_pop(&parser->scope_stack);
-
-                // add function to parents lexical scope
-                Symbol sym = {.kind = SYM_FUNCTION, .func = stmt.function_stmt};
-                symbol_hm_put(&parent_scope->hm, sym);
+                stmt.function_stmt = parse_function_statement(parser, stmt.loc);
                 return stmt;
             }
             case KW_CLASS: {
-                discard_next_token(parser);
                 stmt.kind = STMT_CLASS;
-                stmt.class_stmt = arena_alloc(parser->arena, sizeof(ClassStatement));
-                stmt.class_stmt->name = expect_token_type(parser, TOK_IDENTIFIER).value;
-                if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
-                    discard_next_token(parser);
-                    stmt.class_stmt->base =
-                        expect_token_type(parser, TOK_IDENTIFIER).value;
-                    expect_token_type(parser, TOK_CLOSE_PARENS);
-                }
-                expect_token_type(parser, TOK_COLON);
-                LexicalScope* cls_scope = scope_init(parser->arena);
-                cls_scope->kind = SCOPE_CLASS;
-                cls_scope->cls = stmt.class_stmt;
-                scope_stack_push(&parser->scope_stack, cls_scope);
-                stmt.class_stmt->scope = cls_scope;
-                stmt.class_stmt->body = parse_block(parser, stmt.loc.col);
-                scope_stack_pop(&parser->scope_stack);
-                Symbol sym = {.kind = SYM_CLASS, .cls = stmt.class_stmt};
-                symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
+                stmt.class_stmt = parse_class_statement(parser, stmt.loc.col);
                 return stmt;
             }
             default:
@@ -1362,19 +1423,7 @@ parse_statement(Parser* parser)
     }
     else {
         stmt.kind = STMT_ASSIGNMENT;
-        stmt.assignment_stmt = arena_alloc(parser->arena, sizeof(AssignmentStatement));
-        stmt.assignment_stmt->storage = expr;
-        stmt.assignment_stmt->op_type = expect_token_type(parser, TOK_OPERATOR).op;
-        stmt.assignment_stmt->value = parse_expression(parser);
-        if (stmt.assignment_stmt->op_type == OPERATOR_ASSIGNMENT &&
-            expr->operations_count == 0) {
-            LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
-            Variable* var = arena_alloc(parser->arena, sizeof(Variable));
-            var->identifier = expr->operands[0].token.value;
-            var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
-            Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
-            symbol_hm_put(&scope->hm, sym);
-        }
+        stmt.assignment_stmt = parse_assignment_statement(parser, expr);
     }
     return stmt;
 }
