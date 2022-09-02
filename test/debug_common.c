@@ -542,6 +542,9 @@ print_symbol(Symbol sym, int indent)
         case SYM_VARIABLE:
             indent_printf("%s\n", sym.variable->identifier);
             break;
+        case SYM_MEMBER:
+            indent_printf("%s\n", sym.member->identifier);
+            break;
         case SYM_FUNCTION:
             indent_printf("%s:\n", sym.func->name);
             for (size_t i = 0; i < sym.func->scope->hm.elements_count; i++) {

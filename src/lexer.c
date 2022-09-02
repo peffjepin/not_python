@@ -1356,18 +1356,12 @@ parse_annotation_statement(Parser* parser, char* identifier)
     }
 
     LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
-    if (scope->kind == SCOPE_CLASS) {
-        // TODO: implement class members
-        return annotation;
-    }
-    else {
-        Symbol sym = {
-            .kind = SYM_VARIABLE,
-            .variable = arena_alloc(parser->arena, sizeof(Variable))};
-        sym.variable->identifier = identifier;
-        sym.variable->type = annotation->type;
-        symbol_hm_put(&scope->hm, sym);
-    }
+    Symbol sym = {
+        .kind = (scope->kind == SCOPE_CLASS) ? SYM_MEMBER : SYM_VARIABLE,
+        .variable = arena_alloc(parser->arena, sizeof(Variable))};
+    sym.variable->identifier = identifier;
+    sym.variable->type = annotation->type;
+    symbol_hm_put(&scope->hm, sym);
     return annotation;
 }
 

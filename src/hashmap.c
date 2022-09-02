@@ -25,6 +25,8 @@ symbol_to_key(Symbol sym)
             return sym.func->name;
         case SYM_VARIABLE:
             return sym.variable->identifier;
+        case SYM_MEMBER:
+            return sym.member->identifier;
     }
     UNREACHABLE("symbol to key");
 }

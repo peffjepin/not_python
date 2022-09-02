@@ -280,9 +280,10 @@ typedef struct {
 } Variable;
 
 typedef struct {
-    enum { SYM_VARIABLE, SYM_FUNCTION, SYM_CLASS } kind;
+    enum { SYM_VARIABLE, SYM_MEMBER, SYM_FUNCTION, SYM_CLASS } kind;
     union {
         Variable* variable;
+        Variable* member;
         FunctionStatement* func;
         ClassStatement* cls;
     };
