@@ -93,7 +93,6 @@ typedef enum {
     OPERATOR_IN = 48,
     OPERATOR_IS = 53,
     OPERATOR_NEGATIVE = 16,
-    OPERATOR_POSITIVE = 42,
     OPERATOR_BITWISE_NOT = 116,
 } Operator;
 

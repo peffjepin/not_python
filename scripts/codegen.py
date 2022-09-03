@@ -253,7 +253,6 @@ OPS = {
     "OPERATOR_IN": {"value": "in", "precedence": 6},
     "OPERATOR_IS": {"value": "is", "precedence": 6},
     "OPERATOR_NEGATIVE": {"value": "neg", "precedence": 13},
-    "OPERATOR_POSITIVE": {"value": "pos", "precedence": 13},
     "OPERATOR_BITWISE_NOT": {"value": "~", "precedence": 13},
 }
 

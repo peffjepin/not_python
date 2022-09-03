@@ -228,7 +228,6 @@ render_expr(Expression* expr)
         bool is_unary =
             (operation.op_type == OPERATOR_LOGICAL_NOT ||
              operation.op_type == OPERATOR_NEGATIVE ||
-             operation.op_type == OPERATOR_POSITIVE ||
              operation.op_type == OPERATOR_BITWISE_NOT);
 
         StringBuffer this_operation_rendered = {0};

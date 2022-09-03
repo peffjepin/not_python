@@ -856,11 +856,8 @@ parse_expression(Parser* parser)
                 }
             } break;
             case TOK_OPERATOR: {
-                if (tok.op == OPERATOR_PLUS &&
+                if (tok.op == OPERATOR_MINUS &&
                     (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
-                    et_push_operation_type(&et, OPERATOR_POSITIVE);
-                }
-                else if (tok.op == OPERATOR_MINUS && (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
                     et_push_operation_type(&et, OPERATOR_NEGATIVE);
                 }
                 else

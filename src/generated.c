@@ -110,7 +110,6 @@ const unsigned int PRECEDENCE_TABLE[OPERATORS_MAX] = {
     [OPERATOR_IN] = 6,
     [OPERATOR_IS] = 6,
     [OPERATOR_NEGATIVE] = 13,
-    [OPERATOR_POSITIVE] = 13,
     [OPERATOR_BITWISE_NOT] = 13,
 };
 
@@ -173,7 +172,6 @@ static const char* OP_TO_CSTR_TABLE[OPERATORS_MAX] = {
     [OPERATOR_IN] = "in",
     [OPERATOR_IS] = "is",
     [OPERATOR_NEGATIVE] = "neg",
-    [OPERATOR_POSITIVE] = "pos",
     [OPERATOR_BITWISE_NOT] = "~",
 };
 
