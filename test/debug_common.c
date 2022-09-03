@@ -78,7 +78,15 @@ render_operand(StringBuffer* str, Operand op)
 
     switch (op.kind) {
         case OPERAND_TOKEN:
-            str_concat_cstr(str, op.token.value);
+            if (op.token.type == TOK_KEYWORD && op.token.kw == KW_FALSE) {
+                str_concat_cstr(str, "False");
+            }
+            else if (op.token.type == TOK_KEYWORD && op.token.kw == KW_TRUE) {
+                str_concat_cstr(str, "True");
+            }
+            else {
+                str_concat_cstr(str, op.token.value);
+            }
             break;
         case OPERAND_EXPRESSION: {
             StringBuffer rendered_expr = render_expr(op.expr);
@@ -289,7 +297,7 @@ void
 print_block(Block block, int indent)
 {
     for (size_t i = 0; i < block.stmts_count; i++) {
-        print_statement(block.stmts + i, indent);
+        print_statement(block.stmts[i], indent);
     }
 }
 
@@ -589,6 +597,9 @@ print_symbol(Symbol sym, int indent)
                 Symbol inner = sym.cls->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);
             }
+            break;
+        case SYM_PARAM:
+            indent_printf("%s\n", sym.variable->identifier);
             break;
     }
 }

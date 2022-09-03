@@ -6,6 +6,7 @@
 ((a + b) + 3)
 a
 3
+(x is False)
 EOF
 
 exitcode=0

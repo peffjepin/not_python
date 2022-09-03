@@ -1,4 +1,5 @@
 backup
+build
 .ccls-cache
 codegen
 debug_c_compiler

@@ -112,6 +112,8 @@ class CArray:
 
 
 KEYWORDS = (
+    "False",
+    "True",
     "and",
     "as",
     "assert",
@@ -146,7 +148,7 @@ KEYWORDS = (
 
 
 def kw_hash(kw, redundancy):
-    value = 0
+    value = ord(kw[0]) * 3
     for c in kw:
         value += ord(c)
     return value % (len(KEYWORDS) + redundancy)
@@ -175,7 +177,7 @@ kw_hash_function = CFunc(
     type="size_t",
     sig=["char* kw"],
     body=[
-        "size_t hash = 0;",
+        "size_t hash = kw[0] * 3;",
         r"for (size_t i = 0; kw[i] != '\0'; i++) hash += kw[i];",
         "return hash % KEYWORDS_MAX;",
     ],

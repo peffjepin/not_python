@@ -11,7 +11,7 @@
 typedef struct {
     Arena* arena;
     size_t n_statements;
-    Statement* statements;
+    Statement** statements;
     LexicalScope* top_level;
 } Lexer;
 

@@ -26,7 +26,8 @@ typedef enum {
     PYTYPE_LIST,
     PYTYPE_TUPLE,
     PYTYPE_DICT,
-    PYTYPE_OBJECT
+    PYTYPE_OBJECT,
+    PYTYPE_BOOL,
 } PythonType;
 
 typedef struct {
@@ -158,7 +159,7 @@ typedef struct {
 
 typedef struct {
     size_t stmts_count;
-    Statement* stmts;
+    Statement** stmts;
 } Block;
 
 typedef struct {
@@ -287,7 +288,8 @@ typedef struct {
 } Variable;
 
 typedef struct {
-    enum { SYM_VARIABLE, SYM_MEMBER, SYM_FUNCTION, SYM_CLASS } kind;
+    enum { SYM_VARIABLE, SYM_PARAM, SYM_MEMBER, SYM_FUNCTION, SYM_CLASS } kind;
+    AssignmentStatement* first_assignment;  // NULL when not applicable
     union {
         Variable* variable;
         Variable* member;

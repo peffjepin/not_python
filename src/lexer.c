@@ -383,6 +383,10 @@ is_end_of_expression(Parser* parser, ConsumableParserRule rule)
                     return false;
                 case KW_IS:
                     return false;
+                case KW_TRUE:
+                    return false;
+                case KW_FALSE:
+                    return false;
                 default:
                     return true;
             }
@@ -834,6 +838,16 @@ parse_expression(Parser* parser)
                     case KW_IS:
                         et_push_operation_type(&et, OPERATOR_IS);
                         break;
+                    case KW_FALSE: {
+                        Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
+                        et_push_operand(&et, operand);
+                        break;
+                    }
+                    case KW_TRUE: {
+                        Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
+                        et_push_operand(&et, operand);
+                        break;
+                    }
                     default:
                         SYNTAX_ERRORF(
                             tok.loc, "not expecting keyword `%s` here", kw_to_cstr(tok.kw)
@@ -909,7 +923,7 @@ parse_expression(Parser* parser)
     return et_to_expr(&et);
 }
 
-Statement parse_statement(Parser* parser);
+static Statement* parse_statement(Parser* parser);
 
 static void
 consume_newline_tokens(Parser* parser)
@@ -923,20 +937,20 @@ parse_block(Parser* parser, unsigned int parent_indent)
     StatementVector vec = stmt_vector_init(parser->arena);
 
     parser->consumable_rule = BLOCK_BEGIN;
-    Statement first_body_stmt = parse_statement(parser);
-    if (first_body_stmt.loc.col <= parent_indent)
-        SYNTAX_ERROR(first_body_stmt.loc, "expected indentation");
+    Statement* first_body_stmt = parse_statement(parser);
+    if (first_body_stmt->loc.col <= parent_indent)
+        SYNTAX_ERROR(first_body_stmt->loc, "expected indentation");
     stmt_vector_append(&vec, first_body_stmt);
 
     for (;;) {
         consume_newline_tokens(parser);
         Token peek = peek_next_token(parser);
-        if (peek.loc.col < first_body_stmt.loc.col) {
+        if (peek.loc.col < first_body_stmt->loc.col) {
             if (peek.loc.col > parent_indent)
                 SYNTAX_ERROR(peek.loc, "inconsistent indentation");
             break;
         }
-        if (peek.loc.col > first_body_stmt.loc.col)
+        if (peek.loc.col > first_body_stmt->loc.col)
             SYNTAX_ERROR(peek.loc, "inconsistent indentation");
         stmt_vector_append(&vec, parse_statement(parser));
     }
@@ -1320,7 +1334,7 @@ parse_function_statement(Parser* parser, Location loc)
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->identifier = sig.params[i];
         local_var->type = sig.types[i];
-        Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
+        Symbol local_sym = {.kind = SYM_PARAM, .variable = local_var};
         symbol_hm_put(&fn_scope->hm, local_sym);
     }
 
@@ -1373,7 +1387,8 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
         var->identifier = assign_to->operands[0].token.value;
         var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
-        Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
+        Symbol sym = {
+            .kind = SYM_VARIABLE, .variable = var, .first_assignment = assignment};
         symbol_hm_put(&scope->hm, sym);
     }
     return assignment;
@@ -1407,71 +1422,71 @@ parse_annotation_statement(Parser* parser, char* identifier)
     return annotation;
 }
 
-Statement
+static Statement*
 parse_statement(Parser* parser)
 {
     ConsumableParserRule rule = consume_rule(parser);
-    Statement stmt = {.kind = NULL_STMT};
+    Statement* stmt = arena_alloc(parser->arena, sizeof(Statement));
 
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
-    stmt.loc = peek.loc;
-    indent_check(&parser->indent_stack, stmt.loc, rule == BLOCK_BEGIN);
+    stmt->loc = peek.loc;
+    indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
             case KW_FOR: {
-                stmt.kind = STMT_FOR_LOOP;
-                stmt.for_loop = parse_for_loop(parser, stmt.loc.col);
+                stmt->kind = STMT_FOR_LOOP;
+                stmt->for_loop = parse_for_loop(parser, stmt->loc.col);
                 return stmt;
             }
             case KW_PASS:
                 discard_next_token(parser);
                 expect_token_type(parser, TOK_NEWLINE);
-                stmt.kind = STMT_NO_OP;
+                stmt->kind = STMT_NO_OP;
                 return stmt;
             case KW_WHILE: {
-                stmt.kind = STMT_WHILE;
-                stmt.while_loop = parse_while_loop(parser, stmt.loc.col);
+                stmt->kind = STMT_WHILE;
+                stmt->while_loop = parse_while_loop(parser, stmt->loc.col);
                 return stmt;
             }
             case KW_IMPORT: {
-                stmt.kind = STMT_IMPORT;
-                stmt.import = parse_import_statement(parser);
+                stmt->kind = STMT_IMPORT;
+                stmt->import = parse_import_statement(parser);
                 return stmt;
             }
             case KW_FROM: {
                 discard_next_token(parser);
-                stmt.kind = STMT_IMPORT;
-                stmt.import = arena_alloc(parser->arena, sizeof(ImportStatement));
-                stmt.import->from = parse_import_path(parser);
+                stmt->kind = STMT_IMPORT;
+                stmt->import = arena_alloc(parser->arena, sizeof(ImportStatement));
+                stmt->import->from = parse_import_path(parser);
                 expect_keyword(parser, KW_IMPORT);
-                parse_import_group(parser, stmt.import);
+                parse_import_group(parser, stmt->import);
                 return stmt;
             }
             case KW_IF: {
-                stmt.kind = STMT_IF;
-                stmt.conditional = parse_if_statement(parser, stmt.loc.col);
+                stmt->kind = STMT_IF;
+                stmt->conditional = parse_if_statement(parser, stmt->loc.col);
                 return stmt;
             }
             case KW_TRY: {
-                stmt.kind = STMT_TRY;
-                stmt.try_stmt = parse_try_statement(parser, stmt.loc.col);
+                stmt->kind = STMT_TRY;
+                stmt->try_stmt = parse_try_statement(parser, stmt->loc.col);
                 return stmt;
             }
             case KW_WITH: {
-                stmt.kind = STMT_WITH;
-                stmt.with = parse_with_statement(parser, stmt.loc.col);
+                stmt->kind = STMT_WITH;
+                stmt->with = parse_with_statement(parser, stmt->loc.col);
                 return stmt;
             }
             case KW_DEF: {
-                stmt.kind = STMT_FUNCTION;
-                stmt.func = parse_function_statement(parser, stmt.loc);
+                stmt->kind = STMT_FUNCTION;
+                stmt->func = parse_function_statement(parser, stmt->loc);
                 return stmt;
             }
             case KW_CLASS: {
-                stmt.kind = STMT_CLASS;
-                stmt.cls = parse_class_statement(parser, stmt.loc.col);
+                stmt->kind = STMT_CLASS;
+                stmt->cls = parse_class_statement(parser, stmt->loc.col);
                 return stmt;
             }
             default:
@@ -1480,7 +1495,7 @@ parse_statement(Parser* parser)
     }
     if (peek.type == TOK_EOF) {
         discard_next_token(parser);
-        stmt.kind = STMT_EOF;
+        stmt->kind = STMT_EOF;
         return stmt;
     }
 
@@ -1488,21 +1503,21 @@ parse_statement(Parser* parser)
 
     switch (peek_next_token(parser).type) {
         case TOK_OPERATOR:
-            stmt.kind = STMT_ASSIGNMENT;
-            stmt.assignment = parse_assignment_statement(parser, expr);
+            stmt->kind = STMT_ASSIGNMENT;
+            stmt->assignment = parse_assignment_statement(parser, expr);
             break;
         case TOK_COLON:
             assert(
                 expr->operations_count == 0 &&
                 "annotations left expresson should just be an identifier"
             );
-            stmt.kind = STMT_ANNOTATION;
-            stmt.annotation =
+            stmt->kind = STMT_ANNOTATION;
+            stmt->annotation =
                 parse_annotation_statement(parser, expr->operands[0].token.value);
             break;
         default:
-            stmt.kind = STMT_EXPR;
-            stmt.expr = expr;
+            stmt->kind = STMT_EXPR;
+            stmt->expr = expr;
     }
     return stmt;
 }
@@ -1540,7 +1555,7 @@ lex_file(const char* filepath)
             if (!lexer.statements) out_of_memory();
         }
         lexer.statements[lexer.n_statements] = parse_statement(&parser);
-    } while (lexer.statements[lexer.n_statements++].kind != STMT_EOF);
+    } while (lexer.statements[lexer.n_statements++]->kind != STMT_EOF);
 
     fclose(file);
 
