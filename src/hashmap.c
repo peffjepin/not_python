@@ -1,15 +1,10 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "hash.h"
 #include "syntax.h"
-
-#define XXH_STATIC_LINKING_ONLY
-#define XXH_IMPLEMENTATION
-#define XXH_INLINE_ALL
-#include "../3rdparty/xxhash.h"
-// TODO: controls over seed
-#define HASH_SEED 0
 
 #define UNREACHABLE(msg) assert(0 && msg)
 
@@ -24,6 +19,8 @@ symbol_to_key(Symbol sym)
         case SYM_FUNCTION:
             return sym.func->name;
         case SYM_VARIABLE:
+            return sym.variable->identifier;
+        case SYM_PARAM:
             return sym.variable->identifier;
         case SYM_MEMBER:
             return sym.member->identifier;
@@ -85,7 +82,7 @@ key_at(SymbolHashmap* hm, size_t probe)
 static bool
 hm_lookup_insert(SymbolHashmap* hm, size_t elem_index, char* key)
 {
-    uint64_t hash = XXH64(key, strlen(key), HASH_SEED);
+    uint64_t hash = hash_bytes(key, strlen(key));
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
     for (;;) {
@@ -137,7 +134,7 @@ symbol_hm_put(SymbolHashmap* hm, Symbol element)
 Symbol*
 symbol_hm_get(SymbolHashmap* hm, char* identifier)
 {
-    uint64_t hash = XXH64(identifier, strlen(identifier), HASH_SEED);
+    uint64_t hash = hash_bytes(identifier, strlen(identifier));
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
 
