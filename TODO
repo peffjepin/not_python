@@ -1,2 +1,3 @@
 global keyword
+decorators
 type hinting for callables

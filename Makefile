@@ -8,6 +8,7 @@ clean:
 	-rm debug_tokens
 	-rm debug_statements
 	-rm debug_lexical_scopes
+	-rm debug_c_compiler
 	-rm test_symbol_hashmap
 	-rm -rf codegen
 	-rm -rf backup
@@ -23,21 +24,30 @@ debug_statements: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_statements.c
 debug_lexical_scopes: $(COMPILER_SOURCES) $(DEBUG_SOURCES) test/debug_lexical_scopes.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
+debug_c_compiler: $(COMPILER_SOURCES) $(DEBUG_SOURCES) test/debug_c_compiler.c
+	$(CC) $(DEBUG_CFLAGS) -o $@ $^
+
 test_symbol_hashmap: $(COMPILER_SOURCES) test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
 run_test_symbol_hashmap: test_symbol_hashmap
 	./$^
 
-test: test_tokens test_statements test_lexical_scopes run_test_symbol_hashmap
+test: test_tokens test_statements test_lexical_scopes test_c_compiler run_test_symbol_hashmap
 
-test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive
+test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_c_compiler_interactive
 
 test_lexical_scopes: debug_lexical_scopes
 	./scripts/test.py ./$^ ./test/samples/scoping
 
 test_lexical_scopes_interactive: debug_lexical_scopes
 	./scripts/test.py ./$^ ./test/samples/scoping -i
+
+test_c_compiler: debug_c_compiler
+	./scripts/test.py ./$^ ./test/samples/compiler
+
+test_c_compiler_interactive: debug_c_compiler
+	./scripts/test.py ./$^ ./test/samples/compiler -i
 
 test_tokens: debug_tokens
 	./scripts/test.py ./$^ ./test/samples/tokenization
