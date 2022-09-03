@@ -1,10 +1,17 @@
 CC = cc
 CFLAGS = -Wall -Wextra -Wpedantic -std=c11
 DEBUG_CFLAGS = $(CFLAGS) -g -DDEBUG=1
-COMPILER_SOURCES = $(wildcard src/*.c)
+SOURCES = $(wildcard src/*.c)
+OBJECTS = $(patsubst src/%.c, build/%.o, $(SOURCES))
+OBJECTS_DEBUG = $(patsubst src/%.c, build/%_db.o, $(SOURCES))
 DEBUG_SOURCES = test/debug_common.c
 
+test: test_tokens test_statements test_lexical_scopes test_c_compiler run_test_symbol_hashmap
+
+test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_c_compiler_interactive
+
 clean:
+	-rm -rf build
 	-rm debug_tokens
 	-rm debug_statements
 	-rm debug_lexical_scopes
@@ -13,29 +20,41 @@ clean:
 	-rm -rf codegen
 	-rm -rf backup
 
-debug: debug_tokens debug_statements
+regenerate:
+	-mkdir backup
+	-mkdir codegen
+	./scripts/codegen.py --out-dir=codegen --module-name=generated
+	-cp src/generated.h backup
+	-cp src/generated.c backup
+	clang-format ./codegen/generated.h > src/generated.h
+	clang-format ./codegen/generated.c > src/generated.c
+	rm -rf codegen
 
-debug_tokens: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_tokenization.c
+build/%.o: src/%.c
+	@mkdir -p build
+	$(CC) -c $^ -o $@
+
+build/%_db.o: src/%.c
+	@mkdir -p build
+	$(CC) $(DEBUG_CFLAGS) -c $^ -o $@
+
+debug_tokens: $(DEBUG_SOURCES) $(OBJECTS_DEBUG) test/debug_tokenization.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
-debug_statements: $(DEBUG_SOURCES) $(COMPILER_SOURCES) test/debug_statements.c
+debug_statements: $(DEBUG_SOURCES) $(OBJECTS_DEBUG) test/debug_statements.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
-debug_lexical_scopes: $(COMPILER_SOURCES) $(DEBUG_SOURCES) test/debug_lexical_scopes.c
+debug_lexical_scopes: $(OBJECTS_DEBUG) $(DEBUG_SOURCES) test/debug_lexical_scopes.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
-debug_c_compiler: $(COMPILER_SOURCES) $(DEBUG_SOURCES) test/debug_c_compiler.c
+debug_c_compiler: $(OBJECTS_DEBUG) $(DEBUG_SOURCES) test/debug_c_compiler.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
-test_symbol_hashmap: $(COMPILER_SOURCES) test/test_symbol_hashmap.c
+test_symbol_hashmap: $(OBJECTS_DEBUG) test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
 run_test_symbol_hashmap: test_symbol_hashmap
 	./$^
-
-test: test_tokens test_statements test_lexical_scopes test_c_compiler run_test_symbol_hashmap
-
-test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_c_compiler_interactive
 
 test_lexical_scopes: debug_lexical_scopes
 	./scripts/test.py ./$^ ./test/samples/scoping
@@ -60,13 +79,3 @@ test_statements: debug_statements
 
 test_statements_interactive: debug_statements
 	./scripts/test.py ./$^ ./test/samples/statements -i
-
-regenerate:
-	-mkdir backup
-	-mkdir codegen
-	./scripts/codegen.py --out-dir=codegen --module-name=generated
-	-cp src/generated.h backup
-	-cp src/generated.c backup
-	clang-format ./codegen/generated.h > src/generated.h
-	clang-format ./codegen/generated.c > src/generated.c
-	rm -rf codegen
