@@ -141,10 +141,7 @@ symbol_hm_get(SymbolHashmap* hm, char* identifier)
     for (;;) {
         int element_index = hm->lookup_table[probe];
         if (element_index < 0) {
-            // TODO: in the future we should return an error code so the caller can
-            // give the user a decent error message
-            fprintf(stderr, "ERROR: identifier (%s) not in hashmap\n", identifier);
-            exit(1);
+            return NULL;
         }
         Symbol* element = hm->elements + element_index;
         if (strcmp(symbol_to_key(*element), identifier) == 0) {
