@@ -5,12 +5,91 @@
 
 #include "hash.h"
 #include "lexer_helpers.h"
+#include "not_python.h"
 #include "type_checker.h"
 
 #define UNREACHABLE(msg) assert(0 && msg);
 
 // TODO: some standard way to implement name mangling will be needed at some point
 // TODO: tracking if variables have been initialized before use and warning if not
+
+typedef struct {
+    size_t capacity;
+    size_t count;
+    StringView* elements;
+    int* lookup;
+} StringHashmap;
+
+static void
+str_hm_rehash(StringHashmap* hm)
+{
+    for (size_t i = 0; i < hm->count; i++) {
+        StringView str = hm->elements[i];
+        uint64_t hash = hash_bytes(str.data + str.offset, str.length);
+        size_t probe = hash % (hm->capacity * 2);
+        for (;;) {
+            int index = hm->lookup[probe];
+            if (index == -1) {
+                hm->lookup[probe] = i;
+                break;
+            }
+            if (probe == hm->capacity * 2)
+                probe = 0;
+            else
+                probe++;
+        }
+    }
+}
+
+static void
+str_hm_grow(StringHashmap* hm)
+{
+    if (hm->capacity == 0)
+        hm->capacity = 16;
+    else
+        hm->capacity *= 2;
+    hm->elements = realloc(hm->elements, sizeof(StringView) * hm->capacity);
+    hm->lookup = realloc(hm->lookup, sizeof(int) * 2 * hm->capacity);
+    if (!hm->elements || !hm->lookup) out_of_memory();
+    memset(hm->lookup, -1, sizeof(int) * 2 * hm->capacity);
+    str_hm_rehash(hm);
+}
+
+static size_t
+str_hm_put(StringHashmap* hm, StringView element)
+{
+    if (hm->count == hm->capacity) str_hm_grow(hm);
+    uint64_t hash = hash_bytes(element.data + element.offset, element.length);
+    size_t probe = hash % (hm->capacity * 2);
+    for (;;) {
+        int index = hm->lookup[probe];
+        if (index == -1) {
+            hm->lookup[probe] = hm->count;
+            hm->elements[hm->count] = element;
+            return hm->count++;
+        }
+        StringView existing = hm->elements[index];
+        if (str_eq(element, existing)) return (size_t)index;
+        if (probe == hm->capacity * 2)
+            probe = 0;
+        else
+            probe++;
+    }
+}
+
+static int
+str_hm_put_cstr(StringHashmap* hm, char* element)
+{
+    StringView sv = {.data = element, .offset = 0, .length = strlen(element)};
+    return str_hm_put(hm, sv);
+}
+
+static void
+str_hm_free(StringHashmap* hm)
+{
+    free(hm->elements);
+    free(hm->lookup);
+}
 
 typedef struct {
     size_t capacity;
@@ -106,6 +185,7 @@ typedef struct {
     LexicalScope* top_level_scope;
     LexicalScopeStack scope_stack;
     IdentifierSet declared_globals;
+    StringHashmap str_hm;
     TypeChecker tc;
     CompilerSection forward;
     CompilerSection variable_declarations;
@@ -118,6 +198,9 @@ typedef struct {
 
 #define DATATYPE_INT "PYINT"
 #define DATATYPE_FLOAT "PYFLOAT"
+#define DATATYPE_STRING "PYSTRING"
+
+#define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
 static void
 untyped_error(void)
@@ -149,8 +232,7 @@ type_info_to_c_syntax(TypeInfo info)
         case PYTYPE_FLOAT:
             return DATATYPE_FLOAT " ";
         case PYTYPE_STRING:
-            UNIMPLEMENTED("str to c syntax unimplemented");
-            break;
+            return DATATYPE_STRING " ";
         case PYTYPE_LIST:
             UNIMPLEMENTED("list to c syntax unimplemented");
             break;
@@ -259,6 +341,7 @@ compile_assignment(C_Compiler* compiler, AssignmentStatement* assignment)
     TypeInfo type_info =
         resolve_operand_type(&compiler->tc, assignment->value->operands[0]);
     Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
+    // TODO: type error instead of overwriting an existing type
     sym->variable->type = type_info;
     write_to_section(&compiler->variable_declarations, type_info_to_c_syntax(type_info));
     write_to_section(&compiler->variable_declarations, identifier);
@@ -271,9 +354,14 @@ compile_assignment(C_Compiler* compiler, AssignmentStatement* assignment)
         write_to_section(&compiler->init_module_function, operand.token.value);
     }
     else if (operand.token.type == TOK_STRING) {
-        write_to_section(&compiler->init_module_function, "\"");
-        write_to_section(&compiler->init_module_function, operand.token.value);
-        write_to_section(&compiler->init_module_function, "\"");
+        size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
+        char strindex[10];
+        sprintf(strindex, "%zu", index);
+        write_to_section(
+            &compiler->init_module_function, STRING_CONSTANTS_TABLE_NAME "["
+        );
+        write_to_section(&compiler->init_module_function, strindex);
+        write_to_section(&compiler->init_module_function, "]");
     }
     else
         UNREACHABLE("unexpected simple expression");
@@ -306,9 +394,14 @@ compile_annotation(C_Compiler* compiler, AnnotationStatement* annotation)
             write_to_section(&compiler->init_module_function, operand.token.value);
         }
         else if (operand.token.type == TOK_STRING) {
-            write_to_section(&compiler->init_module_function, "\"");
-            write_to_section(&compiler->init_module_function, operand.token.value);
-            write_to_section(&compiler->init_module_function, "\"");
+            size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
+            char strindex[10];
+            sprintf(strindex, "%zu", index);
+            write_to_section(
+                &compiler->init_module_function, STRING_CONSTANTS_TABLE_NAME "["
+            );
+            write_to_section(&compiler->init_module_function, strindex);
+            write_to_section(&compiler->init_module_function, "]");
         }
         else
             UNREACHABLE("unexpected simple expression");
@@ -365,9 +458,29 @@ write_section_to_output(CompilerSection* section, FILE* out)
 }
 
 static void
+write_string_constants_table(C_Compiler* compiler)
+{
+    write_to_section(
+        &compiler->forward, DATATYPE_STRING " " STRING_CONSTANTS_TABLE_NAME "[] = {\n"
+    );
+    for (size_t i = 0; i < compiler->str_hm.count; i++) {
+        StringView sv = compiler->str_hm.elements[i];
+        if (i > 0) write_to_section(&compiler->forward, ",\n");
+        write_to_section(&compiler->forward, "{.data=\"");
+        write_to_section(&compiler->forward, sv.data);
+        write_to_section(&compiler->forward, "\", .length=");
+        char length_as_str[10];
+        sprintf(length_as_str, "%zu", sv.length);
+        write_to_section(&compiler->forward, length_as_str);
+        write_to_section(&compiler->forward, "}");
+    }
+    write_to_section(&compiler->forward, "};\n");
+}
+
+static void
 write_to_output(C_Compiler* compiler, FILE* out)
 {
-    // TODO: incomplete
+    write_string_constants_table(compiler);
     write_to_section(&compiler->init_module_function, "}\n");
     write_to_section(&compiler->main_function, "}");
     write_section_to_output(&compiler->forward, out);
@@ -410,8 +523,7 @@ compiler_init(Lexer* lexer)
 #if DEBUG
     write_debug_comment_breaks(&compiler);
 #endif
-    write_to_section(&compiler.forward, "#define " DATATYPE_INT " long long int\n");
-    write_to_section(&compiler.forward, "#define " DATATYPE_FLOAT " double\n");
+    write_to_section(&compiler.forward, "#include <not_python.h>\n");
     write_to_section(&compiler.init_module_function, "static void init_module(void) {\n");
     write_to_section(&compiler.main_function, "int main(void) {\n");
     return compiler;

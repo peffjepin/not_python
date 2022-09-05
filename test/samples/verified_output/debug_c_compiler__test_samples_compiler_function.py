@@ -1,6 +1,7 @@
 // FORWARD COMPILER SECTION
-#define PYINT long long int
-#define PYFLOAT double
+#include <not_python.h>
+PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+};
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
