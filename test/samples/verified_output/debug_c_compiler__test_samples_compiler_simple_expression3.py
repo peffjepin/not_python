@@ -15,20 +15,20 @@ PYINT z;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 {
-PYINT var0 = 1+2;
-PYINT var1 = var0+3;
-x = var1;
+PYINT NP_var0 = 1+2;
+PYINT NP_var1 = NP_var0+3;
+x = NP_var1;
 }
 {
-PYINT var0 = 9-8;
-PYINT var1 = var0-7;
-y = var1;
+PYINT NP_var2 = 9-8;
+PYINT NP_var3 = NP_var2-7;
+y = NP_var3;
 }
 {
-PYINT var0 = 2*x;
-PYINT var1 = 3*y;
-PYINT var2 = var0+var1;
-z = var2;
+PYINT NP_var4 = 2*x;
+PYINT NP_var5 = 3*y;
+PYINT NP_var6 = NP_var4+NP_var5;
+z = NP_var6;
 }
 }
 

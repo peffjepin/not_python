@@ -211,7 +211,17 @@ typedef struct {
     CompilerSection function_definitions;
     CompilerSection init_module_function;
     CompilerSection main_function;
+    size_t unique_vars_counter;
 } C_Compiler;
+
+#define UNIQUE_VARS(compiler_ptr, count, name)                                           \
+    char name[count][12];                                                                \
+    for (size_t i = 0; i < count; i++) {                                                 \
+        sprintf(name[i], "NP_var%zu", compiler_ptr->unique_vars_counter++);              \
+    }
+
+#define UNIQUE_VAR(compiler_ptr, dest)                                                   \
+    sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
 #define DATATYPE_INT "PYINT"
 #define DATATYPE_FLOAT "PYFLOAT"
@@ -306,6 +316,134 @@ expression_block_free(ExpressionBlock block)
     section_free(&block.section);
 }
 
+static ExpressionBlock render_expression(
+    C_Compiler* compiler, Expression* expr, char* destination
+);
+
+// -1 on bad kwd
+// TODO: should check if parser even allows this to happen in the future
+static int
+index_of_kwarg(FunctionStatement* fndef, char* kwd)
+{
+    for (size_t i = 0; i < fndef->sig.params_count; i++) {
+        if (strcmp(kwd, fndef->sig.params[i]) == 0) return i;
+    }
+    return -1;
+}
+
+static void
+write_typed_expr_to_variable(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Expression* expr,
+    TypeInfo type,
+    char* destination
+)
+{
+    // TODO: compare final type with given type
+    write_type_info_to_section(section, type);
+    write_to_section(section, destination);
+    if (is_simple_expression(expr)) {
+        write_to_section(section, " = ");
+        write_simple_operand_to_section(compiler, section, expr->operands[0]);
+        write_to_section(section, ";\n");
+    }
+    else {
+        write_to_section(section, ";\n");
+        ExpressionBlock rendered_value = render_expression(compiler, expr, destination);
+        write_to_section(section, rendered_value.section.buffer);
+        expression_block_free(rendered_value);
+    }
+}
+
+static void
+write_function_call_to_section(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    char* destination,
+    FunctionStatement* fndef,
+    Arguments* args
+)
+{
+    if (args->values_count > fndef->sig.params_count) {
+        // TODO: better error reporting
+        fprintf(stderr, "ERROR: too many arguments provided\n");
+        exit(1);
+    }
+
+    // intermediate variables to store args into
+    UNIQUE_VARS(compiler, fndef->sig.params_count, param_vars)
+
+    bool params_fulfilled[fndef->sig.params_count];
+    memset(params_fulfilled, true, sizeof(bool) * args->n_positional);
+    memset(
+        params_fulfilled + args->n_positional,
+        false,
+        sizeof(bool) * (fndef->sig.params_count - args->n_positional)
+    );
+
+    // parse positional args
+    for (size_t arg_i = 0; arg_i < args->n_positional; arg_i++) {
+        Expression* arg_value = args->values[arg_i];
+        TypeInfo arg_type = fndef->sig.types[arg_i];
+        write_typed_expr_to_variable(
+            compiler, section, arg_value, arg_type, param_vars[arg_i]
+        );
+    }
+
+    // parse kwargs
+    for (size_t i = args->n_positional; i < args->values_count; i++) {
+        int kwd_index = index_of_kwarg(fndef, args->kwds[i - args->n_positional]);
+        if (kwd_index < 0) {
+            // TODO: better error message with location diagnostics
+            fprintf(stderr, "ERROR: bad keyword argument\n");
+            exit(1);
+        }
+        params_fulfilled[kwd_index] = true;
+
+        Expression* arg_value = args->values[i];
+        TypeInfo arg_type = fndef->sig.types[kwd_index];
+        write_typed_expr_to_variable(
+            compiler, section, arg_value, arg_type, param_vars[kwd_index]
+        );
+    }
+
+    // check that all required params are fulfilled
+    size_t required_count = fndef->sig.params_count - fndef->sig.defaults_count;
+    for (size_t i = 0; i < required_count; i++) {
+        if (!params_fulfilled[i]) {
+            // TODO: better error reporting
+            fprintf(stderr, "ERROR: required param not provided\n");
+            exit(1);
+        }
+    }
+
+    // fill in any unprovided values with their default expressions
+    for (size_t i = required_count; i < fndef->sig.params_count; i++) {
+        if (params_fulfilled[i])
+            continue;
+        else {
+            Expression* arg_value = fndef->sig.defaults[i - required_count];
+            TypeInfo arg_type = fndef->sig.types[i];
+            write_typed_expr_to_variable(
+                compiler, section, arg_value, arg_type, param_vars[i]
+            );
+        }
+    }
+
+    // write the call statement
+    write_type_info_to_section(section, fndef->sig.return_type);
+    write_to_section(section, destination);
+    write_to_section(section, " = ");
+    write_to_section(section, fndef->name);
+    write_to_section(section, "(");
+    for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
+        if (arg_i > 0) write_to_section(section, ", ");
+        write_to_section(section, param_vars[arg_i]);
+    }
+    write_to_section(section, ");\n");
+}
+
 /*
  * This function currently creates a new scope and renders each
  * operation of an expression into a variable on a new line and
@@ -318,24 +456,49 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
     ExpressionBlock block = {0};
     write_to_section(&block.section, "{\n");
 
-    size_t intermediate_id_counter = 0;
-    char intermediate_variables[expr->operations_count][10];
-    for (size_t i = 0; i < expr->operations_count; i++) {
-        sprintf(intermediate_variables[i], "var%zu", intermediate_id_counter++);
-    }
-
+    // when rendering: (1 + 2 * 3 + 4)
+    // first 2 * 3 is rendered
+    // next 1 + 2 must know what (2) now refers to the result of (2 * 3)
+    // these variables are used to facilitate this kind of logic
+    UNIQUE_VARS(compiler, expr->operations_count, intermediate_variables)
     TypeInfo resolved_operation_types[expr->operations_count];
-    size_t size_t_values[expr->operands_count];  // static size_t memory for the following
-                                                 // pointer array
-    size_t* operand_to_resolved_operations[expr->operands_count];
+    size_t size_t_ptr_memory[expr->operands_count];
+    size_t* operand_to_resolved_operation_index[expr->operands_count];
     memset(resolved_operation_types, 0, sizeof(TypeInfo) * expr->operations_count);
-    memset(operand_to_resolved_operations, 0, sizeof(size_t*) * expr->operands_count);
+    memset(
+        operand_to_resolved_operation_index, 0, sizeof(size_t*) * expr->operands_count
+    );
 
     for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = expr->operations[i];
+
+        if (operation.op_type == OPERATOR_CALL) {
+            // TODO: does not work for methods
+            // TODO: handle case where function isn't defined
+            char* fn_identifier = expr->operands[operation.left].token.value;
+            Arguments* args = expr->operands[operation.right].args;
+            FunctionStatement* fndef =
+                symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier)->func;
+            resolved_operation_types[i] = fndef->sig.return_type;
+
+            write_function_call_to_section(
+                compiler, &block.section, intermediate_variables[i], fndef, args
+            );
+
+            size_t_ptr_memory[operation.left] = i;
+            size_t_ptr_memory[operation.right] = i;
+            operand_to_resolved_operation_index[operation.left] =
+                size_t_ptr_memory + operation.left;
+            operand_to_resolved_operation_index[operation.right] =
+                size_t_ptr_memory + operation.right;
+            continue;
+        }
+
         size_t operand_indices[2] = {operation.left, operation.right};
         TypeInfo operand_types[2] = {0};
-        char as_variable[2][10] = {0};
+        // If we encounter an expression operand we will assign its value into
+        // an intermediate variable. `as_variable` is to remember the var name.
+        char as_variable[2][12] = {0};
 
         bool is_unary =
             (operation.op_type == OPERATOR_LOGICAL_NOT ||
@@ -343,7 +506,8 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
              operation.op_type == OPERATOR_BITWISE_NOT);
 
         for (size_t j = (is_unary) ? 1 : 0; j < 2; j++) {
-            size_t* resolved_ref = operand_to_resolved_operations[operand_indices[j]];
+            size_t* resolved_ref =
+                operand_to_resolved_operation_index[operand_indices[j]];
             if (resolved_ref) {
                 operand_types[j] = resolved_operation_types[*resolved_ref];
                 continue;
@@ -357,14 +521,12 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
                 case OPERAND_COMPREHENSION:
                     UNIMPLEMENTED("comprehension rendering unimplemented");
                     break;
-                case OPERAND_ARGUMENTS:
-                    UNIMPLEMENTED("arguments rendering unimplemented");
-                    break;
                 case OPERAND_SLICE:
                     UNIMPLEMENTED("slice rendering unimplemented");
                     break;
                 case OPERAND_EXPRESSION: {
-                    sprintf(as_variable[j], "var%zu", intermediate_id_counter++);
+                    // TODO: might be simple expression
+                    UNIQUE_VAR(compiler, as_variable[j]);
                     ExpressionBlock intermediate_block =
                         render_expression(compiler, operand.expr, as_variable[j]);
                     write_type_info_to_section(
@@ -381,6 +543,9 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
                     operand_types[j] = resolve_operand_type(&compiler->tc, operand);
                     break;
                 default:
+                    UNREACHABLE(
+                        "default case in expression rendering should not be reached"
+                    );
                     break;
             }
         }
@@ -391,7 +556,7 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
         write_to_section(&block.section, " = ");
 
         if (!is_unary) {
-            size_t* left_ref = operand_to_resolved_operations[operation.left];
+            size_t* left_ref = operand_to_resolved_operation_index[operation.left];
             if (left_ref) {
                 write_to_section(&block.section, intermediate_variables[*left_ref]);
                 *left_ref = i;
@@ -405,16 +570,16 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
                         compiler, &block.section, expr->operands[operation.left]
                     );
                 }
-                size_t* new_ref = size_t_values + operation.left;
+                size_t* new_ref = size_t_ptr_memory + operation.left;
                 *new_ref = i;
-                operand_to_resolved_operations[operation.left] = new_ref;
+                operand_to_resolved_operation_index[operation.left] = new_ref;
             }
         }
 
         // TODO: this won't work for all operators
         write_to_section(&block.section, (char*)op_to_cstr(operation.op_type));
 
-        size_t* right_ref = operand_to_resolved_operations[operation.right];
+        size_t* right_ref = operand_to_resolved_operation_index[operation.right];
         if (right_ref) {
             write_to_section(&block.section, intermediate_variables[*right_ref]);
             *right_ref = i;
@@ -428,9 +593,9 @@ render_expression(C_Compiler* compiler, Expression* expr, char* destination)
                     compiler, &block.section, expr->operands[operation.right]
                 );
             }
-            size_t* new_ref = size_t_values + operation.right;
+            size_t* new_ref = size_t_ptr_memory + operation.right;
             *new_ref = i;
-            operand_to_resolved_operations[operation.right] = new_ref;
+            operand_to_resolved_operation_index[operation.right] = new_ref;
         }
 
         write_to_section(&block.section, ";\n");
