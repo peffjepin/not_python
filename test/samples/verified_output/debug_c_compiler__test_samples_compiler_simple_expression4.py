@@ -1,0 +1,36 @@
+// FORWARD COMPILER SECTION
+#include <not_python.h>
+PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+};
+
+// STRUCT DECLARATIONS COMPILER SECTION
+
+// VARIABLE DECLARATIONS COMPILER SECTION
+PYFLOAT a;
+
+// FUNCTION DECLARATIONS COMPILER SECTION
+
+// INIT MODULE FUNCTION COMPILER SECTION
+static void init_module(void) {
+{
+PYINT var1;
+{
+PYINT var0 = 2*3;
+PYINT var1 = 1+var0;
+var1 = var1;
+}
+PYFLOAT var2;
+{
+PYINT var0 = 3*2;
+PYFLOAT var1 = var0/4;
+var2 = var1;
+}
+PYFLOAT var0 = var1-var2;
+a = var0;
+}
+}
+
+// MAIN FUNCTION COMPILER SECTION
+int main(void) {
+}
+exitcode=0

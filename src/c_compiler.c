@@ -151,7 +151,11 @@ id_set_add(IdentifierSet* set, char* id)
     }
 }
 
-#define SECTION_CHUNK_SIZE 4096
+static void
+id_set_free(IdentifierSet* set)
+{
+    free(set->elements);
+}
 
 typedef struct {
     size_t capacity;
@@ -163,11 +167,24 @@ typedef struct {
 static void
 section_grow(CompilerSection* section)
 {
-    section->capacity += SECTION_CHUNK_SIZE;
-    section->remaining += SECTION_CHUNK_SIZE;
+    if (section->capacity == 0) {
+        section->capacity = 128;
+        section->remaining = 128;
+    }
+    else {
+        section->remaining += section->capacity;
+        section->capacity *= 2;
+    }
     section->buffer = realloc(section->buffer, section->capacity);
     section->write = section->buffer + section->capacity - section->remaining;
     if (!section->buffer) out_of_memory();
+    memset(section->write, 0, section->remaining);
+}
+
+static void
+section_free(CompilerSection* section)
+{
+    free(section->buffer);
 }
 
 static void
@@ -175,7 +192,7 @@ write_to_section(CompilerSection* section, char* data)
 {
     char c;
     while ((c = *(data++)) != '\0') {
-        if (section->remaining == 0) section_grow(section);
+        if (section->remaining <= 1) section_grow(section);
         *(section->write++) = c;
         section->remaining -= 1;
     }
@@ -217,8 +234,8 @@ is_simple_expression(Expression* expr)
     return (expr->operations_count == 0 && expr->operands[0].kind == OPERAND_TOKEN);
 }
 
-static char*
-type_info_to_c_syntax(TypeInfo info)
+static void
+write_type_info_to_section(CompilerSection* section, TypeInfo info)
 {
     switch (info.type) {
         case PYTYPE_UNTYPED:
@@ -228,11 +245,14 @@ type_info_to_c_syntax(TypeInfo info)
             UNIMPLEMENTED("None to c syntax unimplemented");
             break;
         case PYTYPE_INT:
-            return DATATYPE_INT " ";
+            write_to_section(section, DATATYPE_INT " ");
+            break;
         case PYTYPE_FLOAT:
-            return DATATYPE_FLOAT " ";
+            write_to_section(section, DATATYPE_FLOAT " ");
+            break;
         case PYTYPE_STRING:
-            return DATATYPE_STRING " ";
+            write_to_section(section, DATATYPE_STRING " ");
+            break;
         case PYTYPE_LIST:
             UNIMPLEMENTED("list to c syntax unimplemented");
             break;
@@ -249,22 +269,192 @@ type_info_to_c_syntax(TypeInfo info)
             UNREACHABLE("default type info to c syntax");
             break;
     }
-    UNREACHABLE("end of compile statement switch")
+}
+
+static void
+write_simple_operand_to_section(
+    C_Compiler* compiler, CompilerSection* section, Operand operand
+)
+{
+    if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER) {
+        write_to_section(section, operand.token.value);
+    }
+    else if (operand.token.type == TOK_STRING) {
+        size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
+        char strindex[10];
+        sprintf(strindex, "%zu", index);
+        write_to_section(section, STRING_CONSTANTS_TABLE_NAME "[");
+        write_to_section(section, strindex);
+        write_to_section(section, "]");
+    }
+    else
+        UNREACHABLE("unexpected simple operand");
+}
+
+typedef struct {
+    // a block that renders each expression operation to a temporary variable
+    // and assigns the result to a variable that must have been already
+    // declared outside the scope
+    CompilerSection section;
+    // the type info of the fully resolved expression
+    TypeInfo final_type;
+} ExpressionBlock;
+
+static void
+expression_block_free(ExpressionBlock block)
+{
+    section_free(&block.section);
+}
+
+/*
+ * This function currently creates a new scope and renders each
+ * operation of an expression into a variable on a new line and
+ * assigns the final value to the destination at the end. I may
+ * want to revisit this after the rest of the compiler is implemented.
+ */
+static ExpressionBlock
+render_expression(C_Compiler* compiler, Expression* expr, char* destination)
+{
+    ExpressionBlock block = {0};
+    write_to_section(&block.section, "{\n");
+
+    size_t intermediate_id_counter = 0;
+    char intermediate_variables[expr->operations_count][10];
+    for (size_t i = 0; i < expr->operations_count; i++) {
+        sprintf(intermediate_variables[i], "var%zu", intermediate_id_counter++);
+    }
+
+    TypeInfo resolved_operation_types[expr->operations_count];
+    size_t size_t_values[expr->operands_count];  // static size_t memory for the following
+                                                 // pointer array
+    size_t* operand_to_resolved_operations[expr->operands_count];
+    memset(resolved_operation_types, 0, sizeof(TypeInfo) * expr->operations_count);
+    memset(operand_to_resolved_operations, 0, sizeof(size_t*) * expr->operands_count);
+
+    for (size_t i = 0; i < expr->operations_count; i++) {
+        Operation operation = expr->operations[i];
+        size_t operand_indices[2] = {operation.left, operation.right};
+        TypeInfo operand_types[2] = {0};
+        char as_variable[2][10] = {0};
+
+        bool is_unary =
+            (operation.op_type == OPERATOR_LOGICAL_NOT ||
+             operation.op_type == OPERATOR_NEGATIVE ||
+             operation.op_type == OPERATOR_BITWISE_NOT);
+
+        for (size_t j = (is_unary) ? 1 : 0; j < 2; j++) {
+            size_t* resolved_ref = operand_to_resolved_operations[operand_indices[j]];
+            if (resolved_ref) {
+                operand_types[j] = resolved_operation_types[*resolved_ref];
+                continue;
+            }
+
+            Operand operand = expr->operands[operand_indices[j]];
+            switch (operand.kind) {
+                case OPERAND_ENCLOSURE_LITERAL:
+                    UNIMPLEMENTED("enclosure literal rendering unimplemented");
+                    break;
+                case OPERAND_COMPREHENSION:
+                    UNIMPLEMENTED("comprehension rendering unimplemented");
+                    break;
+                case OPERAND_ARGUMENTS:
+                    UNIMPLEMENTED("arguments rendering unimplemented");
+                    break;
+                case OPERAND_SLICE:
+                    UNIMPLEMENTED("slice rendering unimplemented");
+                    break;
+                case OPERAND_EXPRESSION: {
+                    sprintf(as_variable[j], "var%zu", intermediate_id_counter++);
+                    ExpressionBlock intermediate_block =
+                        render_expression(compiler, operand.expr, as_variable[j]);
+                    write_type_info_to_section(
+                        &block.section, intermediate_block.final_type
+                    );
+                    write_to_section(&block.section, as_variable[j]);
+                    write_to_section(&block.section, ";\n");
+                    write_to_section(&block.section, intermediate_block.section.buffer);
+                    operand_types[j] = intermediate_block.final_type;
+                    expression_block_free(intermediate_block);
+                    break;
+                }
+                case OPERAND_TOKEN:
+                    operand_types[j] = resolve_operand_type(&compiler->tc, operand);
+                    break;
+                default:
+                    break;
+            }
+        }
+        resolved_operation_types[i] =
+            resolve_operation_type(operand_types[0], operand_types[1], operation.op_type);
+        write_type_info_to_section(&block.section, resolved_operation_types[i]);
+        write_to_section(&block.section, intermediate_variables[i]);
+        write_to_section(&block.section, " = ");
+
+        if (!is_unary) {
+            size_t* left_ref = operand_to_resolved_operations[operation.left];
+            if (left_ref) {
+                write_to_section(&block.section, intermediate_variables[*left_ref]);
+                *left_ref = i;
+            }
+            else {
+                if (as_variable[0][0] != '\0') {
+                    write_to_section(&block.section, as_variable[0]);
+                }
+                else {
+                    write_simple_operand_to_section(
+                        compiler, &block.section, expr->operands[operation.left]
+                    );
+                }
+                size_t* new_ref = size_t_values + operation.left;
+                *new_ref = i;
+                operand_to_resolved_operations[operation.left] = new_ref;
+            }
+        }
+
+        // TODO: this won't work for all operators
+        write_to_section(&block.section, (char*)op_to_cstr(operation.op_type));
+
+        size_t* right_ref = operand_to_resolved_operations[operation.right];
+        if (right_ref) {
+            write_to_section(&block.section, intermediate_variables[*right_ref]);
+            *right_ref = i;
+        }
+        else {
+            if (as_variable[1][0] != '\0') {
+                write_to_section(&block.section, as_variable[1]);
+            }
+            else {
+                write_simple_operand_to_section(
+                    compiler, &block.section, expr->operands[operation.right]
+                );
+            }
+            size_t* new_ref = size_t_values + operation.right;
+            *new_ref = i;
+            operand_to_resolved_operations[operation.right] = new_ref;
+        }
+
+        write_to_section(&block.section, ";\n");
+    }
+
+    write_to_section(&block.section, destination);
+    write_to_section(&block.section, " = ");
+    write_to_section(&block.section, intermediate_variables[expr->operations_count - 1]);
+    write_to_section(&block.section, ";\n}\n");
+
+    block.final_type = resolved_operation_types[expr->operations_count - 1];
+
+    return block;
 }
 
 static void
 compile_function(C_Compiler* compiler, FunctionStatement* func)
 {
-    write_to_section(
-        &compiler->function_declarations, type_info_to_c_syntax(func->sig.return_type)
-    );
+    write_type_info_to_section(&compiler->function_declarations, func->sig.return_type);
     write_to_section(&compiler->function_declarations, func->name);
     write_to_section(&compiler->function_declarations, "(");
     for (size_t i = 0; i < func->sig.params_count; i++) {
         if (i > 0) write_to_section(&compiler->function_declarations, ", ");
-        write_to_section(
-            &compiler->function_declarations, type_info_to_c_syntax(func->sig.types[i])
-        );
+        write_type_info_to_section(&compiler->function_declarations, func->sig.types[i]);
         write_to_section(&compiler->function_declarations, func->sig.params[i]);
     }
     write_to_section(&compiler->function_declarations, ");\n");
@@ -299,9 +489,8 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
             case SYM_MEMBER:
                 if (member_count > 0)
                     write_to_section(&compiler->struct_declarations, ", ");
-                write_to_section(
-                    &compiler->struct_declarations,
-                    type_info_to_c_syntax(sym.member->type)
+                write_type_info_to_section(
+                    &compiler->struct_declarations, sym.member->type
                 );
                 write_to_section(&compiler->struct_declarations, sym.member->identifier);
                 member_count += 1;
@@ -323,6 +512,33 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
 }
 
 static void
+inconsistent_typing(void)
+{
+    // TODO: provide context and a good error message
+    fprintf(stderr, "ERROR: inconsistent typing");
+    exit(1);
+}
+
+static void
+declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
+{
+    if (!id_set_add(&compiler->declared_globals, identifier)) {
+        // already declared
+        return;
+    }
+    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
+    if (sym->variable->type.type == PYTYPE_UNTYPED) {
+        sym->variable->type = type;
+    }
+    else if (!compare_types(type, sym->variable->type)) {
+        inconsistent_typing();
+    }
+    write_type_info_to_section(&compiler->variable_declarations, type);
+    write_to_section(&compiler->variable_declarations, identifier);
+    write_to_section(&compiler->variable_declarations, ";\n");
+}
+
+static void
 compile_assignment(C_Compiler* compiler, AssignmentStatement* assignment)
 {
     if (assignment->op_type != OPERATOR_ASSIGNMENT) {
@@ -330,82 +546,68 @@ compile_assignment(C_Compiler* compiler, AssignmentStatement* assignment)
     }
     if (scope_stack_peek(&compiler->scope_stack) != compiler->top_level_scope)
         UNIMPLEMENTED("inner scope assignments not implemented");
-    if (!is_simple_expression(assignment->value)) {
-        UNIMPLEMENTED("complex expression compilation not yet implemented");
-    }
     if (!is_simple_expression(assignment->storage)) {
-        UNIMPLEMENTED("complex expression compilation not yet implemented");
+        UNIMPLEMENTED("assignment to non-variables not yet implemented");
     }
-    // TODO: make sure this isnt a re-declaration
-    char* identifier = assignment->storage->operands[0].token.value;
-    TypeInfo type_info =
-        resolve_operand_type(&compiler->tc, assignment->value->operands[0]);
-    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
-    // TODO: type error instead of overwriting an existing type
-    sym->variable->type = type_info;
-    write_to_section(&compiler->variable_declarations, type_info_to_c_syntax(type_info));
-    write_to_section(&compiler->variable_declarations, identifier);
-    write_to_section(&compiler->variable_declarations, ";\n");
 
-    write_to_section(&compiler->init_module_function, identifier);
-    write_to_section(&compiler->init_module_function, " = ");
-    Operand operand = assignment->value->operands[0];
-    if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER) {
-        write_to_section(&compiler->init_module_function, operand.token.value);
-    }
-    else if (operand.token.type == TOK_STRING) {
-        size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
-        char strindex[10];
-        sprintf(strindex, "%zu", index);
-        write_to_section(
-            &compiler->init_module_function, STRING_CONSTANTS_TABLE_NAME "["
+    char* identifier = assignment->storage->operands[0].token.value;
+
+    if (is_simple_expression(assignment->value)) {
+        TypeInfo type_info =
+            resolve_operand_type(&compiler->tc, assignment->value->operands[0]);
+        declare_global_variable(compiler, type_info, identifier);
+        write_to_section(&compiler->init_module_function, identifier);
+        write_to_section(&compiler->init_module_function, " = ");
+        write_simple_operand_to_section(
+            compiler, &compiler->init_module_function, assignment->value->operands[0]
         );
-        write_to_section(&compiler->init_module_function, strindex);
-        write_to_section(&compiler->init_module_function, "]");
+        write_to_section(&compiler->init_module_function, ";\n");
     }
-    else
-        UNREACHABLE("unexpected simple expression");
-    write_to_section(&compiler->init_module_function, ";\n");
+    else {
+        ExpressionBlock value_render =
+            render_expression(compiler, assignment->value, identifier);
+        declare_global_variable(compiler, value_render.final_type, identifier);
+        write_to_section(&compiler->init_module_function, value_render.section.buffer);
+        expression_block_free(value_render);
+    }
 }
 
 static void
 compile_annotation(C_Compiler* compiler, AnnotationStatement* annotation)
 {
     // TODO: make sure this isnt a re-declaration
+    // TODO: implement default values for class members
+    //
     if (scope_stack_peek(&compiler->scope_stack) != compiler->top_level_scope) return;
-    write_to_section(
-        &compiler->variable_declarations, type_info_to_c_syntax(annotation->type)
-    );
-    write_to_section(&compiler->variable_declarations, annotation->identifier);
-    write_to_section(&compiler->variable_declarations, ";\n");
+
+    declare_global_variable(compiler, annotation->type, annotation->identifier);
+
     if (annotation->initial) {
-        if (!is_simple_expression(annotation->initial)) {
-            UNIMPLEMENTED("complex expression compilation not yet implemented");
-        }
-        Operand operand = annotation->initial->operands[0];
-        TypeInfo type_info =
-            resolve_operand_type(&compiler->tc, annotation->initial->operands[0]);
-        // TODO: implement a typechecker fucntion to determine if casting is safe
-        if (!compare_types(type_info, annotation->type))
-            UNIMPLEMENTED("assignments from differing types not implementd");
-        write_to_section(&compiler->init_module_function, annotation->identifier);
-        write_to_section(&compiler->init_module_function, " = ");
-        if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER) {
-            write_to_section(&compiler->init_module_function, operand.token.value);
-        }
-        else if (operand.token.type == TOK_STRING) {
-            size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
-            char strindex[10];
-            sprintf(strindex, "%zu", index);
-            write_to_section(
-                &compiler->init_module_function, STRING_CONSTANTS_TABLE_NAME "["
+        if (is_simple_expression(annotation->initial)) {
+            Operand operand = annotation->initial->operands[0];
+            TypeInfo type_info =
+                resolve_operand_type(&compiler->tc, annotation->initial->operands[0]);
+            if (!compare_types(type_info, annotation->type))
+                // TODO: implement a typechecker fucntion to determine if casting is safe
+                UNIMPLEMENTED("assignments from differing types not implemented");
+            write_to_section(&compiler->init_module_function, annotation->identifier);
+            write_to_section(&compiler->init_module_function, " = ");
+            write_simple_operand_to_section(
+                compiler, &compiler->init_module_function, operand
             );
-            write_to_section(&compiler->init_module_function, strindex);
-            write_to_section(&compiler->init_module_function, "]");
+            write_to_section(&compiler->init_module_function, ";\n");
         }
-        else
-            UNREACHABLE("unexpected simple expression");
-        write_to_section(&compiler->init_module_function, ";\n");
+        else {
+            ExpressionBlock value_render =
+                render_expression(compiler, annotation->initial, annotation->identifier);
+            declare_global_variable(
+                compiler, value_render.final_type, annotation->identifier
+            );
+            write_to_section(
+                &compiler->init_module_function, value_render.section.buffer
+            );
+            expression_block_free(value_render);
+        }
     }
 }
 
@@ -537,4 +739,14 @@ compile_to_c(FILE* outfile, Lexer* lexer)
         compile_statement(&compiler, lexer->statements[i]);
     }
     write_to_output(&compiler, outfile);
+
+    str_hm_free(&compiler.str_hm);
+    id_set_free(&compiler.declared_globals);
+    section_free(&compiler.forward);
+    section_free(&compiler.variable_declarations);
+    section_free(&compiler.struct_declarations);
+    section_free(&compiler.function_declarations);
+    section_free(&compiler.function_definitions);
+    section_free(&compiler.init_module_function);
+    section_free(&compiler.main_function);
 }
