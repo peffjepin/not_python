@@ -1432,6 +1432,13 @@ parse_statement(Parser* parser)
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
+            case KW_RETURN: {
+                discard_next_token(parser);
+                stmt->kind = STMT_RETURN;
+                stmt->ret = arena_alloc(parser->arena, sizeof(ReturnStatement));
+                stmt->ret->value = parse_expression(parser);
+                return stmt;
+            }
             case KW_FOR: {
                 stmt->kind = STMT_FOR_LOOP;
                 stmt->for_loop = parse_for_loop(parser, stmt->loc.col);

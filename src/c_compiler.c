@@ -646,6 +646,8 @@ compile_statement(C_Compiler* compiler, Statement* stmt)
             UNIMPLEMENTED("no-op statement is unimplemented");
         case STMT_EOF:
             break;
+        case STMT_RETURN:
+            UNIMPLEMENTED("return statement is unimplemented");
         case NULL_STMT:
             UNIMPLEMENTED("null statement is unimplemented");
         default:

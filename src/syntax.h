@@ -244,6 +244,10 @@ typedef struct {
     Block body;
 } ForLoopStatement;
 
+typedef struct {
+    Expression* value;
+} ReturnStatement;
+
 typedef enum {
     NULL_STMT,
     STMT_EXPR,
@@ -258,6 +262,7 @@ typedef enum {
     STMT_FUNCTION,
     STMT_ASSIGNMENT,
     STMT_ANNOTATION,
+    STMT_RETURN,
     STMT_EOF,
 } StatementKind;
 
@@ -274,6 +279,7 @@ struct Statement {
         FunctionStatement* func;
         AssignmentStatement* assignment;
         AnnotationStatement* annotation;
+        ReturnStatement* ret;
         Expression* expr;
     };
     Location loc;
