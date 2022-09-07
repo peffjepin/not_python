@@ -16,6 +16,6 @@ typedef struct {
 
 bool str_eq(StringView str1, StringView str2);
 
-void builtin_print(StringView str);
+void builtin_print(size_t argc, ...);
 
 #endif

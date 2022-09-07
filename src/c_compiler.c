@@ -199,6 +199,7 @@ write_to_section(CompilerSection* section, char* data)
 }
 
 typedef struct {
+    Arena* arena;
     LexicalScope* top_level_scope;
     LexicalScopeStack scope_stack;
     IdentifierSet declared_globals;
@@ -323,9 +324,11 @@ write_simple_expression_to_section(
     Operand operand = expr->operands[0];
 
     TypeInfo expr_type = resolve_operand_type(&compiler->tc, operand);
-    if (!dest_is_declared) write_type_info_to_section(section, expr_type);
-    write_to_section(section, destination);
-    write_to_section(section, " = ");
+    if (destination) {
+        if (!dest_is_declared) write_type_info_to_section(section, expr_type);
+        write_to_section(section, destination);
+        write_to_section(section, " = ");
+    }
     write_simple_operand_to_section(compiler, section, operand);
     write_to_section(section, ";\n");
 
@@ -458,6 +461,61 @@ write_function_call_to_section(
     write_to_section(section, ");\n");
 }
 
+static TypeInfo
+render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* args)
+{
+    if (args->values_count != args->n_positional) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: print doesn't take keyword arguments\n");
+        exit(1);
+    }
+    DEFINE_UNIQUE_VARS(compiler, args->values_count, string_vars)
+    for (size_t i = 0; i < args->values_count; i++) {
+        TypeInfo arg_type =
+            render_expression(compiler, section, args->values[i], string_vars[i], false);
+        if (arg_type.type != PYTYPE_STRING) {
+            // TODO: error message
+            fprintf(stderr, "ERROR: print only takes strings as arguments\n");
+            exit(1);
+        }
+    }
+    char arg_count_as_str[10] = {0};
+    sprintf(arg_count_as_str, "%zu", args->values_count);
+    write_to_section(section, "builtin_print(");
+    write_to_section(section, arg_count_as_str);
+    write_to_section(section, ", ");
+    for (size_t i = 0; i < args->values_count; i++) {
+        if (i > 0) write_to_section(section, ", ");
+        write_to_section(section, string_vars[i]);
+    }
+    write_to_section(section, ");\n");
+    return (TypeInfo){.type = PYTYPE_NONE};
+}
+
+// TODO: parser will need to enforce that builtins dont get defined by the user
+static TypeInfo
+render_builtin(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    char* destination,
+    bool dest_is_declared,
+    char* fn_identifier,
+    Arguments* args
+)
+{
+    (void)destination;
+    (void)dest_is_declared;
+    if (strcmp(fn_identifier, "print") == 0) {
+        render_builtin_print(compiler, section, args);
+        return (TypeInfo){.type = PYTYPE_NONE};
+    }
+    else {
+        // TODO: better error message
+        fprintf(stderr, "ERROR: function undefined (%s)\n", fn_identifier);
+        exit(1);
+    }
+}
+
 /*
  * This function currently creates a new scope and renders each
  * operation of an expression into a variable on a new line and
@@ -497,11 +555,20 @@ render_expression(
 
         if (operation.op_type == OPERATOR_CALL) {
             // TODO: does not work for methods
-            // TODO: handle case where function isn't defined
             char* fn_identifier = expr->operands[operation.left].token.value;
             Arguments* args = expr->operands[operation.right].args;
-            FunctionStatement* fndef =
-                symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier)->func;
+            Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
+            if (!sym) {
+                return render_builtin(
+                    compiler,
+                    section,
+                    this_operation_dest,
+                    dest_is_declared,
+                    fn_identifier,
+                    args
+                );
+            }
+            FunctionStatement* fndef = sym->func;
             resolved_operation_types[i] = fndef->sig.return_type;
 
             write_function_call_to_section(
@@ -566,11 +633,14 @@ render_expression(
         }
         resolved_operation_types[i] =
             resolve_operation_type(operand_types[0], operand_types[1], operation.op_type);
-        // on the final assignment, if the destination is already declared, dont add type
-        if (i != expr->operations_count - 1 || !dest_is_declared)
-            write_type_info_to_section(section, resolved_operation_types[i]);
-        write_to_section(section, this_operation_dest);
-        write_to_section(section, " = ");
+        if (this_operation_dest) {
+            // on the final assignment, if the destination is already declared, dont add
+            // type
+            if (i != expr->operations_count - 1 || !dest_is_declared)
+                write_type_info_to_section(section, resolved_operation_types[i]);
+            write_to_section(section, this_operation_dest);
+            write_to_section(section, " = ");
+        }
 
         if (!is_unary) {
             size_t* left_ref = operand_to_resolved_operation_index[operation.left];
@@ -751,6 +821,13 @@ compile_annotation(C_Compiler* compiler, AnnotationStatement* annotation)
     }
 }
 
+static void
+compile_expression(C_Compiler* compiler, Expression* expr)
+{
+    // TODO: dont assume global scope
+    render_expression(compiler, &compiler->init_module_function, expr, NULL, false);
+}
+
 void
 compile_statement(C_Compiler* compiler, Statement* stmt)
 {
@@ -781,7 +858,8 @@ compile_statement(C_Compiler* compiler, Statement* stmt)
             compile_annotation(compiler, stmt->annotation);
             break;
         case STMT_EXPR:
-            UNIMPLEMENTED("expr statement is unimplemented");
+            compile_expression(compiler, stmt->expr);
+            break;
         case STMT_NO_OP:
             UNIMPLEMENTED("no-op statement is unimplemented");
         case STMT_EOF:
@@ -862,7 +940,8 @@ static C_Compiler
 compiler_init(Lexer* lexer)
 {
     TypeChecker tc = {.arena = lexer->arena, .globals = lexer->top_level, .locals = NULL};
-    C_Compiler compiler = {.top_level_scope = lexer->top_level, .tc = tc};
+    C_Compiler compiler = {
+        .arena = lexer->arena, .top_level_scope = lexer->top_level, .tc = tc};
     scope_stack_push(&compiler.scope_stack, lexer->top_level);
 #if DEBUG
     write_debug_comment_breaks(&compiler);

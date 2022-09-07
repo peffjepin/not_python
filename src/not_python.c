@@ -1,5 +1,6 @@
 #include "not_python.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
@@ -15,8 +16,16 @@ str_eq(StringView str1, StringView str2)
 }
 
 void
-builtin_print(StringView str)
+builtin_print(size_t argc, ...)
 {
-    fwrite(str.data, str.length, 1, stdout);
+    va_list vargs;
+    va_start(vargs, argc);
+
+    for (size_t i = 0; i < argc; i++) {
+        if (i > 0) fprintf(stdout, " ");
+        StringView str = va_arg(vargs, StringView);
+        fprintf(stdout, "%.*s", (int)str.length, str.data + str.offset);
+    }
+    fprintf(stdout, "\n");
     fflush(stdout);
 }
