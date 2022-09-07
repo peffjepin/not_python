@@ -13,19 +13,12 @@ PYINT my_function(PYINT x, PYINT y, PYINT z, PYINT w);
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-{
-PYINT NP_var1 = 1;
-PYINT NP_var2 = 2;
-PYINT NP_var4;
-{
-PYINT NP_var5 = 5*4;
-PYINT NP_var6 = NP_var5+1;
-NP_var4 = NP_var6;
-}
-PYINT NP_var3 = 3;
-PYINT NP_var0 = my_function(NP_var1, NP_var2, NP_var3, NP_var4);
-a = NP_var0;
-}
+PYINT NP_var0 = 1;
+PYINT NP_var1 = 2;
+PYINT NP_var4 = 5*4;
+PYINT NP_var3 = NP_var4+1;
+PYINT NP_var2 = 3;
+a = my_function(NP_var0, NP_var1, NP_var2, NP_var3);
 }
 
 // MAIN FUNCTION COMPILER SECTION

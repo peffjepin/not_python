@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define PYINT long long int
+#define PYFLOAT double
+#define PYSTRING StringView
+
 typedef struct {
     char* data;
     size_t offset;
@@ -12,8 +16,6 @@ typedef struct {
 
 bool str_eq(StringView str1, StringView str2);
 
-#define PYINT long long int
-#define PYFLOAT double
-#define PYSTRING StringView
+void builtin_print(StringView str);
 
 #endif

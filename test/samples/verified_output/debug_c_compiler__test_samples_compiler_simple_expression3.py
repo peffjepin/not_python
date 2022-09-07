@@ -14,22 +14,13 @@ PYINT z;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-{
 PYINT NP_var0 = 1+2;
-PYINT NP_var1 = NP_var0+3;
-x = NP_var1;
-}
-{
-PYINT NP_var2 = 9-8;
-PYINT NP_var3 = NP_var2-7;
-y = NP_var3;
-}
-{
-PYINT NP_var4 = 2*x;
-PYINT NP_var5 = 3*y;
-PYINT NP_var6 = NP_var4+NP_var5;
-z = NP_var6;
-}
+x = NP_var0+3;
+PYINT NP_var1 = 9-8;
+y = NP_var1-7;
+PYINT NP_var2 = 2*x;
+PYINT NP_var3 = 3*y;
+z = NP_var2+NP_var3;
 }
 
 // MAIN FUNCTION COMPILER SECTION

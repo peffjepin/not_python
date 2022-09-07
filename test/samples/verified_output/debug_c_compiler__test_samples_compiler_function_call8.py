@@ -1,27 +1,3 @@
-// FORWARD COMPILER SECTION
-#include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+ERROR: inconsistent typing
 
-// STRUCT DECLARATIONS COMPILER SECTION
-
-// VARIABLE DECLARATIONS COMPILER SECTION
-PYINT z;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
-PYINT my_function(PYINT x, PYFLOAT y);
-
-// INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
-{
-PYFLOAT NP_var2 = 2;
-PYINT NP_var1 = 1;
-PYINT NP_var0 = my_function(NP_var1, NP_var2);
-z = NP_var0;
-}
-}
-
-// MAIN FUNCTION COMPILER SECTION
-int main(void) {
-}
-exitcode=0
+exitcode=1

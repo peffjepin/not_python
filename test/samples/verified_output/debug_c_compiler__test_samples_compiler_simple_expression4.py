@@ -12,22 +12,11 @@ PYFLOAT a;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-{
-PYINT NP_var1;
-{
-PYINT NP_var2 = 2*3;
-PYINT NP_var3 = 1+NP_var2;
-NP_var1 = NP_var3;
-}
-PYFLOAT NP_var4;
-{
-PYINT NP_var5 = 3*2;
-PYFLOAT NP_var6 = NP_var5/4;
-NP_var4 = NP_var6;
-}
-PYFLOAT NP_var0 = NP_var1-NP_var4;
-a = NP_var0;
-}
+PYINT NP_var1 = 2*3;
+PYINT NP_var0 = 1+NP_var1;
+PYINT NP_var3 = 3*2;
+PYFLOAT NP_var2 = NP_var3/4;
+a = NP_var0-NP_var2;
 }
 
 // MAIN FUNCTION COMPILER SECTION

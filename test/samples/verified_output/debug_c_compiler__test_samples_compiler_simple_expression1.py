@@ -16,11 +16,8 @@ PYINT z;
 static void init_module(void) {
 x = 1;
 y = 2;
-{
 PYINT NP_var0 = x+y;
-PYINT NP_var1 = NP_var0+3;
-z = NP_var1;
-}
+z = NP_var0+3;
 }
 
 // MAIN FUNCTION COMPILER SECTION

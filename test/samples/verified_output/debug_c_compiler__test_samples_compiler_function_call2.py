@@ -13,11 +13,8 @@ PYINT my_func(PYINT x);
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-{
-PYINT NP_var1 = 3;
-PYINT NP_var0 = my_func(NP_var1);
-y = NP_var0;
-}
+PYINT NP_var0 = 3;
+y = my_func(NP_var0);
 }
 
 // MAIN FUNCTION COMPILER SECTION
