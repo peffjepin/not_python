@@ -11,11 +11,17 @@ PYINT z;
 // FUNCTION DECLARATIONS COMPILER SECTION
 PYINT my_function(PYINT x, PYFLOAT y);
 
+// FUNCTION DEFINITIONS COMPILER SECTION
+PYINT my_function(PYINT x, PYFLOAT y) {
+PYFLOAT NP_var0 = x/y;
+return NP_var0;
+}
+
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-PYINT NP_var0 = 1;
-PYFLOAT NP_var1 = 2.0;
-z = my_function(NP_var0, NP_var1);
+PYINT NP_var1 = 1;
+PYFLOAT NP_var2 = 2.0;
+z = my_function(NP_var1, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

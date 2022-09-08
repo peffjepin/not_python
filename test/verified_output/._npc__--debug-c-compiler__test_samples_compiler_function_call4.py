@@ -11,13 +11,19 @@ PYINT z;
 // FUNCTION DECLARATIONS COMPILER SECTION
 PYINT my_function(PYINT x, PYINT y);
 
+// FUNCTION DEFINITIONS COMPILER SECTION
+PYINT my_function(PYINT x, PYINT y) {
+PYINT NP_var0 = x+y;
+return NP_var0;
+}
+
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-PYINT NP_var2 = 1+2;
-PYINT NP_var0 = NP_var2+3;
-PYINT NP_var3 = 4*5;
-PYINT NP_var1 = NP_var3*6;
-z = my_function(NP_var0, NP_var1);
+PYINT NP_var3 = 1+2;
+PYINT NP_var1 = NP_var3+3;
+PYINT NP_var4 = 4*5;
+PYINT NP_var2 = NP_var4*6;
+z = my_function(NP_var1, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

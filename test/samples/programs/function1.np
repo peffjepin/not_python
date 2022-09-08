@@ -1,0 +1,7 @@
+def my_function(print_me: str) -> int:
+    print(print_me)
+    # None isn't implemented at this moment so returning int
+    return 0
+
+
+my_function("Hello")

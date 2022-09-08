@@ -11,6 +11,12 @@ PYINT x;
 // FUNCTION DECLARATIONS COMPILER SECTION
 PYINT my_func();
 
+// FUNCTION DEFINITIONS COMPILER SECTION
+PYINT my_func() {
+PYINT NP_var0 = 1;
+return NP_var0;
+}
+
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 x = my_func();

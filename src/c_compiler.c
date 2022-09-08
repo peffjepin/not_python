@@ -335,6 +335,10 @@ write_simple_expression_to_section(
     return expr_type;
 }
 
+static void compile_statement(
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
+);
+
 static TypeInfo render_expression(
     C_Compiler* compiler,
     CompilerSection* section,
@@ -449,9 +453,12 @@ write_function_call_to_section(
     }
 
     // write the call statement
-    if (!dest_is_declared) write_type_info_to_section(section, fndef->sig.return_type);
-    write_to_section(section, destination);
-    write_to_section(section, " = ");
+    if (destination) {
+        if (!dest_is_declared)
+            write_type_info_to_section(section, fndef->sig.return_type);
+        write_to_section(section, destination);
+        write_to_section(section, " = ");
+    }
     write_to_section(section, fndef->name);
     write_to_section(section, "(");
     for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
@@ -695,16 +702,33 @@ render_expression(
 static void
 compile_function(C_Compiler* compiler, FunctionStatement* func)
 {
-    write_type_info_to_section(&compiler->function_declarations, func->sig.return_type);
-    write_to_section(&compiler->function_declarations, func->name);
-    write_to_section(&compiler->function_declarations, "(");
-    for (size_t i = 0; i < func->sig.params_count; i++) {
-        if (i > 0) write_to_section(&compiler->function_declarations, ", ");
-        write_type_info_to_section(&compiler->function_declarations, func->sig.types[i]);
-        write_to_section(&compiler->function_declarations, func->sig.params[i]);
+    CompilerSection* sections[2] = {
+        &compiler->function_declarations, &compiler->function_definitions};
+
+    for (size_t i = 0; i < 2; i++) {
+        write_type_info_to_section(sections[i], func->sig.return_type);
+        write_to_section(sections[i], func->name);
+        write_to_section(sections[i], "(");
+        for (size_t j = 0; j < func->sig.params_count; j++) {
+            if (j > 0) write_to_section(sections[i], ", ");
+            write_type_info_to_section(sections[i], func->sig.types[j]);
+            write_to_section(sections[i], func->sig.params[j]);
+        }
     }
     write_to_section(&compiler->function_declarations, ");\n");
-    // TODO: function definition
+    write_to_section(&compiler->function_definitions, ") {\n");
+
+    // TODO: investigate weather I need a scope stack in the compiler
+    // considering the way the type checker is implemented
+    LexicalScope* old_locals = compiler->tc.locals;
+    compiler->tc.locals = func->scope;
+    scope_stack_push(&compiler->scope_stack, func->scope);
+    for (size_t i = 0; i < func->body.stmts_count; i++)
+        compile_statement(compiler, &compiler->function_definitions, func->body.stmts[i]);
+    scope_stack_pop(&compiler->scope_stack);
+    compiler->tc.locals = old_locals;
+
+    write_to_section(&compiler->function_definitions, "}\n");
 }
 
 static void
@@ -785,53 +809,61 @@ declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
 }
 
 static void
-compile_assignment(C_Compiler* compiler, AssignmentStatement* assignment)
+compile_assignment(
+    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* assignment
+)
 {
     if (assignment->op_type != OPERATOR_ASSIGNMENT)
         UNIMPLEMENTED("assignment op_type not implemented");
-    if (scope_stack_peek(&compiler->scope_stack) != compiler->top_level_scope)
-        UNIMPLEMENTED("inner scope assignments not implemented");
     if (!is_simple_expression(assignment->storage))
         UNIMPLEMENTED("assignment to non-variables not yet implemented");
 
     char* identifier = assignment->storage->operands[0].token.value;
-    TypeInfo expr_type = render_expression(
-        compiler, &compiler->init_module_function, assignment->value, identifier, true
-    );
-    declare_global_variable(compiler, expr_type, identifier);
+    TypeInfo expr_type =
+        render_expression(compiler, section, assignment->value, identifier, true);
+    if (section == &compiler->init_module_function)
+        declare_global_variable(compiler, expr_type, identifier);
 }
 
 static void
-compile_annotation(C_Compiler* compiler, AnnotationStatement* annotation)
+compile_annotation(
+    C_Compiler* compiler, CompilerSection* section, AnnotationStatement* annotation
+)
 {
     // TODO: implement default values for class members
-    // TODO: implement annotations within inner scopes such as functions
-    if (scope_stack_peek(&compiler->scope_stack) != compiler->top_level_scope) return;
-
-    declare_global_variable(compiler, annotation->type, annotation->identifier);
+    if (scope_stack_peek(&compiler->scope_stack) == compiler->top_level_scope)
+        declare_global_variable(compiler, annotation->type, annotation->identifier);
 
     if (annotation->initial) {
         render_expression(
-            compiler,
-            &compiler->init_module_function,
-            annotation->initial,
-            annotation->identifier,
-            true
+            compiler, section, annotation->initial, annotation->identifier, true
         );
     }
 }
 
 static void
-compile_expression(C_Compiler* compiler, Expression* expr)
+compile_expression(
+    C_Compiler* compiler, CompilerSection* section, Expression* expr, char* destination
+)
 {
-    // TODO: dont assume global scope
-    render_expression(compiler, &compiler->init_module_function, expr, NULL, false);
+    render_expression(compiler, section, expr, destination, false);
 }
 
-void
-compile_statement(C_Compiler* compiler, Statement* stmt)
+static void
+compile_return_statement(
+    C_Compiler* compiler, CompilerSection* section, ReturnStatement* ret
+)
 {
-    (void)compiler;
+    DEFINE_UNIQUE_VAR(compiler, return_var);
+    compile_expression(compiler, section, ret->value, return_var);
+    write_to_section(section, "return ");
+    write_to_section(section, return_var);
+    write_to_section(section, ";\n");
+}
+
+static void
+compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
+{
     switch (stmt->kind) {
         case STMT_FOR_LOOP:
             UNIMPLEMENTED("for loop compilation is unimplemented");
@@ -851,21 +883,38 @@ compile_statement(C_Compiler* compiler, Statement* stmt)
         case STMT_FUNCTION:
             compile_function(compiler, stmt->func);
             break;
-        case STMT_ASSIGNMENT:
-            compile_assignment(compiler, stmt->assignment);
+        case STMT_ASSIGNMENT: {
+            CompilerSection* section =
+                (section_or_null) ? section_or_null : &compiler->init_module_function;
+            compile_assignment(compiler, section, stmt->assignment);
             break;
-        case STMT_ANNOTATION:
-            compile_annotation(compiler, stmt->annotation);
+        }
+        case STMT_ANNOTATION: {
+            CompilerSection* section =
+                (section_or_null) ? section_or_null : &compiler->init_module_function;
+            compile_annotation(compiler, section, stmt->annotation);
             break;
-        case STMT_EXPR:
-            compile_expression(compiler, stmt->expr);
+        }
+        case STMT_EXPR: {
+            CompilerSection* section =
+                (section_or_null) ? section_or_null : &compiler->init_module_function;
+            compile_expression(compiler, section, stmt->expr, NULL);
             break;
+        }
         case STMT_NO_OP:
-            UNIMPLEMENTED("no-op statement is unimplemented");
+            // might want to put in a `;` but for now just skipping
+            break;
         case STMT_EOF:
             break;
-        case STMT_RETURN:
-            UNIMPLEMENTED("return statement is unimplemented");
+        case STMT_RETURN: {
+            if (!section_or_null) {
+                // TODO: error message
+                fprintf(stderr, "ERROR: return statement can't be in top level scope\n");
+                exit(1);
+            }
+            compile_return_statement(compiler, section_or_null, stmt->ret);
+            break;
+        }
         case NULL_STMT:
             UNIMPLEMENTED("null statement is unimplemented");
         default:
@@ -908,6 +957,7 @@ write_to_output(C_Compiler* compiler, FILE* out)
     write_section_to_output(&compiler->struct_declarations, out);
     write_section_to_output(&compiler->variable_declarations, out);
     write_section_to_output(&compiler->function_declarations, out);
+    write_section_to_output(&compiler->function_definitions, out);
     write_section_to_output(&compiler->init_module_function, out);
     write_section_to_output(&compiler->main_function, out);
     fflush(out);
@@ -960,7 +1010,7 @@ compile_to_c(FILE* outfile, Lexer* lexer)
 {
     C_Compiler compiler = compiler_init(lexer);
     for (size_t i = 0; i < lexer->n_statements; i++) {
-        compile_statement(&compiler, lexer->statements[i]);
+        compile_statement(&compiler, NULL, lexer->statements[i]);
     }
     write_to_output(&compiler, outfile);
 
