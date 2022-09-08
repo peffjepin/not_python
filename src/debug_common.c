@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../src/lexer_helpers.h"
+#include "lexer_helpers.h"
 
 #define STRING_BUFFER_CAPACITY 2048
 

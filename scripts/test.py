@@ -1,30 +1,31 @@
 #!/usr/bin/env python3
 
+import argparse
 import pathlib
 import hashlib
 import subprocess
-import sys
 import dataclasses
+import shlex
 
 ROOT = pathlib.Path(__file__).parent.parent
-CHECKSUMS_FILE = ROOT / "test/samples/checksums.dict"
-VERIFIED_OUTPUT = ROOT / "test/samples/verified_output"
+CHECKSUMS_FILE = ROOT / "test/checksums.dict"
+VERIFIED_OUTPUT = ROOT / "test/verified_output"
 LINE_LENGTH = 80
 
 
 @dataclasses.dataclass
 class TestKey:
-    executable: str
+    command_line: str
     sample_file: str
 
-    def __init__(self, executable, sample_file):
-        self.executable = self.strip_executable_path_down_to_name(executable)
+    def __init__(self, command_line, sample_file):
+        self.command_line = command_line
         self.sample_file = str(
             self.resolve_sample_file_relative_to_root(sample_file)
         )
 
     def __str__(self):
-        return f"{self.executable} {self.sample_file}"
+        return self.command_line.replace("--file", str(self.sample_file))
 
     def strip_executable_path_down_to_name(self, executable):
         return pathlib.Path(executable).name
@@ -47,26 +48,23 @@ class VerifiedChecksums:
 
     @classmethod
     def verify(cls, test_key, checksum):
-        return cls._dict[test_key.executable][test_key.sample_file] == checksum
+        return cls._dict[str(test_key)] == checksum
 
     @classmethod
     def present(cls, test_key):
-        checksums_for_exec = cls._dict.get(test_key.executable, None)
-        if checksums_for_exec is None:
-            return False
-        return test_key.sample_file in checksums_for_exec
+        return str(test_key) in cls._dict
 
     @classmethod
     def update(cls, test_key, checksum, verified_output):
         cls.changed = True
-        if test_key.executable not in cls._dict:
-            cls._dict[test_key.executable] = {}
-        cls._dict[test_key.executable][test_key.sample_file] = checksum
+        cls._dict[str(test_key)] = checksum
         cls.verified_output_filepath(test_key).write_text(verified_output)
 
     @classmethod
     def verified_output_filepath(cls, test_key):
-        return VERIFIED_OUTPUT / str(test_key).replace("/", "_").replace(" ", "__")
+        return VERIFIED_OUTPUT / str(test_key).replace("/", "_").replace(
+            " ", "__"
+        )
 
     @classmethod
     def dump(cls):
@@ -76,7 +74,9 @@ class VerifiedChecksums:
 
 def print_labeled_separator(label):
     label = str(label)
-    assert len(label) <= LINE_LENGTH - 2
+    if len(label) > LINE_LENGTH - 2:
+        print(label)
+
     lpad = (LINE_LENGTH - len(label)) // 2
     rpad = LINE_LENGTH - lpad - len(label)
     print(("-" * lpad) + label + ("-" * rpad))
@@ -107,7 +107,9 @@ def print_failing_test_case(test_key, output):
     print(VerifiedChecksums.verified_output_filepath(test_key).read_text())
 
 
-def handle_no_previous_verification_present(test_key, checksum, output, result, interactive):
+def handle_no_previous_verification_present(
+    test_key, checksum, output, result, interactive
+):
     if interactive:
         if verify_new_entry_with_user(test_key, checksum, output):
             result.passed += 1
@@ -138,18 +140,39 @@ def handle_test_case_fails(test_key, checksum, output, result, interactive):
 
 
 def main():
-    assert len(sys.argv) >= 3
-    executable = sys.argv[1]
-    interactive = "-i" in sys.argv
-    samples_directory_to_test = pathlib.Path(sys.argv[2])
+    parser = argparse.ArgumentParser(
+        description="runs a command across every file in a given directory"
+        "and compares the output with previously verified output"
+    )
+    parser.add_argument(
+        "-c",
+        "--command",
+        help="the command to be run where `--file` will be replaced"
+        " with a filename from the given directory",
+    )
+    parser.add_argument(
+        "-d",
+        "--directory",
+        help="the directory containing the files to be tested",
+    )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="use this flag when you want to update verified output",
+    )
+
+    args = parser.parse_args()
+
+    samples_directory_to_test = pathlib.Path(args.directory)
     result = Result()
 
     for fp in samples_directory_to_test.iterdir():
         result.total_cases += 1
         md5 = hashlib.md5()
-        test_key = TestKey(executable, fp)
+        test_key = TestKey(args.command, fp)
         p = subprocess.run(
-            [executable, str(fp)],
+            shlex.split(args.command.replace("--file", str(fp))),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -161,18 +184,23 @@ def main():
 
         if not VerifiedChecksums.present(test_key):
             handle_no_previous_verification_present(
-                test_key, checksum, output, result, interactive)
+                test_key, checksum, output, result, args.interactive
+            )
         elif not VerifiedChecksums.verify(test_key, checksum):
             handle_test_case_fails(
-                test_key, checksum, output, result, interactive)
+                test_key, checksum, output, result, args.interactive
+            )
         else:
             result.passed += 1
 
-    print("="*LINE_LENGTH)
+    print("=" * LINE_LENGTH)
     print(
-        f"Ran {result.total_cases} tests: {result.passed} passed, {result.failed} failed")
+        f"Ran {result.total_cases} tests: {result.passed} passed, {result.failed} failed"
+    )
     if result.updated:
-        print(f"{result.updated} test cases had their verified results updated")
+        print(
+            f"{result.updated} test cases had their verified results updated"
+        )
     print("")
     VerifiedChecksums.dump()
     return 0

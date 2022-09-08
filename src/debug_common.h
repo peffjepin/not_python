@@ -1,9 +1,9 @@
 #ifndef DEBUG_COMMON_H
 #define DEBUG_COMMON_H
 
-#include "../src/syntax.h"
-#include "../src/lexer.h"
-#include "../src/generated.h"
+#include "generated.h"
+#include "lexer.h"
+#include "syntax.h"
 
 void print_token(Token tok);
 void print_token_type(TokenType type);

@@ -8,5 +8,8 @@ debug_statements
 debug_tokens
 local
 main
+npc
+npc_build
 __pycache__
+testmain
 test_symbol_hashmap

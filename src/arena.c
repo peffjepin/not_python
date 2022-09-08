@@ -192,7 +192,7 @@ arena_init(void)
     if (!arena) out_of_static_memory();
     // set up first static block
     ArenaStaticChunk* first_static_chunk = get_next_clean_static_chunk(arena);
-    first_static_chunk->buffer = malloc(ARENA_STATIC_CHUNK_MIN_SIZE);
+    first_static_chunk->buffer = calloc(1, ARENA_STATIC_CHUNK_MIN_SIZE);
     if (!first_static_chunk->buffer) out_of_static_memory();
     first_static_chunk->capacity = ARENA_STATIC_CHUNK_MIN_SIZE;
     return arena;

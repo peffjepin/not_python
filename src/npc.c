@@ -1,0 +1,300 @@
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "c_compiler.h"
+#include "lexer.h"
+
+#if DEBUG
+#include "debug.h"
+#endif
+
+#ifndef INSTALL_DIR
+#define INSTALL_DIR "/usr"
+#endif
+
+#define FATAL_ERRORF(msg, ...)                                                           \
+    do {                                                                                 \
+        fprintf(stderr, "ERROR: " msg "\n", __VA_ARGS__);                                \
+        exit(1);                                                                         \
+    } while (0)
+
+#define FATAL_ERROR(msg)                                                                 \
+    do {                                                                                 \
+        fprintf(stderr, "ERROR: " msg "\n");                                             \
+        exit(1);                                                                         \
+    } while (0)
+
+#define SHORT_STR_CAPACITY 128
+
+typedef struct {
+    char data[SHORT_STR_CAPACITY];
+    size_t length;
+} ShortString;
+
+#define BUILD_DIR "npc_build"
+
+static FILE*
+open_file_for_writing(char* filepath)
+{
+    FILE* file = fopen(filepath, "w");
+    if (!file) {
+        FATAL_ERRORF("unable to open (%s) for writing (%s)", filepath, strerror(errno));
+    }
+    return file;
+}
+
+static void
+make_build_directory(void)
+{
+    int status = mkdir(BUILD_DIR, 0777);
+
+    if (status != 0 && errno != EEXIST) {
+        fprintf(
+            stderr, "ERROR: failed to make" BUILD_DIR "directory (%s)\n", strerror(errno)
+        );
+        exit(1);
+    }
+}
+
+// TODO: in the future this will need to be more robust and support multiple files
+#define INTERMEDIATE_FILEPATH BUILD_DIR "/intermediate.c"
+
+static void
+compile_target_to_c(char* target)
+{
+    Lexer lexer = lex_file(target);
+    FILE* outfile = open_file_for_writing(INTERMEDIATE_FILEPATH);
+    compile_to_c(outfile, &lexer);
+    fclose(outfile);
+}
+
+ShortString
+default_outfile(char* target)
+{
+    // TODO: make this more portable/robust in the future
+    ShortString rtval = {0};
+    size_t offset = 0;
+    size_t length = 0;
+    for (size_t i = 0; i < strlen(target); i++) {
+        if (target[i] == '/') offset = i + 1;
+        if (target[i] == '.') {
+            length = i - offset;
+            break;
+        }
+    }
+    memcpy(rtval.data, target + offset, length);
+    return rtval;
+}
+
+static ShortString
+shortstr_from_cstr(char* cstr)
+{
+    ShortString str = {.length = strlen(cstr)};
+    if (str.length >= SHORT_STR_CAPACITY) {
+        FATAL_ERRORF(
+            "input string (%s) overflowed ShortString capacity (%u)",
+            cstr,
+            SHORT_STR_CAPACITY
+        );
+    }
+    memcpy(str.data, cstr, str.length);
+    return str;
+}
+
+static void
+fork_and_run_sync(char* const* argv)
+{
+    // TODO: portability
+    pid_t child_pid = fork();
+    if (child_pid < 0) FATAL_ERRORF("unable to fork process (%s)", strerror(errno));
+    if (child_pid == 0) {
+        if (execvp(argv[0], argv) < 0)
+            FATAL_ERRORF("unable to exec `%s` in child (%s)", argv[0], strerror(errno));
+    }
+    else {
+        int status;
+        for (;;) {
+            if (waitpid(child_pid, &status, 0) < 0) {
+                FATAL_ERRORF(
+                    "failed waiting on process (pid: %i) -> %s",
+                    child_pid,
+                    strerror(errno)
+                );
+            }
+            if (WIFEXITED(status)) {
+                int exitcode = WEXITSTATUS(status);
+                if (exitcode != 0) {
+                    FATAL_ERRORF("`%s` exited with exitcode: %i", argv[0], exitcode);
+                }
+                break;
+            }
+            if (WIFSIGNALED(status)) {
+                FATAL_ERRORF(
+                    "`%s` process was terminated by a signal: %i",
+                    argv[0],
+                    WTERMSIG(status)
+                );
+            }
+        }
+    }
+}
+
+static void
+compile_to_binary(char* outfile)
+{
+    char* compiled_c_file = INTERMEDIATE_FILEPATH;
+#if DEBUG
+    char* extra_include_dir = "-I" INSTALL_DIR;
+    char* extra_lib_dir = "-L" INSTALL_DIR;
+    char* static_linking_flag = "-l:not_python_db.o";
+#else
+    char* extra_include_dir = "-I" INSTALL_DIR "/include";
+    char* extra_lib_dir = "-L" INSTALL_DIR "/lib";
+    char* static_linking_flag = "-l:not_python.o";
+#endif
+    char* const argv[] = {
+        "cc",
+        "-o",
+        outfile,
+        extra_lib_dir,
+        extra_include_dir,
+        static_linking_flag,
+        compiled_c_file,
+        NULL};
+    fork_and_run_sync(argv);
+}
+
+static void
+run_program(char* program_name)
+{
+    ShortString str = {0};
+    str.data[0] = '.';
+    str.data[1] = '/';
+    memcpy(str.data + 2, program_name, strlen(program_name));
+    char* const argv[] = {str.data, NULL};
+    fork_and_run_sync(argv);
+}
+
+#if DEBUG
+typedef enum {
+    DEBUG_NONE,
+    DEBUG_TOKENS,
+    DEBUG_STATEMENTS,
+    DEBUG_SCOPES,
+    DEBUG_C_COMPILER
+} DebugProgram;
+#endif
+
+typedef struct {
+    ShortString outfile;
+    ShortString target;
+    bool run;
+#if DEBUG
+    DebugProgram debug_program;
+#endif
+} CommandLine;
+
+#if DEBUG
+
+#define DEBUG_TOKENS_FLAG "--debug-tokens"
+#define DEBUG_STATEMENTS_FLAG "--debug-statements"
+#define DEBUG_SCOPES_FLAG "--debug-scopes"
+#define DEBUG_C_COMPILER_FLAG "--debug-c-compiler"
+
+static void
+set_cli_debug_program(CommandLine* cli, DebugProgram program)
+{
+    if (cli->debug_program != DEBUG_NONE)
+        FATAL_ERROR("debug programs are mutually exclusive");
+    cli->debug_program = program;
+}
+
+static bool
+parse_debug_option(CommandLine* cli, char* arg)
+{
+    if (strcmp(arg, DEBUG_TOKENS_FLAG) == 0)
+        set_cli_debug_program(cli, DEBUG_TOKENS);
+
+    else if (strcmp(arg, DEBUG_STATEMENTS_FLAG) == 0)
+        set_cli_debug_program(cli, DEBUG_STATEMENTS);
+
+    else if (strcmp(arg, DEBUG_SCOPES_FLAG) == 0)
+        set_cli_debug_program(cli, DEBUG_SCOPES);
+
+    else if (strcmp(arg, DEBUG_C_COMPILER_FLAG) == 0)
+        set_cli_debug_program(cli, DEBUG_C_COMPILER);
+
+    else
+        return false;
+
+    return true;
+}
+
+#endif  // DEBUG
+
+static CommandLine
+parse_args(size_t argc, char** argv)
+{
+    (void)argc;
+    CommandLine cli = {0};
+
+    argv++;
+    for (;;) {
+        char* arg = *argv++;
+        if (!arg) break;
+        if (strcmp(arg, "--run") == 0 || strcmp(arg, "-r") == 0)
+            cli.run = true;
+        else if (strcmp(arg, "-o") == 0 || strcmp(arg, "--out") == 0)
+            cli.outfile = shortstr_from_cstr(*argv++);
+        else if (arg[0] != '-' && !cli.target.length)
+            cli.target = shortstr_from_cstr(arg);
+#if DEBUG
+        else if (parse_debug_option(&cli, arg))
+            ;
+#endif
+        else
+            FATAL_ERRORF("unexpected argument (%s)", arg);
+    }
+
+    // TODO: usage string
+    if (!cli.target.length) FATAL_ERROR("no target provided");
+    if (!cli.outfile.length) cli.outfile = default_outfile(cli.target.data);
+
+    return cli;
+}
+
+int
+main(int argc, char** argv)
+{
+    (void)argc;
+    CommandLine cli = parse_args(argc, argv);
+
+#if DEBUG
+    switch (cli.debug_program) {
+        case DEBUG_NONE:
+            break;
+        case DEBUG_TOKENS:
+            debug_tokens_main(cli.target.data);
+            exit(0);
+        case DEBUG_STATEMENTS:
+            debug_statements_main(cli.target.data);
+            exit(0);
+        case DEBUG_SCOPES:
+            debug_scopes_main(cli.target.data);
+            exit(0);
+        case DEBUG_C_COMPILER:
+            debug_c_compiler_main(cli.target.data);
+            exit(0);
+    }
+#endif
+
+    make_build_directory();
+    compile_target_to_c(cli.target.data);
+    compile_to_binary(cli.outfile.data);
+    if (cli.run) run_program(cli.outfile.data);
+}
