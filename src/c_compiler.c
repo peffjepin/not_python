@@ -904,7 +904,6 @@ write_to_output(C_Compiler* compiler, FILE* out)
 {
     write_string_constants_table(compiler);
     write_to_section(&compiler->init_module_function, "}\n");
-    write_to_section(&compiler->main_function, "}");
     write_section_to_output(&compiler->forward, out);
     write_section_to_output(&compiler->struct_declarations, out);
     write_section_to_output(&compiler->variable_declarations, out);
@@ -914,6 +913,7 @@ write_to_output(C_Compiler* compiler, FILE* out)
     fflush(out);
 }
 
+#if DEBUG
 static inline void
 write_debug_comment_breaks(C_Compiler* compiler)
 {
@@ -935,6 +935,7 @@ write_debug_comment_breaks(C_Compiler* compiler)
     );
     write_to_section(&compiler->main_function, "\n// MAIN FUNCTION COMPILER SECTION\n");
 }
+#endif
 
 static C_Compiler
 compiler_init(Lexer* lexer)
@@ -949,6 +950,8 @@ compiler_init(Lexer* lexer)
     write_to_section(&compiler.forward, "#include <not_python.h>\n");
     write_to_section(&compiler.init_module_function, "static void init_module(void) {\n");
     write_to_section(&compiler.main_function, "int main(void) {\n");
+    write_to_section(&compiler.main_function, "init_module();\n");
+    write_to_section(&compiler.main_function, "}");
     return compiler;
 }
 

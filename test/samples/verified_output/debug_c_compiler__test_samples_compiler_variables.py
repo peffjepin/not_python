@@ -21,5 +21,6 @@ z = 3;
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

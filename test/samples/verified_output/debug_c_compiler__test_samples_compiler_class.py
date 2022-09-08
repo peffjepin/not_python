@@ -16,5 +16,6 @@ static void init_module(void) {
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

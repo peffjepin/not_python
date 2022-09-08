@@ -22,5 +22,6 @@ string2_2 = NOT_PYTHON_STRING_CONSTANTS[1];
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

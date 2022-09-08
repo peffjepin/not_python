@@ -20,5 +20,6 @@ z = my_function(NP_var0, NP_var1);
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

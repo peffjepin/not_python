@@ -25,5 +25,6 @@ z = NP_var2+NP_var3;
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

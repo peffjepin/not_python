@@ -23,5 +23,6 @@ a = my_function(NP_var0, NP_var1, NP_var2, NP_var3);
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0

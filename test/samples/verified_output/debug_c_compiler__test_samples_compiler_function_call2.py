@@ -19,5 +19,6 @@ y = my_func(NP_var0);
 
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
+init_module();
 }
 exitcode=0
