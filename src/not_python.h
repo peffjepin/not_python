@@ -15,7 +15,12 @@ typedef struct {
 } StringView;
 
 bool str_eq(StringView str1, StringView str2);
+StringView str_add(StringView str1, StringView str2);
 
 void builtin_print(size_t argc, ...);
+
+void* np_alloc(size_t bytes);
+void* np_realloc(void* ptr, size_t bytes);
+void np_free(void* ptr);
 
 #endif
