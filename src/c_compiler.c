@@ -842,20 +842,12 @@ compile_annotation(
 }
 
 static void
-compile_expression(
-    C_Compiler* compiler, CompilerSection* section, Expression* expr, char* destination
-)
-{
-    render_expression(compiler, section, expr, destination, false);
-}
-
-static void
 compile_return_statement(
     C_Compiler* compiler, CompilerSection* section, ReturnStatement* ret
 )
 {
     DEFINE_UNIQUE_VAR(compiler, return_var);
-    compile_expression(compiler, section, ret->value, return_var);
+    render_expression(compiler, section, ret->value, return_var, false);
     write_to_section(section, "return ");
     write_to_section(section, return_var);
     write_to_section(section, ";\n");
@@ -898,7 +890,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_EXPR: {
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
-            compile_expression(compiler, section, stmt->expr, NULL);
+            render_expression(compiler, section, stmt->expr, NULL, false);
             break;
         }
         case STMT_NO_OP:
