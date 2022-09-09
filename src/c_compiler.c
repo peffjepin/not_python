@@ -717,6 +717,89 @@ write_operation_to_section(
             );
             break;
         }
+        case OPERATOR_EQUAL: {
+            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                write_many_to_section(
+                    section,
+                    "str_eq(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+            }
+            else {
+                UNIMPLEMENTED("comparison operator unimplemented for types");
+            }
+            break;
+        }
+        case OPERATOR_GREATER:
+            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                write_many_to_section(
+                    section,
+                    "str_gt(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+            }
+            else {
+                UNIMPLEMENTED("comparison operator unimplemented for types");
+            }
+
+            break;
+        case OPERATOR_GREATER_EQUAL:
+            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                write_many_to_section(
+                    section,
+                    "str_gte(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+            }
+            else {
+                UNIMPLEMENTED("comparison operator unimplemented for types");
+            }
+            break;
+        case OPERATOR_LESS:
+            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                write_many_to_section(
+                    section,
+                    "str_lt(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+            }
+            else {
+                UNIMPLEMENTED("comparison operator unimplemented for types");
+            }
+            break;
+        case OPERATOR_LESS_EQUAL:
+            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                write_many_to_section(
+                    section,
+                    "str_lte(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+            }
+            else {
+                UNIMPLEMENTED("comparison operator unimplemented for types");
+            }
+            break;
+
         default:
             write_many_to_section(
                 section,

@@ -16,7 +16,7 @@ out_of_memory(void)
     exit(1);
 }
 
-bool
+PYBOOL
 str_eq(PYSTRING str1, PYSTRING str2)
 {
     if (str1.length != str2.length) return false;
@@ -24,6 +24,66 @@ str_eq(PYSTRING str1, PYSTRING str2)
         if (SV_CHAR_AT(str1, i) != SV_CHAR_AT(str2, i)) return false;
     }
     return true;
+}
+
+PYBOOL
+str_gt(PYSTRING str1, PYSTRING str2)
+{
+    if (str1.length == 0) return false;
+
+    size_t minlen = (str1.length < str2.length) ? str1.length : str2.length;
+    for (size_t i = 0; i < minlen; i++) {
+        char c1 = SV_CHAR_AT(str1, i);
+        char c2 = SV_CHAR_AT(str2, i);
+        if (c1 != c2) return c1 > c2;
+    }
+
+    return str1.length > str2.length;
+}
+
+PYBOOL
+str_gte(PYSTRING str1, PYSTRING str2)
+{
+    if (str1.length == 0) return str2.length == 0;
+
+    size_t minlen = (str1.length < str2.length) ? str1.length : str2.length;
+    for (size_t i = 0; i < minlen; i++) {
+        char c1 = SV_CHAR_AT(str1, i);
+        char c2 = SV_CHAR_AT(str2, i);
+        if (c1 != c2) return c1 > c2;
+    }
+
+    return str1.length >= str2.length;
+}
+
+PYBOOL
+str_lt(PYSTRING str1, PYSTRING str2)
+{
+    if (str1.length == 0) return str2.length > 0;
+
+    size_t minlen = (str1.length < str2.length) ? str1.length : str2.length;
+    for (size_t i = 0; i < minlen; i++) {
+        char c1 = SV_CHAR_AT(str1, i);
+        char c2 = SV_CHAR_AT(str2, i);
+        if (c1 != c2) return c1 < c2;
+    }
+
+    return str1.length < str2.length;
+}
+
+PYBOOL
+str_lte(PYSTRING str1, PYSTRING str2)
+{
+    if (str1.length == 0) return str2.length >= 0;
+
+    size_t minlen = (str1.length < str2.length) ? str1.length : str2.length;
+    for (size_t i = 0; i < minlen; i++) {
+        char c1 = SV_CHAR_AT(str1, i);
+        char c2 = SV_CHAR_AT(str2, i);
+        if (c1 != c2) return c1 < c2;
+    }
+
+    return str1.length <= str2.length;
 }
 
 PYSTRING

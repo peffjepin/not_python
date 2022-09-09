@@ -15,11 +15,16 @@ typedef struct {
     size_t length;
 } StringView;
 
-bool str_eq(PYSTRING str1, PYSTRING str2);
 PYSTRING str_add(PYSTRING str1, PYSTRING str2);
+PYBOOL str_eq(PYSTRING str1, PYSTRING str2);
+PYBOOL str_gt(PYSTRING str1, PYSTRING str2);
+PYBOOL str_gte(PYSTRING str1, PYSTRING str2);
+PYBOOL str_lt(PYSTRING str1, PYSTRING str2);
+PYBOOL str_lte(PYSTRING str1, PYSTRING str2);
+
 PYSTRING np_int_to_str(PYINT num);
 PYSTRING np_float_to_str(PYFLOAT num);
-PYSTRING np_bool_to_str(PYBOOL num);
+PYSTRING np_bool_to_str(PYBOOL value);
 
 void builtin_print(size_t argc, ...);
 
