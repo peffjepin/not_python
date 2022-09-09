@@ -1,5 +1,6 @@
 #include <not_python.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,12 @@ np_float_to_str(PYFLOAT num)
     snprintf(str.data, required_length + 1, "%f", num);
     return str;
 }
+
+const PYSTRING true_str = {.data = "True", .length = 4};
+const PYSTRING false_str = {.data = "False", .length = 5};
+
+PYSTRING
+np_bool_to_str(PYBOOL value) { return (value) ? true_str : false_str; }
 
 void
 builtin_print(size_t argc, ...)

@@ -7,6 +7,7 @@
 #define PYINT long long int
 #define PYFLOAT double
 #define PYSTRING StringView
+#define PYBOOL bool
 
 typedef struct {
     char* data;
@@ -18,6 +19,7 @@ bool str_eq(PYSTRING str1, PYSTRING str2);
 PYSTRING str_add(PYSTRING str1, PYSTRING str2);
 PYSTRING np_int_to_str(PYINT num);
 PYSTRING np_float_to_str(PYFLOAT num);
+PYSTRING np_bool_to_str(PYBOOL num);
 
 void builtin_print(size_t argc, ...);
 

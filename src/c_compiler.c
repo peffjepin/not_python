@@ -334,6 +334,7 @@ typedef struct {
 #define DATATYPE_INT "PYINT"
 #define DATATYPE_FLOAT "PYFLOAT"
 #define DATATYPE_STRING "PYSTRING"
+#define DATATYPE_BOOL "PYBOOL"
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
@@ -371,6 +372,9 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
         case PYTYPE_STRING:
             write_to_section(section, DATATYPE_STRING " ");
             break;
+        case PYTYPE_BOOL:
+            write_to_section(section, DATATYPE_BOOL " ");
+            break;
         case PYTYPE_LIST:
             UNIMPLEMENTED("list to c syntax unimplemented");
             break;
@@ -401,6 +405,14 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         return sb_build(
             &compiler->sb, STRING_CONSTANTS_TABLE_NAME, "[", strindex, "]", NULL
         );
+    }
+    else if (operand.token.type == TOK_KEYWORD) {
+        if (operand.token.kw == KW_TRUE)
+            return "true";
+        else if (operand.token.kw == KW_FALSE)
+            return "false";
+        else
+            UNREACHABLE("unexpected simple operand token type");
     }
     else
         UNREACHABLE("unexpected simple operand");
@@ -498,6 +510,9 @@ write_variable_to_section_as_type(
                     write_many_to_section(
                         section, "np_float_to_str(", varname, ")", NULL
                     );
+                    break;
+                case PYTYPE_BOOL:
+                    write_many_to_section(section, "np_bool_to_str(", varname, ")", NULL);
                     break;
                 default:
                     // TODO: error message
