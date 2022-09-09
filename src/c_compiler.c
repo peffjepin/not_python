@@ -682,7 +682,7 @@ write_operation_to_section(
 )
 {
     switch (op_type) {
-        case OPERATOR_PLUS: {
+        case OPERATOR_PLUS:
             if (types[0].type == PYTYPE_STRING) {
                 write_many_to_section(
                     section,
@@ -693,19 +693,10 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-            }
-            else {
-                write_many_to_section(
-                    section,
-                    operand_reprs[0],
-                    (char*)op_to_cstr(op_type),
-                    operand_reprs[1],
-                    NULL
-                );
+                return;
             }
             break;
-        }
-        case OPERATOR_DIV: {
+        case OPERATOR_DIV:
             write_many_to_section(
                 section,
                 (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
@@ -715,10 +706,9 @@ write_operation_to_section(
                 operand_reprs[1],
                 NULL
             );
-            break;
-        }
-        case OPERATOR_EQUAL: {
-            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+            return;
+        case OPERATOR_EQUAL:
+            if (types[0].type == PYTYPE_STRING) {
                 write_many_to_section(
                     section,
                     "str_eq(",
@@ -728,14 +718,11 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-            }
-            else {
-                UNIMPLEMENTED("comparison operator unimplemented for types");
+                return;
             }
             break;
-        }
         case OPERATOR_GREATER:
-            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+            if (types[0].type == PYTYPE_STRING) {
                 write_many_to_section(
                     section,
                     "str_gt(",
@@ -745,14 +732,11 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
+                return;
             }
-            else {
-                UNIMPLEMENTED("comparison operator unimplemented for types");
-            }
-
             break;
         case OPERATOR_GREATER_EQUAL:
-            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+            if (types[0].type == PYTYPE_STRING) {
                 write_many_to_section(
                     section,
                     "str_gte(",
@@ -762,13 +746,11 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-            }
-            else {
-                UNIMPLEMENTED("comparison operator unimplemented for types");
+                return;
             }
             break;
         case OPERATOR_LESS:
-            if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+            if (types[0].type == PYTYPE_STRING) {
                 write_many_to_section(
                     section,
                     "str_lt(",
@@ -778,9 +760,7 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-            }
-            else {
-                UNIMPLEMENTED("comparison operator unimplemented for types");
+                return;
             }
             break;
         case OPERATOR_LESS_EQUAL:
@@ -794,21 +774,15 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-            }
-            else {
-                UNIMPLEMENTED("comparison operator unimplemented for types");
+                return;
             }
             break;
-
         default:
-            write_many_to_section(
-                section,
-                operand_reprs[0],
-                (char*)op_to_cstr(op_type),
-                operand_reprs[1],
-                NULL
-            );
+            break;
     }
+    write_many_to_section(
+        section, operand_reprs[0], (char*)op_to_cstr(op_type), operand_reprs[1], NULL
+    );
 }
 
 /*
