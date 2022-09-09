@@ -17,7 +17,7 @@ static void init_module(void) {
 PYINT NP_var1 = 2*3;
 PYINT NP_var0 = 1+NP_var1;
 PYINT NP_var3 = 3*2;
-PYFLOAT NP_var2 = NP_var3/4;
+PYFLOAT NP_var2 = (PYFLOAT)NP_var3/(PYFLOAT)4;
 a = NP_var0-NP_var2;
 }
 

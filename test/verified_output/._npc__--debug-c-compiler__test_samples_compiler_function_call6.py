@@ -13,7 +13,7 @@ PYINT my_function(PYINT x, PYFLOAT y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 PYINT my_function(PYINT x, PYFLOAT y) {
-PYFLOAT NP_var0 = x/y;
+PYFLOAT NP_var0 = (PYFLOAT)x/y;
 return NP_var0;
 }
 

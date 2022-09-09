@@ -690,6 +690,18 @@ write_operation_to_section(
             }
             break;
         }
+        case OPERATOR_DIV: {
+            write_many_to_section(
+                section,
+                (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                operand_reprs[0],
+                (char*)op_to_cstr(op_type),
+                (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                operand_reprs[1],
+                NULL
+            );
+            break;
+        }
         default:
             write_many_to_section(
                 section,
