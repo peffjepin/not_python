@@ -386,9 +386,13 @@ write_function_call_to_section(
     Arguments* args
 )
 {
+    // TODO: better error reporting
     if (args->values_count > fndef->sig.params_count) {
-        // TODO: better error reporting
         fprintf(stderr, "ERROR: too many arguments provided\n");
+        exit(1);
+    }
+    if (fndef->sig.return_type.type == PYTYPE_NONE && destination != NULL) {
+        fprintf(stderr, "ERROR: trying to assign from a return value of void\n");
         exit(1);
     }
 
@@ -544,7 +548,7 @@ render_expression(
         );
     // when rendering: (1 + 2 * 3 + 4)
     // first 2 * 3 is rendered
-    // next 1 + 2 must know what (2) now refers to the result of (2 * 3)
+    // next 1 + 2 must know that (2) now refers to the result of (2 * 3)
     // these variables are used to facilitate this kind of logic
     DEFINE_UNIQUE_VARS(compiler, expr->operations_count - 1, intermediate_variables)
     TypeInfo resolved_operation_types[expr->operations_count];
@@ -706,7 +710,17 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         &compiler->function_declarations, &compiler->function_definitions};
 
     for (size_t i = 0; i < 2; i++) {
-        write_type_info_to_section(sections[i], func->sig.return_type);
+        TypeInfo type_info = func->sig.return_type;
+
+        // TODO: if we implemented functions returning None as void
+        // then it will have to be an error to explicitly `return None`
+        // unless the return type is a Union including None or Optional
+        // both of which are unimplemented at the time of writing.
+        if (type_info.type == PYTYPE_NONE)
+            write_to_section(sections[i], "void ");
+        else
+            write_type_info_to_section(sections[i], type_info);
+
         write_to_section(sections[i], func->name);
         write_to_section(sections[i], "(");
         for (size_t j = 0; j < func->sig.params_count; j++) {
@@ -908,7 +922,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
             break;
         }
         case NULL_STMT:
-            UNIMPLEMENTED("null statement is unimplemented");
+            break;
         default:
             UNREACHABLE("default case unreachable");
     }
