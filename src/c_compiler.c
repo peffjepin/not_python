@@ -7,6 +7,7 @@
 #include "hash.h"
 #include "lexer_helpers.h"
 #include "not_python.h"
+#include "syntax.h"
 #include "type_checker.h"
 
 #define UNREACHABLE(msg) assert(0 && msg);
@@ -479,6 +480,37 @@ write_typed_expr_to_variable(
 }
 
 static void
+write_variable_to_section_as_type(
+    CompilerSection* section, PythonType target_type, char* varname, PythonType vartype
+)
+{
+    if (target_type == vartype) {
+        write_to_section(section, varname);
+        return;
+    }
+    switch (target_type) {
+        case PYTYPE_STRING:
+            switch (vartype) {
+                case PYTYPE_INT:
+                    write_many_to_section(section, "np_int_to_str(", varname, ")", NULL);
+                    break;
+                case PYTYPE_FLOAT:
+                    write_many_to_section(
+                        section, "np_float_to_str(", varname, ")", NULL
+                    );
+                    break;
+                default:
+                    // TODO: error message
+                    UNIMPLEMENTED("string type conversion unimplemented");
+            }
+            break;
+        default:
+            // TODO: error message
+            UNIMPLEMENTED("type conversion unimplemented");
+    }
+}
+
+static void
 write_function_call_to_section(
     C_Compiler* compiler,
     CompilerSection* section,
@@ -583,16 +615,13 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         exit(1);
     }
     DEFINE_UNIQUE_VARS(compiler, args->values_count, string_vars)
+    TypeInfo var_types[args->values_count];
     for (size_t i = 0; i < args->values_count; i++) {
-        TypeInfo arg_type = write_expression_to_section(
+        var_types[i] = write_expression_to_section(
             compiler, section, args->values[i], string_vars[i], false
         );
-        if (arg_type.type != PYTYPE_STRING) {
-            // TODO: error message
-            fprintf(stderr, "ERROR: print only takes strings as arguments\n");
-            exit(1);
-        }
     }
+
     char arg_count_as_str[10] = {0};
     sprintf(arg_count_as_str, "%zu", args->values_count);
     write_to_section(section, "builtin_print(");
@@ -600,7 +629,9 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     write_to_section(section, ", ");
     for (size_t i = 0; i < args->values_count; i++) {
         if (i > 0) write_to_section(section, ", ");
-        write_to_section(section, string_vars[i]);
+        write_variable_to_section_as_type(
+            section, PYTYPE_STRING, string_vars[i], var_types[i].type
+        );
     }
     write_to_section(section, ");\n");
     return (TypeInfo){.type = PYTYPE_NONE};

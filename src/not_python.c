@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "syntax.h"
+
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
 
 static void
@@ -14,7 +16,7 @@ out_of_memory(void)
 }
 
 bool
-str_eq(StringView str1, StringView str2)
+str_eq(PYSTRING str1, PYSTRING str2)
 {
     if (str1.length != str2.length) return false;
     for (size_t i = 0; i < str1.length; i++) {
@@ -23,15 +25,35 @@ str_eq(StringView str1, StringView str2)
     return true;
 }
 
-StringView
-str_add(StringView str1, StringView str2)
+PYSTRING
+str_add(PYSTRING str1, PYSTRING str2)
 {
-    StringView str = {
+    PYSTRING str = {
         .data = np_alloc(str1.length + str2.length + 1),
         .length = str1.length + str2.length};
     if (!str.data) out_of_memory();
     memcpy(str.data, str1.data + str1.offset, str1.length);
     memcpy(str.data + str1.length, str2.data + str2.offset, str2.length);
+    return str;
+}
+
+PYSTRING
+np_int_to_str(PYINT num)
+{
+    size_t required_length = snprintf(NULL, 0, "%lli", num);
+    PYSTRING str = {.data = np_alloc(required_length + 1), .length = required_length};
+    if (!str.data) out_of_memory();
+    snprintf(str.data, required_length + 1, "%lli", num);
+    return str;
+}
+
+PYSTRING
+np_float_to_str(PYFLOAT num)
+{
+    size_t required_length = snprintf(NULL, 0, "%f", num);
+    PYSTRING str = {.data = np_alloc(required_length + 1), .length = required_length};
+    if (!str.data) out_of_memory();
+    snprintf(str.data, required_length + 1, "%f", num);
     return str;
 }
 
@@ -43,7 +65,7 @@ builtin_print(size_t argc, ...)
 
     for (size_t i = 0; i < argc; i++) {
         if (i > 0) fprintf(stdout, " ");
-        StringView str = va_arg(vargs, StringView);
+        PYSTRING str = va_arg(vargs, PYSTRING);
         fprintf(stdout, "%.*s", (int)str.length, str.data + str.offset);
     }
 

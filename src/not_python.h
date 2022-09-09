@@ -14,8 +14,10 @@ typedef struct {
     size_t length;
 } StringView;
 
-bool str_eq(StringView str1, StringView str2);
-StringView str_add(StringView str1, StringView str2);
+bool str_eq(PYSTRING str1, PYSTRING str2);
+PYSTRING str_add(PYSTRING str1, PYSTRING str2);
+PYSTRING np_int_to_str(PYINT num);
+PYSTRING np_float_to_str(PYFLOAT num);
 
 void builtin_print(size_t argc, ...);
 

@@ -1,0 +1,4 @@
+x: int = 1
+y: float = 2
+
+print(x, y)
