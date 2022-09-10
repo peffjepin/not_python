@@ -335,8 +335,29 @@ typedef struct {
 #define DATATYPE_FLOAT "PYFLOAT"
 #define DATATYPE_STRING "PYSTRING"
 #define DATATYPE_BOOL "PYBOOL"
+#define DATATYPE_LIST "PYLIST"
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
+
+static void compile_statement(
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
+);
+
+static TypeInfo write_expression_to_section(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Expression* expr,
+    char* destination,
+    bool dest_is_declared
+);
+
+static void write_typed_expr_to_variable(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Expression* expr,
+    TypeInfo type,
+    char* destination
+);
 
 static void
 untyped_error(void)
@@ -347,10 +368,40 @@ untyped_error(void)
     exit(1);
 }
 
-static bool
-is_simple_expression(Expression* expr)
+static const char*
+type_info_to_c_syntax(TypeInfo info)
 {
-    return (expr->operations_count == 0 && expr->operands[0].kind == OPERAND_TOKEN);
+    switch (info.type) {
+        case PYTYPE_UNTYPED:
+            untyped_error();
+            break;
+        case PYTYPE_NONE:
+            UNIMPLEMENTED("None to c syntax unimplemented");
+            break;
+        case PYTYPE_INT:
+            return DATATYPE_INT;
+        case PYTYPE_FLOAT:
+            return DATATYPE_FLOAT;
+        case PYTYPE_STRING:
+            return DATATYPE_STRING;
+        case PYTYPE_BOOL:
+            return DATATYPE_BOOL;
+        case PYTYPE_LIST:
+            return DATATYPE_LIST;
+        case PYTYPE_TUPLE:
+            UNIMPLEMENTED("tuple to c syntax unimplemented");
+            break;
+        case PYTYPE_DICT:
+            UNIMPLEMENTED("dict to c syntax unimplemented");
+            break;
+        case PYTYPE_OBJECT:
+            UNIMPLEMENTED("object to c syntax unimplemented");
+            break;
+        default:
+            UNREACHABLE("default type info to c syntax");
+            break;
+    }
+    UNREACHABLE("end of type info to c syntax");
 }
 
 static void
@@ -376,7 +427,7 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
             write_to_section(section, DATATYPE_BOOL " ");
             break;
         case PYTYPE_LIST:
-            UNIMPLEMENTED("list to c syntax unimplemented");
+            write_to_section(section, DATATYPE_LIST " ");
             break;
         case PYTYPE_TUPLE:
             UNIMPLEMENTED("tuple to c syntax unimplemented");
@@ -418,12 +469,121 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         UNREACHABLE("unexpected simple operand");
 }
 
-static void
+static TypeInfo
 write_simple_operand_to_section(
-    C_Compiler* compiler, CompilerSection* section, Operand operand
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Operand operand,
+    char* dest,
+    bool is_declared
 )
 {
+    TypeInfo type_info = resolve_operand_type(&compiler->tc, operand);
+    if (dest) {
+        if (!is_declared) write_type_info_to_section(section, type_info);
+        write_to_section(section, dest);
+        write_to_section(section, " = ");
+    }
     write_to_section(section, simple_operand_repr(compiler, operand));
+    write_to_section(section, ";\n");
+    return type_info;
+}
+
+static PythonType
+enclosure_type_to_python_type(EnclosureType enclosure_type)
+{
+    // TODO: maybe enclosure type should just be pythontype directly
+    switch (enclosure_type) {
+        case ENCLOSURE_LIST:
+            return PYTYPE_LIST;
+        case ENCLOSURE_TUPLE:
+            return PYTYPE_TUPLE;
+        case ENCLOSURE_DICT:
+            return PYTYPE_DICT;
+    }
+}
+
+static TypeInfo
+write_enclosure_literal_to_section(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Operand operand,
+    char* destination,
+    bool dest_is_declared
+)
+{
+    if (operand.enclosure->expressions_count == 0) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: empty containers must have their type annotated when initialized\n"
+        );
+        exit(1);
+    }
+
+    DEFINE_UNIQUE_VAR(compiler, expression);
+    TypeInfo first_expr_type_info = write_expression_to_section(
+        compiler, section, operand.enclosure->expressions[0], expression, false
+    );
+
+    TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
+    inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
+    inner->types[0] = first_expr_type_info;
+    inner->count = 1;
+    TypeInfo enclosure_type_info = {
+        .type = enclosure_type_to_python_type(operand.enclosure->type), .inner = inner};
+
+    if (destination) {
+        if (!dest_is_declared) write_type_info_to_section(section, enclosure_type_info);
+        write_to_section(section, destination);
+        write_to_section(section, " = ");
+    }
+    else {
+        // TODO: python allows this but I'm not sure it makes sense for us to allow this
+        fprintf(stderr, "ERROR: enclosures must be assigned\n");
+        exit(1);
+    }
+
+    switch (enclosure_type_info.type) {
+        case PYTYPE_LIST: {
+            // TODO: for now we're just going to init an empty list and append everything
+            // to it. eventually we should allocate enough room to begin with because we
+            // already know the length of the list
+            const char* typestr = type_info_to_c_syntax(first_expr_type_info);
+            write_many_to_section(section, "LIST_INIT(", typestr, ");\n", NULL);
+            size_t i = 1;
+            for (;;) {
+                write_many_to_section(
+                    section,
+                    "LIST_APPEND(",
+                    destination,
+                    ", ",
+                    typestr,
+                    ", ",
+                    expression,
+                    ");\n",
+                    NULL
+                );
+                if (i == operand.enclosure->expressions_count) break;
+                write_typed_expr_to_variable(
+                    compiler,
+                    section,
+                    operand.enclosure->expressions[i++],
+                    first_expr_type_info,
+                    expression
+                );
+            }
+        } break;
+
+        case PYTYPE_DICT:
+            UNIMPLEMENTED("rendering of dict enclosure literal unimplemented");
+        case PYTYPE_TUPLE:
+            UNIMPLEMENTED("rendering of tuple enclosure literal unimplemented");
+        default:
+            UNREACHABLE("enclosure literal default case unreachable")
+    }
+
+    return enclosure_type_info;
 }
 
 static TypeInfo
@@ -438,29 +598,30 @@ write_simple_expression_to_section(
     assert(expr->operations_count == 0);
     Operand operand = expr->operands[0];
 
-    TypeInfo expr_type = resolve_operand_type(&compiler->tc, operand);
-    if (destination) {
-        if (!dest_is_declared) write_type_info_to_section(section, expr_type);
-        write_to_section(section, destination);
-        write_to_section(section, " = ");
+    switch (operand.kind) {
+        case OPERAND_EXPRESSION:
+            return write_expression_to_section(
+                compiler, section, expr, destination, dest_is_declared
+            );
+        case OPERAND_ENCLOSURE_LITERAL:
+            return write_enclosure_literal_to_section(
+                compiler, section, operand, destination, dest_is_declared
+            );
+        case OPERAND_COMPREHENSION:
+            UNIMPLEMENTED("render comprehension operand unimplemented");
+        case OPERAND_TOKEN:
+            return write_simple_operand_to_section(
+                compiler, section, operand, destination, dest_is_declared
+            );
+        case OPERAND_ARGUMENTS:
+            UNREACHABLE("argument operand can not be rendered directly");
+        case OPERAND_SLICE:
+            UNREACHABLE("slice operand can not be rendered directly");
+        default:
+            UNREACHABLE("default case of write simple expression");
     }
-    write_simple_operand_to_section(compiler, section, operand);
-    write_to_section(section, ";\n");
-
-    return expr_type;
+    UNREACHABLE("end of write simple expression");
 }
-
-static void compile_statement(
-    C_Compiler* compiler, CompilerSection* section, Statement* stmt
-);
-
-static TypeInfo write_expression_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    char* destination,
-    bool dest_is_declared
-);
 
 // -1 on bad kwd
 // TODO: should check if parser even allows this to happen in the future
@@ -800,7 +961,7 @@ write_expression_to_section(
     bool dest_is_declared
 )
 {
-    if (is_simple_expression(expr))
+    if (expr->operations_count == 0)
         return write_simple_expression_to_section(
             compiler, section, expr, destination, dest_is_declared
         );
@@ -1070,7 +1231,7 @@ compile_assignment(
 {
     if (assignment->op_type != OPERATOR_ASSIGNMENT)
         UNIMPLEMENTED("assignment op_type not implemented");
-    if (!is_simple_expression(assignment->storage))
+    if (assignment->storage->operations_count != 0)
         UNIMPLEMENTED("assignment to non-variables not yet implemented");
 
     char* identifier = assignment->storage->operands[0].token.value;
