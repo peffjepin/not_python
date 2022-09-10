@@ -9,10 +9,25 @@
 
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
 
-static void
-out_of_memory(void)
+// TODO: error messages and error handlers with try blocks
+void
+memory_error(void)
 {
     fprintf(stderr, "ERROR: out of memory\n");
+    exit(1);
+}
+
+void
+index_error(void)
+{
+    fprintf(stderr, "ERROR: index error\n");
+    exit(1);
+}
+
+void
+value_error(void)
+{
+    fprintf(stderr, "ERROR: value error\n");
     exit(1);
 }
 
@@ -74,7 +89,7 @@ str_lt(PYSTRING str1, PYSTRING str2)
 PYBOOL
 str_lte(PYSTRING str1, PYSTRING str2)
 {
-    if (str1.length == 0) return str2.length >= 0;
+    if (str1.length == 0) return true;
 
     size_t minlen = (str1.length < str2.length) ? str1.length : str2.length;
     for (size_t i = 0; i < minlen; i++) {
@@ -92,7 +107,6 @@ str_add(PYSTRING str1, PYSTRING str2)
     PYSTRING str = {
         .data = np_alloc(str1.length + str2.length + 1),
         .length = str1.length + str2.length};
-    if (!str.data) out_of_memory();
     memcpy(str.data, str1.data + str1.offset, str1.length);
     memcpy(str.data + str1.length, str2.data + str2.offset, str2.length);
     return str;
@@ -103,7 +117,6 @@ np_int_to_str(PYINT num)
 {
     size_t required_length = snprintf(NULL, 0, "%lli", num);
     PYSTRING str = {.data = np_alloc(required_length + 1), .length = required_length};
-    if (!str.data) out_of_memory();
     snprintf(str.data, required_length + 1, "%lli", num);
     return str;
 }
@@ -113,7 +126,6 @@ np_float_to_str(PYFLOAT num)
 {
     size_t required_length = snprintf(NULL, 0, "%f", num);
     PYSTRING str = {.data = np_alloc(required_length + 1), .length = required_length};
-    if (!str.data) out_of_memory();
     snprintf(str.data, required_length + 1, "%f", num);
     return str;
 }
@@ -142,6 +154,81 @@ builtin_print(size_t argc, ...)
     fflush(stdout);
 }
 
+void
+list_clear(List* list)
+{
+    list->count = 0;
+    list->capacity = LIST_MIN_CAPACITY;
+    list->data = np_realloc(list->data, list->element_size * list->capacity);
+}
+
+List*
+list_copy(List* list)
+{
+    List* new_list = np_alloc(sizeof(List));
+    new_list->count = list->count;
+    new_list->capacity = list->capacity;
+    new_list->element_size = list->element_size;
+    size_t bytes = list->capacity * list->element_size;
+    new_list->data = np_alloc(bytes);
+    memcpy(new_list->data, list->data, bytes);
+    return new_list;
+}
+
+void
+list_extend(List* list, List* other)
+{
+    size_t required_capacity = list->count + other->count + 1;
+    if (list->capacity < required_capacity)
+        np_realloc(list->data, list->element_size * required_capacity);
+    memcpy(
+        (uint8_t*)list->data + list->element_size * list->count,
+        other->data,
+        other->element_size * other->count
+    );
+}
+
+void
+list_shrink(List* list)
+{
+    if (list->capacity == LIST_MIN_CAPACITY) return;
+    size_t new_capacity = list->capacity * LIST_SHRINK_FACTOR;
+    if (new_capacity < LIST_MIN_CAPACITY) new_capacity = LIST_MIN_CAPACITY;
+    list->capacity = new_capacity;
+    list->data = np_realloc(list->data, list->element_size * list->capacity);
+}
+
+void
+list_del(List* list, PYINT index)
+{
+    // assume bounds checking has already occured
+    memmove(
+        (uint8_t*)list->data + (list->element_size * index),
+        (uint8_t*)list->data + (list->element_size * (index + 1)),
+        list->element_size * (list->count - index + 1)
+    );
+    list->count -= 1;
+    if (list->count <= list->capacity * LIST_SHRINK_THRESHOLD) list_shrink(list);
+}
+
+void
+list_grow(List* list)
+{
+    list->capacity *= 2;
+    list->data = np_realloc(list->data, list->element_size * list->capacity);
+}
+
+List*
+np_internal_list_init(size_t elem_size)
+{
+    List* list = np_alloc(sizeof(List));
+    list->count = 0;
+    list->capacity = LIST_MIN_CAPACITY;
+    list->element_size = elem_size;
+    list->data = np_alloc(elem_size * list->capacity);
+    return list;
+}
+
 // TODO: these are just stubs for now so I can keep track of where python
 // allocs are coming from -- eventually these will need to be garbage collected
 // Until I get around to implementing that all python allocs will leak
@@ -149,12 +236,16 @@ builtin_print(size_t argc, ...)
 void*
 np_alloc(size_t bytes)
 {
-    return calloc(1, bytes);
+    void* ptr = calloc(1, bytes);
+    if (!ptr) memory_error();
+    return ptr;
 }
 void*
 np_realloc(void* ptr, size_t bytes)
 {
-    return realloc(ptr, bytes);
+    void* newptr = realloc(ptr, bytes);
+    if (!newptr) memory_error();
+    return newptr;
 }
 void
 np_free(void* ptr)
