@@ -859,6 +859,18 @@ write_operation_to_section(
                 );
                 return;
             }
+            else if (types[0].type == PYTYPE_LIST) {
+                write_many_to_section(
+                    section,
+                    "list_add(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ")",
+                    NULL
+                );
+                return;
+            }
             break;
         case OPERATOR_DIV:
             write_many_to_section(
@@ -941,6 +953,8 @@ write_operation_to_section(
                 return;
             }
             break;
+        case OPERATOR_GET_ITEM:
+            UNIMPLEMENTED("getitem");
         default:
             break;
     }
@@ -1039,7 +1053,10 @@ write_expression_to_section(
             Operand operand = expr->operands[operand_indices[lr]];
             switch (operand.kind) {
                 case OPERAND_ENCLOSURE_LITERAL:
-                    UNIMPLEMENTED("enclosure literal rendering unimplemented");
+                    GENERATE_UNIQUE_VAR(compiler, as_variable[lr]);
+                    operand_types[lr] = write_enclosure_literal_to_section(
+                        compiler, section, operand, as_variable[lr], false
+                    );
                     break;
                 case OPERAND_COMPREHENSION:
                     UNIMPLEMENTED("comprehension rendering unimplemented");

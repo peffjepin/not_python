@@ -154,6 +154,16 @@ builtin_print(size_t argc, ...)
     fflush(stdout);
 }
 
+List*
+list_add(List* list1, List* list2)
+{
+    // TODO: it would be better to allocate a large enough list to begin with and copy
+    // into it.
+    List* new_list = list_copy(list1);
+    list_extend(new_list, list2);
+    return new_list;
+}
+
 void
 list_clear(List* list)
 {
@@ -186,6 +196,7 @@ list_extend(List* list, List* other)
         other->data,
         other->element_size * other->count
     );
+    list->count += other->count;
 }
 
 void

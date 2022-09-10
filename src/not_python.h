@@ -43,6 +43,7 @@ typedef struct {
     void* data;
 } List;
 
+List* list_add(List* list1, List* list2);
 void list_clear(List* list);
 List* list_copy(List* list);
 void list_extend(List* list, List* other);
