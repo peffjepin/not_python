@@ -348,7 +348,7 @@ static TypeInfo write_expression_to_section(
     CompilerSection* section,
     Expression* expr,
     char* destination,
-    bool dest_is_declared
+    bool is_declared
 );
 
 static void write_typed_expr_to_variable(
@@ -356,7 +356,8 @@ static void write_typed_expr_to_variable(
     CompilerSection* section,
     Expression* expr,
     TypeInfo type,
-    char* destination
+    char* destination,
+    bool is_declared
 );
 
 static void
@@ -501,6 +502,7 @@ enclosure_type_to_python_type(EnclosureType enclosure_type)
         case ENCLOSURE_DICT:
             return PYTYPE_DICT;
     }
+    UNREACHABLE("end of enclosure type to python type")
 }
 
 static TypeInfo
@@ -509,7 +511,7 @@ write_enclosure_literal_to_section(
     CompilerSection* section,
     Operand operand,
     char* destination,
-    bool dest_is_declared
+    bool is_declared
 )
 {
     if (operand.enclosure->expressions_count == 0) {
@@ -534,7 +536,7 @@ write_enclosure_literal_to_section(
         .type = enclosure_type_to_python_type(operand.enclosure->type), .inner = inner};
 
     if (destination) {
-        if (!dest_is_declared) write_type_info_to_section(section, enclosure_type_info);
+        if (!is_declared) write_type_info_to_section(section, enclosure_type_info);
         write_to_section(section, destination);
         write_to_section(section, " = ");
     }
@@ -570,7 +572,8 @@ write_enclosure_literal_to_section(
                     section,
                     operand.enclosure->expressions[i++],
                     first_expr_type_info,
-                    expression
+                    expression,
+                    true
                 );
             }
         } break;
@@ -592,7 +595,7 @@ write_simple_expression_to_section(
     CompilerSection* section,
     Expression* expr,
     char* destination,
-    bool dest_is_declared
+    bool is_declared
 )
 {
     assert(expr->operations_count == 0);
@@ -601,17 +604,17 @@ write_simple_expression_to_section(
     switch (operand.kind) {
         case OPERAND_EXPRESSION:
             return write_expression_to_section(
-                compiler, section, expr, destination, dest_is_declared
+                compiler, section, expr, destination, is_declared
             );
         case OPERAND_ENCLOSURE_LITERAL:
             return write_enclosure_literal_to_section(
-                compiler, section, operand, destination, dest_is_declared
+                compiler, section, operand, destination, is_declared
             );
         case OPERAND_COMPREHENSION:
             UNIMPLEMENTED("render comprehension operand unimplemented");
         case OPERAND_TOKEN:
             return write_simple_operand_to_section(
-                compiler, section, operand, destination, dest_is_declared
+                compiler, section, operand, destination, is_declared
             );
         case OPERAND_ARGUMENTS:
             UNREACHABLE("argument operand can not be rendered directly");
@@ -640,11 +643,12 @@ write_typed_expr_to_variable(
     CompilerSection* section,
     Expression* expr,
     TypeInfo type,
-    char* destination
+    char* destination,
+    bool is_declared
 )
 {
     TypeInfo checked_type =
-        write_expression_to_section(compiler, section, expr, destination, false);
+        write_expression_to_section(compiler, section, expr, destination, is_declared);
     if (!compare_types(type, checked_type)) {
         // TODO: better error reporting
         fprintf(stderr, "ERROR: inconsistent typing\n");
@@ -691,7 +695,7 @@ write_function_call_to_section(
     C_Compiler* compiler,
     CompilerSection* section,
     char* destination,
-    bool dest_is_declared,
+    bool is_declared,
     FunctionStatement* fndef,
     Arguments* args
 )
@@ -722,7 +726,7 @@ write_function_call_to_section(
         Expression* arg_value = args->values[arg_i];
         TypeInfo arg_type = fndef->sig.types[arg_i];
         write_typed_expr_to_variable(
-            compiler, section, arg_value, arg_type, param_vars[arg_i]
+            compiler, section, arg_value, arg_type, param_vars[arg_i], false
         );
     }
 
@@ -739,7 +743,7 @@ write_function_call_to_section(
         Expression* arg_value = args->values[i];
         TypeInfo arg_type = fndef->sig.types[kwd_index];
         write_typed_expr_to_variable(
-            compiler, section, arg_value, arg_type, param_vars[kwd_index]
+            compiler, section, arg_value, arg_type, param_vars[kwd_index], false
         );
     }
 
@@ -761,15 +765,14 @@ write_function_call_to_section(
             Expression* arg_value = fndef->sig.defaults[i - required_count];
             TypeInfo arg_type = fndef->sig.types[i];
             write_typed_expr_to_variable(
-                compiler, section, arg_value, arg_type, param_vars[i]
+                compiler, section, arg_value, arg_type, param_vars[i], false
             );
         }
     }
 
     // write the call statement
     if (destination) {
-        if (!dest_is_declared)
-            write_type_info_to_section(section, fndef->sig.return_type);
+        if (!is_declared) write_type_info_to_section(section, fndef->sig.return_type);
         write_to_section(section, destination);
         write_to_section(section, " = ");
     }
@@ -819,13 +822,13 @@ render_builtin(
     C_Compiler* compiler,
     CompilerSection* section,
     char* destination,
-    bool dest_is_declared,
+    bool is_declared,
     char* fn_identifier,
     Arguments* args
 )
 {
     (void)destination;
-    (void)dest_is_declared;
+    (void)is_declared;
     if (strcmp(fn_identifier, "print") == 0) {
         render_builtin_print(compiler, section, args);
         return (TypeInfo){.type = PYTYPE_NONE};
@@ -958,12 +961,12 @@ write_expression_to_section(
     CompilerSection* section,
     Expression* expr,
     char* destination,
-    bool dest_is_declared
+    bool is_declared
 )
 {
     if (expr->operations_count == 0)
         return write_simple_expression_to_section(
-            compiler, section, expr, destination, dest_is_declared
+            compiler, section, expr, destination, is_declared
         );
     // when rendering: (1 + 2 * 3 + 4)
     // first 2 * 3 is rendered
@@ -993,7 +996,7 @@ write_expression_to_section(
                     compiler,
                     section,
                     this_operation_dest,
-                    dest_is_declared,
+                    is_declared,
                     fn_identifier,
                     args
                 );
@@ -1002,7 +1005,7 @@ write_expression_to_section(
             resolved_operation_types[i] = fndef->sig.return_type;
 
             write_function_call_to_section(
-                compiler, section, this_operation_dest, dest_is_declared, fndef, args
+                compiler, section, this_operation_dest, is_declared, fndef, args
             );
 
             size_t_ptr_memory[operation.left] = i;
@@ -1067,7 +1070,7 @@ write_expression_to_section(
         if (this_operation_dest) {
             // on the final assignment, if the destination is already declared, dont add
             // type
-            if (i != expr->operations_count - 1 || !dest_is_declared)
+            if (i != expr->operations_count - 1 || !is_declared)
                 write_type_info_to_section(section, resolved_operation_types[i]);
             write_to_section(section, this_operation_dest);
             write_to_section(section, " = ");
@@ -1271,11 +1274,72 @@ compile_return_statement(
 }
 
 static void
+compile_for_loop(
+    C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
+)
+{
+    DEFINE_UNIQUE_VAR(compiler, iterable_variable);
+    TypeInfo iterable_type_info = write_expression_to_section(
+        compiler, section, for_loop->iterable, iterable_variable, false
+    );
+
+    if (iterable_type_info.type != PYTYPE_LIST) {
+        fprintf(stderr, "ERROR: for loops currently implemented only for lists\n");
+        exit(1);
+    }
+    if (for_loop->it->identifiers_count > 1) {
+        fprintf(
+            stderr,
+            "ERROR: for loops with multiple identifiers not currently implemented\n"
+        );
+        exit(1);
+    }
+    if (for_loop->it->identifiers[0].kind != IT_ID) {
+        fprintf(
+            stderr,
+            "ERROR: for loops with multiple identifiers not currently implemented\n"
+        );
+        exit(1);
+    }
+
+    // put it variables into scope with type info
+    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+    Symbol sym = {
+        .kind = SYM_VARIABLE, .variable = arena_alloc(compiler->arena, sizeof(Variable))};
+    sym.variable->identifier = for_loop->it->identifiers[0].name;
+    sym.variable->type = iterable_type_info.inner->types[0];
+    symbol_hm_put(&scope->hm, sym);
+
+    // render for loop
+    DEFINE_UNIQUE_VAR(compiler, index_variable);
+    write_many_to_section(
+        section,
+        "LIST_FOR_EACH(",
+        iterable_variable,
+        ", ",
+        type_info_to_c_syntax(iterable_type_info.inner->types[0]),
+        ", ",
+        for_loop->it->identifiers[0].name,
+        ", ",
+        index_variable,
+        ") {\n",
+        NULL
+    );
+    for (size_t i = 0; i < for_loop->body.stmts_count; i++) {
+        compile_statement(compiler, section, for_loop->body.stmts[i]);
+    }
+    write_to_section(section, "}\n");
+}
+
+static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     switch (stmt->kind) {
-        case STMT_FOR_LOOP:
-            UNIMPLEMENTED("for loop compilation is unimplemented");
+        case STMT_FOR_LOOP: {
+            CompilerSection* section =
+                (section_or_null) ? section_or_null : &compiler->init_module_function;
+            compile_for_loop(compiler, section, stmt->for_loop);
+        } break;
         case STMT_IMPORT:
             UNIMPLEMENTED("import compilation is unimplemented");
         case STMT_WHILE:

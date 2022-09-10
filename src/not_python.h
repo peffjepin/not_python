@@ -110,6 +110,11 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_INIT(type) np_internal_list_init(sizeof(type))
 
+#define LIST_FOR_EACH(list, type, it, idx)                                               \
+    size_t idx = 0;                                                                      \
+    for (type it = ((type*)list->data)[idx]; idx < list->count;                          \
+         it = ((type*)list->data)[++idx])
+
 void builtin_print(size_t argc, ...);
 
 #endif
