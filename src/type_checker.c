@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "generated.h"
 #include "lexer_helpers.h"
 
 #define UNREACHABLE() assert(0 && "unreachable");
@@ -69,164 +70,327 @@ is_number(TypeInfo type)
     return (type.type == PYTYPE_INT || type.type == PYTYPE_FLOAT);
 }
 
-static TypeInfo
-resolve_plus(TypeInfo left, TypeInfo right)
-{
-    switch (left.type) {
-        case PYTYPE_INT:
-            switch (right.type) {
-                case PYTYPE_INT:
-                    return (TypeInfo){.type = PYTYPE_INT};
-                case PYTYPE_FLOAT:
-                    return (TypeInfo){.type = PYTYPE_FLOAT};
-                default:
-                    return (TypeInfo){.type = PYTYPE_UNTYPED};
-            }
-            break;
-        case PYTYPE_FLOAT:
-            if (is_number(right)) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_STRING:
-            if (right.type == PYTYPE_STRING)
-                return (TypeInfo){.type = PYTYPE_STRING};
-            else
-                return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_LIST:
-            if (compare_types(left, right)) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+#define TYPE_INFO_UNTYPED                                                                \
+    {                                                                                    \
+        .type = PYTYPE_UNTYPED                                                           \
     }
-}
-
-static TypeInfo
-resolve_minus(TypeInfo left, TypeInfo right)
-{
-    switch (left.type) {
-        case PYTYPE_INT:
-            switch (right.type) {
-                case PYTYPE_INT:
-                    return (TypeInfo){.type = PYTYPE_INT};
-                case PYTYPE_FLOAT:
-                    return (TypeInfo){.type = PYTYPE_FLOAT};
-                default:
-                    return (TypeInfo){.type = PYTYPE_UNTYPED};
-            }
-        case PYTYPE_FLOAT:
-            if (is_number(right)) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+#define TYPE_INFO_FLOAT                                                                  \
+    {                                                                                    \
+        .type = PYTYPE_FLOAT                                                             \
     }
-}
-
-static TypeInfo
-resolve_multiply(TypeInfo left, TypeInfo right)
-{
-    switch (left.type) {
-        case PYTYPE_INT:
-            switch (right.type) {
-                case PYTYPE_INT:
-                    return (TypeInfo){.type = PYTYPE_INT};
-                case PYTYPE_FLOAT:
-                    return (TypeInfo){.type = PYTYPE_FLOAT};
-                case PYTYPE_STRING:
-                    return right;
-                case PYTYPE_LIST:
-                    return right;
-                default:
-                    return (TypeInfo){.type = PYTYPE_UNTYPED};
-            }
-        case PYTYPE_FLOAT:
-            if (is_number(right)) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_STRING:
-            if (right.type == PYTYPE_INT) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_LIST:
-            if (right.type == PYTYPE_INT) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+#define TYPE_INFO_INT                                                                    \
+    {                                                                                    \
+        .type = PYTYPE_INT                                                               \
     }
-}
-
-static TypeInfo
-resolve_divide(TypeInfo left, TypeInfo right)
-{
-    switch (left.type) {
-        case PYTYPE_INT:
-            if (is_number(right)) return (TypeInfo){.type = PYTYPE_FLOAT};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_FLOAT:
-            if (is_number(right)) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+#define TYPE_INFO_NONE                                                                   \
+    {                                                                                    \
+        .type = PYTYPE_NONE                                                              \
     }
-}
-
-static TypeInfo
-resolve_modulo(TypeInfo left, TypeInfo right)
-{
-    switch (left.type) {
-        case PYTYPE_INT:
-            if (right.type == PYTYPE_INT) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_FLOAT:
-            if (right.type == PYTYPE_INT) return left;
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_STRING:
-            // TODO: format string
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+#define TYPE_INFO_STRING                                                                 \
+    {                                                                                    \
+        .type = PYTYPE_STRING                                                            \
     }
-}
+#define TYPE_INFO_LIST                                                                   \
+    {                                                                                    \
+        .type = PYTYPE_LIST                                                              \
+    }
+#define TYPE_INFO_DICT                                                                   \
+    {                                                                                    \
+        .type = PYTYPE_DICT                                                              \
+    }
+#define TYPE_INFO_TUPLE                                                                  \
+    {                                                                                    \
+        .type = PYTYPE_TUPLE                                                             \
+    }
+#define TYPE_INFO_OBJECT                                                                 \
+    {                                                                                    \
+        .type = PYTYPE_OBJECT                                                            \
+    }
+#define TYPE_INFO_BOOL                                                                   \
+    {                                                                                    \
+        .type = PYTYPE_BOOL                                                              \
+    }
+#define TYPE_INFO_SLICE                                                                  \
+    {                                                                                    \
+        .type = PYTYPE_SLICE                                                             \
+    }
 
-static TypeInfo
-resolve_power(TypeInfo left, TypeInfo right)
-{
-    if (!(is_number(right) && is_number(left))) return (TypeInfo){.type = PYTYPE_UNTYPED};
-    if (left.type == PYTYPE_FLOAT || right.type == PYTYPE_FLOAT)
-        return (TypeInfo){.type = PYTYPE_FLOAT};
-    return (TypeInfo){.type = PYTYPE_INT};
-}
+static const bool TYPE_USES_SPECIAL_RESOLUTION_RULES[PYTYPE_COUNT] = {
+    [PYTYPE_LIST] = true,
+    [PYTYPE_DICT] = true,
+    [PYTYPE_OBJECT] = true,
+    [PYTYPE_TUPLE] = true,
+};
 
-static TypeInfo
-resolve_floordiv(TypeInfo left, TypeInfo right)
-{
-    if (!(is_number(right) && is_number(left))) return (TypeInfo){.type = PYTYPE_UNTYPED};
-    // python returns float if a float is involved, im just going to return an int for now
-    return (TypeInfo){.type = PYTYPE_INT};
-}
+static const bool SPECIAL_OPERATOR_RULES[OPERATORS_MAX] = {
+    [OPERATOR_CONDITIONAL_IF] = true,
+    [OPERATOR_CONDITIONAL_ELSE] = true,
+    [OPERATOR_CALL] = true,
+    [OPERATOR_GET_ITEM] = true,
+    [OPERATOR_GET_ATTR] = true,
+    [OPERATOR_LOGICAL_AND] = true,
+    [OPERATOR_LOGICAL_OR] = true,
+    [OPERATOR_LOGICAL_NOT] = true,
+    [OPERATOR_IN] = true,
+    [OPERATOR_IS] = true,
+    [OPERATOR_NEGATIVE] = true,
+    [OPERATOR_BITWISE_NOT] = true,
+};
 
-static TypeInfo
-resolve_equal(TypeInfo left, TypeInfo right)
-{
-    if (is_number(left) && is_number(right))
-        return (TypeInfo){.type = PYTYPE_BOOL};
-    else if (compare_types(left, right))
-        return (TypeInfo){.type = PYTYPE_BOOL};
-    return (TypeInfo){.type = PYTYPE_UNTYPED};
-}
-
-static TypeInfo
-resolve_gtlt_comparison(TypeInfo left, TypeInfo right)
-{
-    if (is_number(left) && is_number(right))
-        return (TypeInfo){.type = PYTYPE_BOOL};
-    else if (left.type == PYTYPE_STRING && right.type == PYTYPE_STRING)
-        return (TypeInfo){.type = PYTYPE_BOOL};
-    return (TypeInfo){.type = PYTYPE_UNTYPED};
-}
-
-static TypeInfo
-resolve_bit_manipulations(TypeInfo left, TypeInfo right)
-{
-    if (left.type == PYTYPE_INT && right.type == PYTYPE_INT) return right;
-    return (TypeInfo){.type = PYTYPE_UNTYPED};
-}
+static const TypeInfo
+    OPERATION_TYPE_RESOLUTION_TABLE[OPERATORS_MAX][PYTYPE_COUNT][PYTYPE_COUNT] = {
+        [OPERATOR_PLUS] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_STRING,
+                    },
+            },
+        [OPERATOR_MINUS] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+            },
+        [OPERATOR_MULT] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_STRING] = TYPE_INFO_STRING,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_STRING,
+                    },
+            },
+        [OPERATOR_DIV] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                    },
+            },
+        [OPERATOR_MOD] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                    },
+            },
+        [OPERATOR_POW] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                    },
+            },
+        [OPERATOR_FLOORDIV] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_INT,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [PYTYPE_FLOAT] = TYPE_INFO_INT,
+                    },
+            },
+        [OPERATOR_EQUAL] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_BOOL] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_NOT_EQUAL] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_BOOL] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_GREATER] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_LESS] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_GREATER_EQUAL] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_LESS_EQUAL] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_FLOAT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_BOOL,
+                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                    },
+                [PYTYPE_STRING] =
+                    {
+                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                    },
+            },
+        [OPERATOR_BITWISE_AND] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+            },
+        [OPERATOR_BITWISE_OR] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+            },
+        [OPERATOR_BITWISE_XOR] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+            },
+        [OPERATOR_LSHIFT] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+            },
+        [OPERATOR_RSHIFT] =
+            {
+                [PYTYPE_INT] =
+                    {
+                        [PYTYPE_INT] = TYPE_INFO_INT,
+                    },
+            },
+};
 
 static TypeInfo
 resolve_membership(TypeInfo left, TypeInfo right)
@@ -299,52 +463,98 @@ resolve_get_item(TypeInfo left, TypeInfo right)
     }
 }
 
+static TypeInfo
+resolve_list_ops(TypeInfo list, TypeInfo other, Operator op)
+{
+    switch (op) {
+        case OPERATOR_PLUS:
+            if (!compare_types(list, other)) goto error;
+            return list;
+        case OPERATOR_MULT:
+            if (other.type != PYTYPE_INT) goto error;
+            return list;
+        case OPERATOR_EQUAL:
+            if (!compare_types(list, other)) goto error;
+            return (TypeInfo)TYPE_INFO_BOOL;
+        case OPERATOR_NOT_EQUAL:
+            if (!compare_types(list, other)) goto error;
+            return (TypeInfo)TYPE_INFO_BOOL;
+        default:
+            goto error;
+    }
+error:
+    return (TypeInfo)TYPE_INFO_UNTYPED;
+}
+
+static TypeInfo
+resolve_dict_ops(TypeInfo dict, TypeInfo other, Operator op)
+{
+    (void)dict;
+    (void)other;
+    (void)op;
+    UNIMPLEMENTED("dict operation type resolution unimplemented");
+}
+
+static TypeInfo
+resolve_tuple_ops(TypeInfo tuple, TypeInfo other, Operator op)
+{
+    (void)tuple;
+    (void)other;
+    (void)op;
+    UNIMPLEMENTED("tuple operation type resolution unimplemented");
+}
+
+static TypeInfo
+resolve_object_ops(TypeInfo object, TypeInfo other, Operator op)
+{
+    (void)object;
+    (void)other;
+    (void)op;
+    UNIMPLEMENTED("object operation type resolution unimplemented");
+}
+
 TypeInfo
 resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
 {
     if (left.type == PYTYPE_UNTYPED || right.type == PYTYPE_UNTYPED)
-        return (TypeInfo){.type = PYTYPE_UNTYPED};
+        return (TypeInfo)TYPE_INFO_UNTYPED;
+    if (SPECIAL_OPERATOR_RULES[op]) goto special_ops;
+    if (!TYPE_USES_SPECIAL_RESOLUTION_RULES[left.type] &&
+        !TYPE_USES_SPECIAL_RESOLUTION_RULES[right.type]) {
+        return OPERATION_TYPE_RESOLUTION_TABLE[op][left.type][right.type];
+    }
+    else {
+        switch (left.type) {
+            case PYTYPE_LIST:
+                return resolve_list_ops(left, right, op);
+            case PYTYPE_DICT:
+                return resolve_dict_ops(left, right, op);
+            case PYTYPE_TUPLE:
+                return resolve_tuple_ops(left, right, op);
+            case PYTYPE_OBJECT:
+                return resolve_object_ops(left, right, op);
+            default:
+                break;
+        }
+        switch (right.type) {
+            case PYTYPE_LIST:
+                return resolve_list_ops(right, left, op);
+            case PYTYPE_DICT:
+                return resolve_dict_ops(right, left, op);
+            case PYTYPE_TUPLE:
+                return resolve_tuple_ops(right, left, op);
+            case PYTYPE_OBJECT:
+                return resolve_object_ops(right, left, op);
+            default:
+                UNREACHABLE();
+        }
+    }
+special_ops:
     switch (op) {
-        case OPERATOR_PLUS:
-            return resolve_plus(left, right);
-        case OPERATOR_MINUS:
-            return resolve_minus(left, right);
-        case OPERATOR_MULT:
-            return resolve_multiply(left, right);
-        case OPERATOR_DIV:
-            return resolve_divide(left, right);
-        case OPERATOR_MOD:
-            return resolve_modulo(left, right);
-        case OPERATOR_POW:
-            return resolve_power(left, right);
-        case OPERATOR_FLOORDIV:
-            return resolve_floordiv(left, right);
-        case OPERATOR_EQUAL:
-            return resolve_equal(left, right);
-        case OPERATOR_NOT_EQUAL:
-            return resolve_equal(left, right);
-        case OPERATOR_GREATER:
-            return resolve_gtlt_comparison(left, right);
-        case OPERATOR_LESS:
-            return resolve_gtlt_comparison(left, right);
-        case OPERATOR_GREATER_EQUAL:
-            return resolve_gtlt_comparison(left, right);
-        case OPERATOR_LESS_EQUAL:
-            return resolve_gtlt_comparison(left, right);
-        case OPERATOR_BITWISE_AND:
-            return resolve_bit_manipulations(left, right);
-        case OPERATOR_BITWISE_OR:
-            return resolve_bit_manipulations(left, right);
-        case OPERATOR_BITWISE_XOR:
-            return resolve_bit_manipulations(left, right);
         case OPERATOR_CONDITIONAL_IF:
             return left;
         case OPERATOR_CONDITIONAL_ELSE:
             return right;
-        case OPERATOR_LSHIFT:
-            return resolve_bit_manipulations(left, right);
-        case OPERATOR_RSHIFT:
-            return resolve_bit_manipulations(left, right);
         case OPERATOR_IN:
             return resolve_membership(left, right);
         case OPERATOR_IS:
