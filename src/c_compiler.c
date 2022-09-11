@@ -243,17 +243,45 @@ enclosure_type_to_python_type(EnclosureType enclosure_type)
 }
 
 static void
+render_empty_enclosure(CAssignment* enclosure_assignment, Operand operand)
+{
+    switch (operand.enclosure->type) {
+        case ENCLOSURE_LIST:
+            prepare_c_assignment_for_rendering(enclosure_assignment);
+            write_many_to_section(
+                enclosure_assignment->section,
+                "LIST_INIT(",
+                type_info_to_c_syntax(enclosure_assignment->type_info.inner->types[0]),
+                ");\n",
+                NULL
+            );
+            break;
+        case ENCLOSURE_DICT:
+            UNIMPLEMENTED("empty dict rendering unimplemented");
+        case ENCLOSURE_TUPLE:
+            UNIMPLEMENTED("empty tuple rendering unimplemented");
+        default:
+            UNREACHABLE("end of render empty enclosure switch");
+    }
+}
+
+static void
 render_enclosure_literal(
     C_Compiler* compiler, CAssignment* enclosure_assignment, Operand operand
 )
 {
     if (operand.enclosure->expressions_count == 0) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: empty containers must have their type annotated when initialized\n"
-        );
-        exit(1);
+        if (enclosure_assignment->type_info.type == PYTYPE_UNTYPED) {
+            // TODO: error message
+            fprintf(
+                stderr,
+                "ERROR: empty containers must have their type annotated when "
+                "initialized\n"
+            );
+            exit(1);
+        }
+        render_empty_enclosure(enclosure_assignment, operand);
+        return;
     }
 
     GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
@@ -272,12 +300,9 @@ render_enclosure_literal(
     inner->count = 1;
     TypeInfo enclosure_type_info = {
         .type = enclosure_type_to_python_type(operand.enclosure->type), .inner = inner};
+    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
 
-    if (enclosure_assignment->variable_name) {
-        set_assignment_type_info(enclosure_assignment, enclosure_type_info);
-        prepare_c_assignment_for_rendering(enclosure_assignment);
-    }
-    else {
+    if (enclosure_assignment->variable_name == NULL) {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
         fprintf(stderr, "ERROR: enclosures must be assigned\n");
         exit(1);
@@ -288,10 +313,7 @@ render_enclosure_literal(
             // TODO: for now we're just going to init an empty list and append everything
             // to it. eventually we should allocate enough room to begin with because we
             // already know the length of the list
-            const char* typestr = type_info_to_c_syntax(expression_assignment.type_info);
-            write_many_to_section(
-                enclosure_assignment->section, "LIST_INIT(", typestr, ");\n", NULL
-            );
+            render_empty_enclosure(enclosure_assignment, operand);
             size_t i = 1;
             for (;;) {
                 write_many_to_section(
@@ -299,7 +321,7 @@ render_enclosure_literal(
                     "LIST_APPEND(",
                     enclosure_assignment->variable_name,
                     ", ",
-                    typestr,
+                    type_info_to_c_syntax(expression_assignment.type_info),
                     ", ",
                     expression_assignment.variable_name,
                     ");\n",
@@ -1113,6 +1135,7 @@ compile_annotation(
         // TODO: is_declared probably == false when not at top level scope
         CAssignment assignment = {
             .section = section,
+            .type_info = annotation->type,
             .variable_name = annotation->identifier,
             .is_declared = true};
         render_expression_assignment(compiler, &assignment, annotation->initial);
