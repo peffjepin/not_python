@@ -992,24 +992,112 @@ declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
     write_to_section(&compiler->variable_declarations, ";\n");
 }
 
+static void
+render_list_set_item(
+    C_Compiler* compiler, CAssignment list_assignment, AssignmentStatement* stmt
+)
+{
+    Operand last_operand =
+        stmt->storage->operands
+            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
+
+    if (last_operand.kind == OPERAND_SLICE)
+        UNIMPLEMENTED("list setitem from slice is unimplemented");
+    // render index to a variable
+    GENERATE_UNIQUE_VAR_NAME(compiler, index_var);
+    CAssignment index_assignment = {
+        .section = list_assignment.section,
+        .type_info.type = PYTYPE_INT,
+        .variable_name = index_var,
+        .is_declared = false};
+    if (last_operand.kind == OPERAND_TOKEN)
+        render_simple_operand(compiler, &index_assignment, last_operand);
+    else if (last_operand.kind == OPERAND_EXPRESSION)
+        render_expression_assignment(compiler, &index_assignment, last_operand.expr);
+    else
+        UNREACHABLE("unexpected operand kind for setitem index")
+
+    // render item to a variable
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
+    CAssignment item_assignment = {
+        .section = list_assignment.section,
+        .type_info = list_assignment.type_info.inner->types[0],
+        .variable_name = item_var,
+        .is_declared = false};
+    render_expression_assignment(compiler, &item_assignment, stmt->value);
+
+    // render setitem
+    write_many_to_section(
+        list_assignment.section,
+        "LIST_SET_ITEM(",
+        list_assignment.variable_name,
+        ", ",
+        type_info_to_c_syntax(list_assignment.type_info.inner->types[0]),
+        ", ",
+        index_var,
+        ", ",
+        item_var,
+        ");\n",
+        NULL
+    );
+}
+
+static void
+compile_complex_assignment(
+    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
+)
+{
+    Operation last_op = stmt->storage->operations[stmt->storage->operations_count - 1];
+
+    if (last_op.op_type == OPERATOR_GET_ITEM) {
+        Expression container_expr = *stmt->storage;
+        container_expr.operations_count -= 1;
+        GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
+        CAssignment container_assignment = {
+            .section = section,
+            .variable_name = container_variable,
+            .is_declared = false};
+        render_expression_assignment(compiler, &container_assignment, &container_expr);
+        switch (container_assignment.type_info.type) {
+            case PYTYPE_LIST: {
+                render_list_set_item(compiler, container_assignment, stmt);
+                break;
+            }
+            default:
+                UNIMPLEMENTED("setitem not implemented for this data type");
+        }
+    }
+    else
+        UNIMPLEMENTED("complex assignment compilation unimplemented");
+}
+
+static void
+compile_simple_assignment(
+    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
+)
+{
+    CAssignment assignment = {
+        .section = section,
+        .variable_name = stmt->storage->operands[0].token.value,
+        .is_declared = true};
+    render_expression_assignment(compiler, &assignment, stmt->value);
+    if (section == &compiler->init_module_function)
+        declare_global_variable(compiler, assignment.type_info, assignment.variable_name);
+}
+
 // TODO: looks like this always assumes it's dealing with a global variable which is not
 // the case
 static void
 compile_assignment(
-    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* assignment_stmt
+    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
 )
 {
-    if (assignment_stmt->op_type != OPERATOR_ASSIGNMENT)
+    if (stmt->op_type != OPERATOR_ASSIGNMENT)
         UNIMPLEMENTED("assignment op_type not implemented");
-    if (assignment_stmt->storage->operations_count != 0)
-        UNIMPLEMENTED("assignment to non-variables not yet implemented");
-
-    char* identifier = assignment_stmt->storage->operands[0].token.value;
-    CAssignment c_assignment = {
-        .section = section, .variable_name = identifier, .is_declared = true};
-    render_expression_assignment(compiler, &c_assignment, assignment_stmt->value);
-    if (section == &compiler->init_module_function)
-        declare_global_variable(compiler, c_assignment.type_info, identifier);
+    if (stmt->storage->operations_count != 0)
+        compile_complex_assignment(compiler, section, stmt);
+    else
+        compile_simple_assignment(compiler, section, stmt);
 }
 
 static void
