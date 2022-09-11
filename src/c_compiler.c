@@ -318,17 +318,17 @@ typedef struct {
 #define UNIQUE_VAR_LENGTH 12
 
 // TODO: I'd prefer a change that allows this macro to accept `;` at the end
-#define DEFINE_UNIQUE_VARS(compiler_ptr, count, name)                                    \
+#define GENERATE_UNIQUE_VAR_NAMES(compiler_ptr, count, name)                             \
     char name[count][UNIQUE_VAR_LENGTH];                                                 \
     for (size_t i = 0; i < count; i++) {                                                 \
         sprintf(name[i], "NP_var%zu", compiler_ptr->unique_vars_counter++);              \
     }
 
-#define DEFINE_UNIQUE_VAR(compiler_ptr, name)                                            \
+#define GENERATE_UNIQUE_VAR_NAME(compiler_ptr, name)                                     \
     char name[UNIQUE_VAR_LENGTH];                                                        \
     sprintf(name, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
-#define GENERATE_UNIQUE_VAR(compiler_ptr, dest)                                          \
+#define REGENERATE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                   \
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
 #define DATATYPE_INT "PYINT"
@@ -339,25 +339,39 @@ typedef struct {
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
+typedef struct {
+    CompilerSection* section;
+    TypeInfo type_info;
+    char* variable_name;
+    bool is_declared;
+} CAssignment;
+
+static void
+set_assignment_type_info(CAssignment* assignment, TypeInfo type_info)
+{
+    if (assignment->type_info.type != PYTYPE_UNTYPED &&
+        !compare_types(type_info, assignment->type_info)) {
+        // TODO: error message
+        //
+        // TODO: some kind of check if this is safe to cast such
+        //      ex: if expecting a float, and actually got an int, it's probably safe to
+        //      just cast to float
+        fprintf(
+            stderr, "ERROR: inconsistent typing when assigning type to CAssignment\n"
+        );
+        exit(1);
+    }
+    else {
+        assignment->type_info = type_info;
+    }
+}
+
 static void compile_statement(
     C_Compiler* compiler, CompilerSection* section, Statement* stmt
 );
 
-static TypeInfo write_expression_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    char* destination,
-    bool is_declared
-);
-
-static void write_typed_expr_to_variable(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    TypeInfo type,
-    char* destination,
-    bool is_declared
+static void render_expression_assignment(
+    C_Compiler* compiler, CAssignment* assignment, Expression* expr
 );
 
 static void
@@ -445,6 +459,20 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
     }
 }
 
+static void
+prepare_c_assignment_for_rendering(CAssignment* assignment)
+{
+    if (assignment->variable_name) {
+        if (!assignment->is_declared) {
+            if (assignment->type_info.type == PYTYPE_UNTYPED) untyped_error();
+            write_type_info_to_section(assignment->section, assignment->type_info);
+            assignment->is_declared = true;
+        }
+        write_to_section(assignment->section, assignment->variable_name);
+        write_to_section(assignment->section, " = ");
+    }
+}
+
 static char*
 simple_operand_repr(C_Compiler* compiler, Operand operand)
 {
@@ -470,24 +498,13 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         UNREACHABLE("unexpected simple operand");
 }
 
-static TypeInfo
-write_simple_operand_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Operand operand,
-    char* dest,
-    bool is_declared
-)
+static void
+render_simple_operand(C_Compiler* compiler, CAssignment* assignment, Operand operand)
 {
-    TypeInfo type_info = resolve_operand_type(&compiler->tc, operand);
-    if (dest) {
-        if (!is_declared) write_type_info_to_section(section, type_info);
-        write_to_section(section, dest);
-        write_to_section(section, " = ");
-    }
-    write_to_section(section, simple_operand_repr(compiler, operand));
-    write_to_section(section, ";\n");
-    return type_info;
+    set_assignment_type_info(assignment, resolve_operand_type(&compiler->tc, operand));
+    prepare_c_assignment_for_rendering(assignment);
+    write_to_section(assignment->section, simple_operand_repr(compiler, operand));
+    write_to_section(assignment->section, ";\n");
 }
 
 static PythonType
@@ -505,13 +522,9 @@ enclosure_type_to_python_type(EnclosureType enclosure_type)
     UNREACHABLE("end of enclosure type to python type")
 }
 
-static TypeInfo
-write_enclosure_literal_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Operand operand,
-    char* destination,
-    bool is_declared
+static void
+render_enclosure_literal(
+    C_Compiler* compiler, CAssignment* enclosure_assignment, Operand operand
 )
 {
     if (operand.enclosure->expressions_count == 0) {
@@ -523,22 +536,26 @@ write_enclosure_literal_to_section(
         exit(1);
     }
 
-    DEFINE_UNIQUE_VAR(compiler, expression);
-    TypeInfo first_expr_type_info = write_expression_to_section(
-        compiler, section, operand.enclosure->expressions[0], expression, false
+    GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
+    CAssignment expression_assignment = {
+        .is_declared = false,
+        .section = enclosure_assignment->section,
+        .variable_name = expression_variable};
+    render_expression_assignment(
+        compiler, &expression_assignment, operand.enclosure->expressions[0]
     );
+    expression_assignment.is_declared = true;
 
     TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
     inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
-    inner->types[0] = first_expr_type_info;
+    inner->types[0] = expression_assignment.type_info;
     inner->count = 1;
     TypeInfo enclosure_type_info = {
         .type = enclosure_type_to_python_type(operand.enclosure->type), .inner = inner};
 
-    if (destination) {
-        if (!is_declared) write_type_info_to_section(section, enclosure_type_info);
-        write_to_section(section, destination);
-        write_to_section(section, " = ");
+    if (enclosure_assignment->variable_name) {
+        set_assignment_type_info(enclosure_assignment, enclosure_type_info);
+        prepare_c_assignment_for_rendering(enclosure_assignment);
     }
     else {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
@@ -551,29 +568,26 @@ write_enclosure_literal_to_section(
             // TODO: for now we're just going to init an empty list and append everything
             // to it. eventually we should allocate enough room to begin with because we
             // already know the length of the list
-            const char* typestr = type_info_to_c_syntax(first_expr_type_info);
-            write_many_to_section(section, "LIST_INIT(", typestr, ");\n", NULL);
+            const char* typestr = type_info_to_c_syntax(expression_assignment.type_info);
+            write_many_to_section(
+                enclosure_assignment->section, "LIST_INIT(", typestr, ");\n", NULL
+            );
             size_t i = 1;
             for (;;) {
                 write_many_to_section(
-                    section,
+                    enclosure_assignment->section,
                     "LIST_APPEND(",
-                    destination,
+                    enclosure_assignment->variable_name,
                     ", ",
                     typestr,
                     ", ",
-                    expression,
+                    expression_assignment.variable_name,
                     ");\n",
                     NULL
                 );
                 if (i == operand.enclosure->expressions_count) break;
-                write_typed_expr_to_variable(
-                    compiler,
-                    section,
-                    operand.enclosure->expressions[i++],
-                    first_expr_type_info,
-                    expression,
-                    true
+                render_expression_assignment(
+                    compiler, &expression_assignment, operand.enclosure->expressions[i++]
                 );
             }
         } break;
@@ -585,37 +599,26 @@ write_enclosure_literal_to_section(
         default:
             UNREACHABLE("enclosure literal default case unreachable")
     }
-
-    return enclosure_type_info;
 }
 
-static TypeInfo
-write_simple_expression_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    char* destination,
-    bool is_declared
-)
+static void
+render_simple_expression(C_Compiler* compiler, CAssignment* assignment, Expression* expr)
 {
     assert(expr->operations_count == 0);
     Operand operand = expr->operands[0];
 
     switch (operand.kind) {
         case OPERAND_EXPRESSION:
-            return write_expression_to_section(
-                compiler, section, expr, destination, is_declared
-            );
+            render_expression_assignment(compiler, assignment, expr);
+            return;
         case OPERAND_ENCLOSURE_LITERAL:
-            return write_enclosure_literal_to_section(
-                compiler, section, operand, destination, is_declared
-            );
+            render_enclosure_literal(compiler, assignment, operand);
+            return;
         case OPERAND_COMPREHENSION:
             UNIMPLEMENTED("render comprehension operand unimplemented");
         case OPERAND_TOKEN:
-            return write_simple_operand_to_section(
-                compiler, section, operand, destination, is_declared
-            );
+            render_simple_operand(compiler, assignment, operand);
+            return;
         case OPERAND_ARGUMENTS:
             UNREACHABLE("argument operand can not be rendered directly");
         case OPERAND_SLICE:
@@ -635,25 +638,6 @@ index_of_kwarg(FunctionStatement* fndef, char* kwd)
         if (strcmp(kwd, fndef->sig.params[i]) == 0) return i;
     }
     return -1;
-}
-
-static void
-write_typed_expr_to_variable(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    TypeInfo type,
-    char* destination,
-    bool is_declared
-)
-{
-    TypeInfo checked_type =
-        write_expression_to_section(compiler, section, expr, destination, is_declared);
-    if (!compare_types(type, checked_type)) {
-        // TODO: better error reporting
-        fprintf(stderr, "ERROR: inconsistent typing\n");
-        exit(1);
-    }
 }
 
 static void
@@ -691,11 +675,9 @@ write_variable_to_section_as_type(
 }
 
 static void
-write_function_call_to_section(
+render_function_call(
     C_Compiler* compiler,
-    CompilerSection* section,
-    char* destination,
-    bool is_declared,
+    CAssignment* assignment,
     FunctionStatement* fndef,
     Arguments* args
 )
@@ -705,13 +687,13 @@ write_function_call_to_section(
         fprintf(stderr, "ERROR: too many arguments provided\n");
         exit(1);
     }
-    if (fndef->sig.return_type.type == PYTYPE_NONE && destination != NULL) {
+    if (fndef->sig.return_type.type == PYTYPE_NONE && assignment->variable_name != NULL) {
         fprintf(stderr, "ERROR: trying to assign from a return value of void\n");
         exit(1);
     }
 
     // intermediate variables to store args into
-    DEFINE_UNIQUE_VARS(compiler, fndef->sig.params_count, param_vars)
+    GENERATE_UNIQUE_VAR_NAMES(compiler, fndef->sig.params_count, param_vars)
 
     bool params_fulfilled[fndef->sig.params_count];
     memset(params_fulfilled, true, sizeof(bool) * args->n_positional);
@@ -725,9 +707,12 @@ write_function_call_to_section(
     for (size_t arg_i = 0; arg_i < args->n_positional; arg_i++) {
         Expression* arg_value = args->values[arg_i];
         TypeInfo arg_type = fndef->sig.types[arg_i];
-        write_typed_expr_to_variable(
-            compiler, section, arg_value, arg_type, param_vars[arg_i], false
-        );
+        CAssignment arg_assignment = {
+            .section = assignment->section,
+            .type_info = arg_type,
+            .variable_name = param_vars[arg_i],
+            .is_declared = false};
+        render_expression_assignment(compiler, &arg_assignment, arg_value);
     }
 
     // parse kwargs
@@ -742,9 +727,12 @@ write_function_call_to_section(
 
         Expression* arg_value = args->values[i];
         TypeInfo arg_type = fndef->sig.types[kwd_index];
-        write_typed_expr_to_variable(
-            compiler, section, arg_value, arg_type, param_vars[kwd_index], false
-        );
+        CAssignment arg_assignment = {
+            .section = assignment->section,
+            .type_info = arg_type,
+            .variable_name = param_vars[kwd_index],
+            .is_declared = false};
+        render_expression_assignment(compiler, &arg_assignment, arg_value);
     }
 
     // check that all required params are fulfilled
@@ -764,28 +752,28 @@ write_function_call_to_section(
         else {
             Expression* arg_value = fndef->sig.defaults[i - required_count];
             TypeInfo arg_type = fndef->sig.types[i];
-            write_typed_expr_to_variable(
-                compiler, section, arg_value, arg_type, param_vars[i], false
-            );
+            CAssignment arg_assignment = {
+                .section = assignment->section,
+                .type_info = arg_type,
+                .variable_name = param_vars[i],
+                .is_declared = false};
+            render_expression_assignment(compiler, &arg_assignment, arg_value);
         }
     }
 
     // write the call statement
-    if (destination) {
-        if (!is_declared) write_type_info_to_section(section, fndef->sig.return_type);
-        write_to_section(section, destination);
-        write_to_section(section, " = ");
-    }
-    write_to_section(section, fndef->name);
-    write_to_section(section, "(");
+    set_assignment_type_info(assignment, fndef->sig.return_type);
+    prepare_c_assignment_for_rendering(assignment);
+    write_to_section(assignment->section, fndef->name);
+    write_to_section(assignment->section, "(");
     for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
-        if (arg_i > 0) write_to_section(section, ", ");
-        write_to_section(section, param_vars[arg_i]);
+        if (arg_i > 0) write_to_section(assignment->section, ", ");
+        write_to_section(assignment->section, param_vars[arg_i]);
     }
-    write_to_section(section, ");\n");
+    write_to_section(assignment->section, ");\n");
 }
 
-static TypeInfo
+static void
 render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* args)
 {
     if (args->values_count != args->n_positional) {
@@ -793,12 +781,13 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         fprintf(stderr, "ERROR: print doesn't take keyword arguments\n");
         exit(1);
     }
-    DEFINE_UNIQUE_VARS(compiler, args->values_count, string_vars)
+    GENERATE_UNIQUE_VAR_NAMES(compiler, args->values_count, string_vars)
     TypeInfo var_types[args->values_count];
     for (size_t i = 0; i < args->values_count; i++) {
-        var_types[i] = write_expression_to_section(
-            compiler, section, args->values[i], string_vars[i], false
-        );
+        CAssignment assignment = {
+            .section = section, .variable_name = string_vars[i], .is_declared = false};
+        render_expression_assignment(compiler, &assignment, args->values[i]);
+        var_types[i] = assignment.type_info;
     }
 
     char arg_count_as_str[10] = {0};
@@ -813,25 +802,17 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         );
     }
     write_to_section(section, ");\n");
-    return (TypeInfo){.type = PYTYPE_NONE};
 }
 
 // TODO: parser will need to enforce that builtins dont get defined by the user
-static TypeInfo
+static void
 render_builtin(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    char* destination,
-    bool is_declared,
-    char* fn_identifier,
-    Arguments* args
+    C_Compiler* compiler, CAssignment* assignment, char* fn_identifier, Arguments* args
 )
 {
-    (void)destination;
-    (void)is_declared;
     if (strcmp(fn_identifier, "print") == 0) {
-        render_builtin_print(compiler, section, args);
-        return (TypeInfo){.type = PYTYPE_NONE};
+        render_builtin_print(compiler, assignment->section, args);
+        return;
     }
     else {
         // TODO: better error message
@@ -841,36 +822,19 @@ render_builtin(
 }
 
 static void
-prepare_writing_assignment_to_section(
-    CompilerSection* section, TypeInfo type, char* dest, bool is_declared
+render_operation(
+    CAssignment* assignment, Operator op_type, char** operand_reprs, TypeInfo* types
 )
 {
-    if (dest) {
-        if (!is_declared) write_type_info_to_section(section, type);
-        write_to_section(section, dest);
-        write_to_section(section, " = ");
-    }
-}
-
-static TypeInfo
-write_operation_to_section(
-    CompilerSection* section,
-    Operator op_type,
-    char** operand_reprs,
-    TypeInfo* types,
-    char* dest,
-    bool is_declared
-)
-{
-    TypeInfo resolved_type = resolve_operation_type(types[0], types[1], op_type);
+    set_assignment_type_info(
+        assignment, resolve_operation_type(types[0], types[1], op_type)
+    );
     switch (op_type) {
         case OPERATOR_PLUS:
             if (types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_add(",
                     operand_reprs[0],
                     ", ",
@@ -878,14 +842,12 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             else if (types[0].type == PYTYPE_LIST) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "list_add(",
                     operand_reprs[0],
                     ", ",
@@ -893,15 +855,13 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_DIV:
-            prepare_writing_assignment_to_section(
-                section, resolved_type, dest, is_declared
-            );
+            prepare_c_assignment_for_rendering(assignment);
             write_many_to_section(
-                section,
+                assignment->section,
                 (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
                 operand_reprs[0],
                 (char*)op_to_cstr(op_type),
@@ -909,14 +869,12 @@ write_operation_to_section(
                 operand_reprs[1],
                 NULL
             );
-            return resolved_type;
+            return;
         case OPERATOR_EQUAL:
             if (types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_eq(",
                     operand_reprs[0],
                     ", ",
@@ -924,16 +882,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_GREATER:
             if (types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_gt(",
                     operand_reprs[0],
                     ", ",
@@ -941,16 +897,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_GREATER_EQUAL:
             if (types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_gte(",
                     operand_reprs[0],
                     ", ",
@@ -958,16 +912,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_LESS:
             if (types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_lt(",
                     operand_reprs[0],
                     ", ",
@@ -975,16 +927,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_LESS_EQUAL:
             if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
-                prepare_writing_assignment_to_section(
-                    section, resolved_type, dest, is_declared
-                );
+                prepare_c_assignment_for_rendering(assignment);
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "str_lte(",
                     operand_reprs[0],
                     ", ",
@@ -992,7 +942,7 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             break;
         case OPERATOR_GET_ITEM:
@@ -1001,12 +951,17 @@ write_operation_to_section(
                     UNIMPLEMENTED("list slicing unimplemented");
                 const char* dest_type_c_syntax =
                     type_info_to_c_syntax(types[0].inner->types[0]);
-                if (!is_declared)
+                if (!assignment->is_declared)
                     write_many_to_section(
-                        section, dest_type_c_syntax, " ", dest, ";\n", NULL
+                        assignment->section,
+                        dest_type_c_syntax,
+                        " ",
+                        assignment->variable_name,
+                        ";\n",
+                        NULL
                     );
                 write_many_to_section(
-                    section,
+                    assignment->section,
                     "LIST_GET_ITEM(",
                     operand_reprs[0],
                     ", ",
@@ -1014,11 +969,11 @@ write_operation_to_section(
                     ", ",
                     operand_reprs[1],
                     ", ",
-                    dest,
+                    assignment->variable_name,
                     ")",
                     NULL
                 );
-                return resolved_type;
+                return;
             }
             else {
                 UNIMPLEMENTED("getitem unimplemented for this type");
@@ -1027,11 +982,15 @@ write_operation_to_section(
         default:
             break;
     }
-    prepare_writing_assignment_to_section(section, resolved_type, dest, is_declared);
+    prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
-        section, operand_reprs[0], (char*)op_to_cstr(op_type), operand_reprs[1], NULL
+        assignment->section,
+        operand_reprs[0],
+        (char*)op_to_cstr(op_type),
+        operand_reprs[1],
+        NULL
     );
-    return resolved_type;
+    return;
 }
 
 /*
@@ -1040,24 +999,22 @@ write_operation_to_section(
  * assigns the final value to the destination at the end. I may
  * want to revisit this after the rest of the compiler is implemented.
  */
-static TypeInfo
-write_expression_to_section(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    Expression* expr,
-    char* destination,
-    bool is_declared
+static void
+render_expression_assignment(
+    C_Compiler* compiler, CAssignment* assignment, Expression* expr
 )
 {
-    if (expr->operations_count == 0)
-        return write_simple_expression_to_section(
-            compiler, section, expr, destination, is_declared
-        );
+    if (expr->operations_count == 0) {
+        render_simple_expression(compiler, assignment, expr);
+        return;
+    }
     // when rendering: (1 + 2 * 3 + 4)
     // first 2 * 3 is rendered
     // next 1 + 2 must know that (2) now refers to the result of (2 * 3)
     // these variables are used to facilitate this kind of logic
-    DEFINE_UNIQUE_VARS(compiler, expr->operations_count - 1, intermediate_variables)
+    GENERATE_UNIQUE_VAR_NAMES(
+        compiler, expr->operations_count - 1, intermediate_variables
+    )
     TypeInfo resolved_operation_types[expr->operations_count];
     size_t size_t_ptr_memory[expr->operands_count];
     size_t* operand_to_resolved_operation_index[expr->operands_count];
@@ -1067,8 +1024,17 @@ write_expression_to_section(
     );
 
     for (size_t i = 0; i < expr->operations_count; i++) {
-        char* this_operation_dest =
-            (i == expr->operations_count - 1) ? destination : intermediate_variables[i];
+        CAssignment this_assignment;
+
+        if (i == expr->operations_count - 1)
+            this_assignment = *assignment;
+        else {
+            this_assignment.section = assignment->section;
+            this_assignment.variable_name = intermediate_variables[i];
+            this_assignment.is_declared = false;
+            this_assignment.type_info.type = PYTYPE_UNTYPED;
+        }
+
         Operation operation = expr->operations[i];
 
         if (operation.op_type == OPERATOR_CALL) {
@@ -1077,21 +1043,13 @@ write_expression_to_section(
             Arguments* args = expr->operands[operation.right].args;
             Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
             if (!sym) {
-                return render_builtin(
-                    compiler,
-                    section,
-                    this_operation_dest,
-                    is_declared,
-                    fn_identifier,
-                    args
-                );
+                render_builtin(compiler, &this_assignment, fn_identifier, args);
+                return;
             }
             FunctionStatement* fndef = sym->func;
             resolved_operation_types[i] = fndef->sig.return_type;
 
-            write_function_call_to_section(
-                compiler, section, this_operation_dest, is_declared, fndef, args
-            );
+            render_function_call(compiler, &this_assignment, fndef, args);
 
             size_t_ptr_memory[operation.left] = i;
             size_t_ptr_memory[operation.right] = i;
@@ -1124,10 +1082,13 @@ write_expression_to_section(
             Operand operand = expr->operands[operand_indices[lr]];
             switch (operand.kind) {
                 case OPERAND_ENCLOSURE_LITERAL:
-                    GENERATE_UNIQUE_VAR(compiler, as_variable[lr]);
-                    operand_types[lr] = write_enclosure_literal_to_section(
-                        compiler, section, operand, as_variable[lr], false
-                    );
+                    REGENERATE_UNIQUE_VAR_NAME(compiler, as_variable[lr]);
+                    CAssignment enclosure_assignment = {
+                        .section = assignment->section,
+                        .variable_name = as_variable[lr],
+                        .is_declared = false};
+                    render_enclosure_literal(compiler, &enclosure_assignment, operand);
+                    operand_types[lr] = enclosure_assignment.type_info;
                     break;
                 case OPERAND_COMPREHENSION:
                     UNIMPLEMENTED("comprehension rendering unimplemented");
@@ -1136,10 +1097,15 @@ write_expression_to_section(
                     operand_types[lr].type = PYTYPE_SLICE;
                     break;
                 case OPERAND_EXPRESSION: {
-                    GENERATE_UNIQUE_VAR(compiler, as_variable[lr]);
-                    operand_types[lr] = write_expression_to_section(
-                        compiler, section, operand.expr, as_variable[lr], false
+                    REGENERATE_UNIQUE_VAR_NAME(compiler, as_variable[lr]);
+                    CAssignment expression_assignment = {
+                        .section = assignment->section,
+                        .variable_name = as_variable[lr],
+                        .is_declared = false};
+                    render_expression_assignment(
+                        compiler, &expression_assignment, operand.expr
                     );
+                    operand_types[lr] = expression_assignment.type_info;
                     break;
                 }
                 case OPERAND_TOKEN:
@@ -1177,20 +1143,14 @@ write_expression_to_section(
             }
         }
 
-        TypeInfo operation_type_resolved = write_operation_to_section(
-            section,
-            operation.op_type,
-            reprs,
-            operand_types,
-            this_operation_dest,
-            i == expr->operations_count - 1 && is_declared
-        );
-        write_to_section(section, ";\n");
-        resolved_operation_types[i] = operation_type_resolved;
+        render_operation(&this_assignment, operation.op_type, reprs, operand_types);
+        resolved_operation_types[i] = this_assignment.type_info;
+        write_to_section(assignment->section, ";\n");
     }
 
-    TypeInfo final_type = resolved_operation_types[expr->operations_count - 1];
-    return final_type;
+    set_assignment_type_info(
+        assignment, resolved_operation_types[expr->operations_count - 1]
+    );
 }
 
 static void
@@ -1312,22 +1272,24 @@ declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
     write_to_section(&compiler->variable_declarations, ";\n");
 }
 
+// TODO: looks like this always assumes it's dealing with a global variable which is not
+// the case
 static void
 compile_assignment(
-    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* assignment
+    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* assignment_stmt
 )
 {
-    if (assignment->op_type != OPERATOR_ASSIGNMENT)
+    if (assignment_stmt->op_type != OPERATOR_ASSIGNMENT)
         UNIMPLEMENTED("assignment op_type not implemented");
-    if (assignment->storage->operations_count != 0)
+    if (assignment_stmt->storage->operations_count != 0)
         UNIMPLEMENTED("assignment to non-variables not yet implemented");
 
-    char* identifier = assignment->storage->operands[0].token.value;
-    TypeInfo expr_type = write_expression_to_section(
-        compiler, section, assignment->value, identifier, true
-    );
+    char* identifier = assignment_stmt->storage->operands[0].token.value;
+    CAssignment c_assignment = {
+        .section = section, .variable_name = identifier, .is_declared = true};
+    render_expression_assignment(compiler, &c_assignment, assignment_stmt->value);
     if (section == &compiler->init_module_function)
-        declare_global_variable(compiler, expr_type, identifier);
+        declare_global_variable(compiler, c_assignment.type_info, identifier);
 }
 
 static void
@@ -1340,9 +1302,12 @@ compile_annotation(
         declare_global_variable(compiler, annotation->type, annotation->identifier);
 
     if (annotation->initial) {
-        write_expression_to_section(
-            compiler, section, annotation->initial, annotation->identifier, true
-        );
+        // TODO: is_declared probably == false when not at top level scope
+        CAssignment assignment = {
+            .section = section,
+            .variable_name = annotation->identifier,
+            .is_declared = true};
+        render_expression_assignment(compiler, &assignment, annotation->initial);
     }
 }
 
@@ -1351,8 +1316,10 @@ compile_return_statement(
     C_Compiler* compiler, CompilerSection* section, ReturnStatement* ret
 )
 {
-    DEFINE_UNIQUE_VAR(compiler, return_var);
-    write_expression_to_section(compiler, section, ret->value, return_var, false);
+    GENERATE_UNIQUE_VAR_NAME(compiler, return_var);
+    CAssignment assignment = {
+        .section = section, .variable_name = return_var, .is_declared = false};
+    render_expression_assignment(compiler, &assignment, ret->value);
     write_to_section(section, "return ");
     write_to_section(section, return_var);
     write_to_section(section, ";\n");
@@ -1363,12 +1330,12 @@ compile_for_loop(
     C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
 )
 {
-    DEFINE_UNIQUE_VAR(compiler, iterable_variable);
-    TypeInfo iterable_type_info = write_expression_to_section(
-        compiler, section, for_loop->iterable, iterable_variable, false
-    );
+    GENERATE_UNIQUE_VAR_NAME(compiler, iterable_variable);
+    CAssignment assignment = {
+        .section = section, .variable_name = iterable_variable, .is_declared = false};
+    render_expression_assignment(compiler, &assignment, for_loop->iterable);
 
-    if (iterable_type_info.type != PYTYPE_LIST) {
+    if (assignment.type_info.type != PYTYPE_LIST) {
         fprintf(stderr, "ERROR: for loops currently implemented only for lists\n");
         exit(1);
     }
@@ -1392,17 +1359,17 @@ compile_for_loop(
     Symbol sym = {
         .kind = SYM_VARIABLE, .variable = arena_alloc(compiler->arena, sizeof(Variable))};
     sym.variable->identifier = for_loop->it->identifiers[0].name;
-    sym.variable->type = iterable_type_info.inner->types[0];
+    sym.variable->type = assignment.type_info.inner->types[0];
     symbol_hm_put(&scope->hm, sym);
 
     // render for loop
-    DEFINE_UNIQUE_VAR(compiler, index_variable);
+    GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
     write_many_to_section(
         section,
         "LIST_FOR_EACH(",
         iterable_variable,
         ", ",
-        type_info_to_c_syntax(iterable_type_info.inner->types[0]),
+        type_info_to_c_syntax(assignment.type_info.inner->types[0]),
         ", ",
         for_loop->it->identifiers[0].name,
         ", ",
@@ -1456,7 +1423,9 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_EXPR: {
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
-            write_expression_to_section(compiler, section, stmt->expr, NULL, false);
+            CAssignment assignment = {
+                .section = section, .variable_name = NULL, .is_declared = false};
+            render_expression_assignment(compiler, &assignment, stmt->expr);
             break;
         }
         case STMT_NO_OP:
