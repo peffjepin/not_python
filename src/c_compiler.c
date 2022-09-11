@@ -841,13 +841,34 @@ render_builtin(
 }
 
 static void
-write_operation_to_section(
-    CompilerSection* section, Operator op_type, char** operand_reprs, TypeInfo* types
+prepare_writing_assignment_to_section(
+    CompilerSection* section, TypeInfo type, char* dest, bool is_declared
 )
 {
+    if (dest) {
+        if (!is_declared) write_type_info_to_section(section, type);
+        write_to_section(section, dest);
+        write_to_section(section, " = ");
+    }
+}
+
+static TypeInfo
+write_operation_to_section(
+    CompilerSection* section,
+    Operator op_type,
+    char** operand_reprs,
+    TypeInfo* types,
+    char* dest,
+    bool is_declared
+)
+{
+    TypeInfo resolved_type = resolve_operation_type(types[0], types[1], op_type);
     switch (op_type) {
         case OPERATOR_PLUS:
             if (types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_add(",
@@ -857,9 +878,12 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             else if (types[0].type == PYTYPE_LIST) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "list_add(",
@@ -869,10 +893,13 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_DIV:
+            prepare_writing_assignment_to_section(
+                section, resolved_type, dest, is_declared
+            );
             write_many_to_section(
                 section,
                 (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
@@ -882,9 +909,12 @@ write_operation_to_section(
                 operand_reprs[1],
                 NULL
             );
-            return;
+            return resolved_type;
         case OPERATOR_EQUAL:
             if (types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_eq(",
@@ -894,11 +924,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_GREATER:
             if (types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_gt(",
@@ -908,11 +941,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_GREATER_EQUAL:
             if (types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_gte(",
@@ -922,11 +958,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_LESS:
             if (types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_lt(",
@@ -936,11 +975,14 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_LESS_EQUAL:
             if (types[0].type == PYTYPE_STRING && types[0].type == PYTYPE_STRING) {
+                prepare_writing_assignment_to_section(
+                    section, resolved_type, dest, is_declared
+                );
                 write_many_to_section(
                     section,
                     "str_lte(",
@@ -950,17 +992,46 @@ write_operation_to_section(
                     ")",
                     NULL
                 );
-                return;
+                return resolved_type;
             }
             break;
         case OPERATOR_GET_ITEM:
-            UNIMPLEMENTED("getitem");
+            if (types[0].type == PYTYPE_LIST) {
+                if (types[1].type == PYTYPE_SLICE)
+                    UNIMPLEMENTED("list slicing unimplemented");
+                const char* dest_type_c_syntax =
+                    type_info_to_c_syntax(types[0].inner->types[0]);
+                if (!is_declared)
+                    write_many_to_section(
+                        section, dest_type_c_syntax, " ", dest, ";\n", NULL
+                    );
+                write_many_to_section(
+                    section,
+                    "LIST_GET_ITEM(",
+                    operand_reprs[0],
+                    ", ",
+                    dest_type_c_syntax,
+                    ", ",
+                    operand_reprs[1],
+                    ", ",
+                    dest,
+                    ")",
+                    NULL
+                );
+                return resolved_type;
+            }
+            else {
+                UNIMPLEMENTED("getitem unimplemented for this type");
+            }
+            break;
         default:
             break;
     }
+    prepare_writing_assignment_to_section(section, resolved_type, dest, is_declared);
     write_many_to_section(
         section, operand_reprs[0], (char*)op_to_cstr(op_type), operand_reprs[1], NULL
     );
+    return resolved_type;
 }
 
 /*
@@ -1062,7 +1133,7 @@ write_expression_to_section(
                     UNIMPLEMENTED("comprehension rendering unimplemented");
                     break;
                 case OPERAND_SLICE:
-                    UNIMPLEMENTED("slice rendering unimplemented");
+                    operand_types[lr].type = PYTYPE_SLICE;
                     break;
                 case OPERAND_EXPRESSION: {
                     GENERATE_UNIQUE_VAR(compiler, as_variable[lr]);
@@ -1080,17 +1151,6 @@ write_expression_to_section(
                     );
                     break;
             }
-        }
-
-        resolved_operation_types[i] =
-            resolve_operation_type(operand_types[0], operand_types[1], operation.op_type);
-        if (this_operation_dest) {
-            // on the final assignment, if the destination is already declared, dont add
-            // type
-            if (i != expr->operations_count - 1 || !is_declared)
-                write_type_info_to_section(section, resolved_operation_types[i]);
-            write_to_section(section, this_operation_dest);
-            write_to_section(section, " = ");
         }
 
         char* reprs[2] = {0};
@@ -1117,8 +1177,16 @@ write_expression_to_section(
             }
         }
 
-        write_operation_to_section(section, operation.op_type, reprs, operand_types);
+        TypeInfo operation_type_resolved = write_operation_to_section(
+            section,
+            operation.op_type,
+            reprs,
+            operand_types,
+            this_operation_dest,
+            i == expr->operations_count - 1 && is_declared
+        );
         write_to_section(section, ";\n");
+        resolved_operation_types[i] = operation_type_resolved;
     }
 
     TypeInfo final_type = resolved_operation_types[expr->operations_count - 1];

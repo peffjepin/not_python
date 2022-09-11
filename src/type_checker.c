@@ -283,6 +283,22 @@ resolve_bitwise_not(TypeInfo right)
     return right;
 }
 
+static TypeInfo
+resolve_get_item(TypeInfo left, TypeInfo right)
+{
+    switch (left.type) {
+        case PYTYPE_LIST:
+            if (right.type == PYTYPE_SLICE)
+                return left;
+            else if (right.type == PYTYPE_INT)
+                return left.inner->types[0];
+            else
+                return (TypeInfo){.type = PYTYPE_UNTYPED};
+        default:
+            UNIMPLEMENTED("getitem type resolution not implemented");
+    }
+}
+
 TypeInfo
 resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
 {
@@ -343,6 +359,8 @@ resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
             return (TypeInfo){.type = PYTYPE_BOOL};
         case OPERATOR_LOGICAL_NOT:
             return (TypeInfo){.type = PYTYPE_BOOL};
+        case OPERATOR_GET_ITEM:
+            return resolve_get_item(left, right);
         default:
             // assignment ops aren't handled here and should never be passed in
             // to begin with as they are not part of expressions

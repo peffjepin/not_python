@@ -28,6 +28,7 @@ typedef enum {
     PYTYPE_DICT,
     PYTYPE_OBJECT,
     PYTYPE_BOOL,
+    PYTYPE_SLICE,
 } PythonType;
 
 typedef struct {
