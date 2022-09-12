@@ -1,0 +1,18 @@
+l1 = [3, 2, 1, 4]
+
+l1.sort()
+for x in l1:
+    print(x)
+
+print()
+
+l1.sort(reverse=True)
+for x in l1:
+    print(x)
+
+print()
+
+l2 = ["a", "abc", "b", "c"]
+l2.sort()
+for y in l2:
+    print(y)

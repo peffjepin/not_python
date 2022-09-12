@@ -243,6 +243,12 @@ list_reverse(List* list)
     }
 }
 
+void
+list_sort(List* list, int (*cmp_fn)(const void*, const void*))
+{
+    qsort(list->data, list->count, list->element_size, cmp_fn);
+}
+
 List*
 np_internal_list_init(size_t elem_size)
 {
@@ -264,6 +270,70 @@ np_internal_list_prepare_insert(List* list, PYINT index)
         (uint8_t*)list->data + (list->element_size * index),
         list->element_size * (list->count - index)
     );
+}
+
+int
+pyint_sort_fn(const void* elem1, const void* elem2)
+{
+    if (*(PYINT*)elem1 < *(PYINT*)elem2) return -1;
+    if (*(PYINT*)elem1 > *(PYINT*)elem2) return 1;
+    return 0;
+}
+
+int
+pyfloat_sort_fn(const void* elem1, const void* elem2)
+{
+    if (*(PYFLOAT*)elem1 < *(PYFLOAT*)elem2) return -1;
+    if (*(PYFLOAT*)elem1 > *(PYFLOAT*)elem2) return 1;
+    return 0;
+}
+
+int
+pybool_sort_fn(const void* elem1, const void* elem2)
+{
+    if (*(PYBOOL*)elem1 < *(PYBOOL*)elem2) return -1;
+    if (*(PYBOOL*)elem1 > *(PYBOOL*)elem2) return 1;
+    return 0;
+}
+
+int
+ptstr_sort_fn(const void* elem1, const void* elem2)
+{
+    if (str_lt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return -1;
+    if (str_gt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return 1;
+    return 0;
+}
+
+int
+pyint_sort_fn_rev(const void* elem1, const void* elem2)
+{
+    if (*(PYINT*)elem1 < *(PYINT*)elem2) return 1;
+    if (*(PYINT*)elem1 > *(PYINT*)elem2) return -1;
+    return 0;
+}
+
+int
+pyfloat_sort_fn_rev(const void* elem1, const void* elem2)
+{
+    if (*(PYFLOAT*)elem1 < *(PYFLOAT*)elem2) return 1;
+    if (*(PYFLOAT*)elem1 > *(PYFLOAT*)elem2) return -1;
+    return 0;
+}
+
+int
+pybool_sort_fn_rev(const void* elem1, const void* elem2)
+{
+    if (*(PYBOOL*)elem1 < *(PYBOOL*)elem2) return 1;
+    if (*(PYBOOL*)elem1 > *(PYBOOL*)elem2) return -1;
+    return 0;
+}
+
+int
+ptstr_sort_fn_rev(const void* elem1, const void* elem2)
+{
+    if (str_lt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return 1;
+    if (str_gt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return -1;
+    return 0;
 }
 
 // TODO: these are just stubs for now so I can keep track of where python

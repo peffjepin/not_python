@@ -50,8 +50,18 @@ void list_extend(List* list, List* other);
 void list_del(List* list, PYINT index);
 void list_grow(List* list);
 void list_reverse(List* list);
+void list_sort(List* list, int (*cmp_fn)(const void*, const void*));
 List* np_internal_list_init(size_t elem_size);
 void np_internal_list_prepare_insert(List* list, PYINT index);
+
+int pyint_sort_fn(const void*, const void*);
+int pyfloat_sort_fn(const void*, const void*);
+int pybool_sort_fn(const void*, const void*);
+int ptstr_sort_fn(const void*, const void*);
+int pyint_sort_fn_rev(const void*, const void*);
+int pyfloat_sort_fn_rev(const void*, const void*);
+int pybool_sort_fn_rev(const void*, const void*);
+int ptstr_sort_fn_rev(const void*, const void*);
 
 #define LIST_MIN_CAPACITY 10
 #define LIST_SHRINK_THRESHOLD 0.35
@@ -136,6 +146,12 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
         np_internal_list_prepare_insert(list, NP_i);                                     \
         LIST_SET_ITEM(list, type, index, item);                                          \
     } while (0)
+
+#define LIST_SORT(list, normal_cmp, reversed_cmp, reversed)                              \
+    if (reversed)                                                                        \
+        list_sort(list, reversed_cmp);                                                   \
+    else                                                                                 \
+        list_sort(list, normal_cmp)
 
 void builtin_print(size_t argc, ...);
 

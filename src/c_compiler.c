@@ -621,6 +621,36 @@ render_list_copy(
     );
 }
 
+static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
+    [PYTYPE_BOOL] = "pybool_sort_fn",
+    [PYTYPE_STRING] = "ptstr_sort_fn",
+};
+
+static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn_rev",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
+    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
+    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
+};
+
+static const char*
+sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
+{
+    const char* rtval;
+    if (reversed)
+        rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
+    else
+        rtval = SORT_CMP_TABLE[type_info.type];
+    if (!rtval) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
+        exit(1);
+    }
+    return rtval;
+}
+
 static const char* CMP_TABLE[PYTYPE_COUNT] = {
     [PYTYPE_INT] = "C_EQUALITY_TEST",
     [PYTYPE_FLOAT] = "C_EQUALITY_TEST",
@@ -953,7 +983,58 @@ render_list_sort(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_sort is not implemented");
+    // TODO: accept key function argument
+
+    bool bad_args = false;
+    if (args->values_count != 0) {
+        if (args->n_positional > 0)
+            bad_args = true;
+        else if (args->values_count > 1)
+            bad_args = true;
+        else if (strcmp(args->kwds[0], "reverse") != 0)
+            bad_args = true;
+    }
+    if (bad_args) {
+        fprintf(
+            stderr,
+            "ERROR: list.sort expecting either 0 args or boolean keyword arg `reverse`\n"
+        );
+        exit(1);
+    }
+
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    const char* rev_cmp = sort_cmp_for_type_info(list_content_type, true);
+    const char* norm_cmp = sort_cmp_for_type_info(list_content_type, false);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, reversed_variable);
+    if (args->values_count > 0) {
+        C_Assignment reversed_assignment = {
+            .section = assignment->section,
+            .type_info.type = PYTYPE_BOOL,
+            .variable_name = reversed_variable,
+            .is_declared = false};
+        render_expression_assignment(compiler, &reversed_assignment, args->values[0]);
+    }
+    else {
+        memcpy(reversed_variable, "false", 6);
+    }
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_SORT(",
+        list_assignment->variable_name,
+        ", ",
+        norm_cmp,
+        ", ",
+        rev_cmp,
+        ", ",
+        reversed_variable,
+        ");\n",
+        NULL
+    );
 }
 
 static void
