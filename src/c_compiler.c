@@ -595,7 +595,22 @@ render_list_copy(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_copy is not implemented");
+    set_assignment_type_info(assignment, list_assignment->type_info);
+
+    if (args->values_count != 0) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.copy expecting 0 arguments, got %zu\n",
+            args->values_count
+        );
+        exit(1);
+    }
+
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section, "list_copy(", list_assignment->variable_name, ");\n", NULL
+    );
 }
 
 static void
@@ -1144,7 +1159,8 @@ render_expression_assignment(
                 if (i == expr->operations_count - 1) {
                     UNIMPLEMENTED("function references are not currently implemented");
                 }
-                Operation next_operation = expr->operations[i + 1];
+                if (++i == expr->operations_count - 1) this_assignment = assignment;
+                Operation next_operation = expr->operations[i];
                 if (next_operation.op_type != OPERATOR_CALL) {
                     // TODO: error message
                     fprintf(stderr, "ERROR: expecting function call\n");
@@ -1157,7 +1173,6 @@ render_expression_assignment(
                     expr->operands[operation.right].token.value,
                     expr->operands[next_operation.right].args
                 );
-                i++;
                 update_rendered_operation_memory(
                     &operation_renders, this_assignment, operation
                 );
