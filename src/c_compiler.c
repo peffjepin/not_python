@@ -831,7 +831,61 @@ render_list_pop(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_pop is not implemented");
+    GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
+    if (args->values_count == 0) {
+        index_variable[0] = '-';
+        index_variable[1] = '1';
+        index_variable[2] = '\0';
+    }
+    else if (args->values_count == 1) {
+        C_Assignment index_assignment = {
+            .section = assignment->section,
+            .type_info.type = PYTYPE_INT,
+            .variable_name = index_variable,
+            .is_declared = false};
+        render_expression_assignment(compiler, &index_assignment, args->values[0]);
+    }
+    else {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.pop expecting 0-1 arguments, got %zu\n",
+            args->values_count
+        );
+        exit(1);
+    }
+
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    set_assignment_type_info(assignment, list_content_type);
+    if (!assignment->variable_name) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
+        assignment->variable_name = item_variable;
+        assignment->is_declared = false;
+    }
+    if (!assignment->is_declared) {
+        write_many_to_section(
+            assignment->section,
+            type_info_to_c_syntax(list_content_type),
+            " ",
+            assignment->variable_name,
+            ";\n",
+            NULL
+        );
+    }
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_POP(",
+        list_assignment->variable_name,
+        ", ",
+        type_info_to_c_syntax(list_content_type),
+        ", ",
+        index_variable,
+        ", ",
+        assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void

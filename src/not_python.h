@@ -59,7 +59,7 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_GET_ITEM(list, type, index, var)                                            \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
+        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
@@ -68,7 +68,7 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_SET_ITEM(list, type, index, item)                                           \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
+        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
@@ -81,7 +81,7 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_POP(list, type, index, var)                                                 \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
+        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else {                                                                           \
@@ -130,7 +130,7 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_INSERT(list, type, index, item)                                             \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
+        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
         if (NP_i < 0 || NP_i >= list->count) index_error();                              \
         np_internal_list_prepare_insert(list, NP_i);                                     \
         LIST_SET_ITEM(list, type, index, item);                                          \
