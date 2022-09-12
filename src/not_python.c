@@ -240,6 +240,18 @@ np_internal_list_init(size_t elem_size)
     return list;
 }
 
+void
+np_internal_list_prepare_insert(List* list, PYINT index)
+{
+    if (list->count == list->capacity - 1) list_grow(list);
+    list->count += 1;
+    memmove(
+        (uint8_t*)list->data + (list->element_size * (index + 1)),
+        (uint8_t*)list->data + (list->element_size * index),
+        list->element_size * (list->count - index)
+    );
+}
+
 // TODO: these are just stubs for now so I can keep track of where python
 // allocs are coming from -- eventually these will need to be garbage collected
 // Until I get around to implementing that all python allocs will leak

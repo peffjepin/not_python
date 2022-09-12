@@ -50,6 +50,7 @@ void list_extend(List* list, List* other);
 void list_del(List* list, PYINT index);
 void list_grow(List* list);
 List* np_internal_list_init(size_t elem_size);
+void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_MIN_CAPACITY 10
 #define LIST_SHRINK_THRESHOLD 0.35
@@ -58,7 +59,7 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_GET_ITEM(list, type, index, var)                                            \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
@@ -67,7 +68,7 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_SET_ITEM(list, type, index, item)                                           \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
@@ -80,7 +81,7 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_POP(list, type, index, var)                                                 \
     do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
         if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else {                                                                           \
@@ -125,6 +126,14 @@ List* np_internal_list_init(size_t elem_size);
         {                                                                                \
             if (cmp(item, NP_count_it)) count++;                                         \
         }                                                                                \
+    } while (0)
+
+#define LIST_INSERT(list, type, index, item)                                             \
+    do {                                                                                 \
+        PYINT NP_i = (index < 0) ? list->count - index : index;                          \
+        if (NP_i < 0 || NP_i >= list->count) index_error();                              \
+        np_internal_list_prepare_insert(list, NP_i);                                     \
+        LIST_SET_ITEM(list, type, index, item);                                          \
     } while (0)
 
 void builtin_print(size_t argc, ...);
