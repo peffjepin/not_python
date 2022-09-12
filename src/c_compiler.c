@@ -495,13 +495,29 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         fprintf(stderr, "ERROR: print doesn't take keyword arguments\n");
         exit(1);
     }
-    GENERATE_UNIQUE_VAR_NAMES(compiler, args->values_count, string_vars)
-    TypeInfo var_types[args->values_count];
-    for (size_t i = 0; i < args->values_count; i++) {
+    size_t args_count = (args->values_count == 0) ? 1 : args->values_count;
+    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
+    TypeInfo var_types[args_count];
+    if (args->values_count == 0) {
+        TypeInfo default_type_info = {.type = PYTYPE_STRING};
+        var_types[0] = default_type_info;
         C_Assignment assignment = {
-            .section = section, .variable_name = string_vars[i], .is_declared = false};
-        render_expression_assignment(compiler, &assignment, args->values[i]);
-        var_types[i] = assignment.type_info;
+            .section = section,
+            .type_info = default_type_info,
+            .variable_name = string_vars[0],
+            .is_declared = false};
+        prepare_c_assignment_for_rendering(&assignment);
+        write_to_section(assignment.section, "{.data=\"\", .length=0};\n");
+    }
+    else {
+        for (size_t i = 0; i < args->values_count; i++) {
+            C_Assignment assignment = {
+                .section = section,
+                .variable_name = string_vars[i],
+                .is_declared = false};
+            render_expression_assignment(compiler, &assignment, args->values[i]);
+            var_types[i] = assignment.type_info;
+        }
     }
 
     char arg_count_as_str[10] = {0};
@@ -509,13 +525,29 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     write_to_section(section, "builtin_print(");
     write_to_section(section, arg_count_as_str);
     write_to_section(section, ", ");
-    for (size_t i = 0; i < args->values_count; i++) {
+    for (size_t i = 0; i < args_count; i++) {
         if (i > 0) write_to_section(section, ", ");
         write_variable_to_section_as_type(
             section, PYTYPE_STRING, string_vars[i], var_types[i].type
         );
     }
     write_to_section(section, ");\n");
+}
+
+static void
+expect_arg_count(Arguments* args, size_t count)
+{
+    if (args->values_count != count) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.append expecting %zu argument%s, got %zu\n",
+            count,
+            (count == 1) ? "" : "s",
+            args->values_count
+        );
+        exit(1);
+    }
 }
 
 static void
@@ -530,15 +562,7 @@ render_list_append(
     set_assignment_type_info(assignment, return_type);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
-    if (args->values_count != 1) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.append expecting 1 argument, got %zu\n",
-            args->values_count
-        );
-        exit(1);
-    }
+    expect_arg_count(args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, list_item_var);
     C_Assignment item_assignment = {
@@ -572,15 +596,7 @@ render_list_clear(
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(assignment, return_type);
 
-    if (args->values_count != 0) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.clear expecting 0 arguments, got %zu\n",
-            args->values_count
-        );
-        exit(1);
-    }
+    expect_arg_count(args, 0);
 
     write_many_to_section(
         assignment->section, "list_clear(", list_assignment->variable_name, ");\n", NULL
@@ -597,15 +613,7 @@ render_list_copy(
 {
     set_assignment_type_info(assignment, list_assignment->type_info);
 
-    if (args->values_count != 0) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.copy expecting 0 arguments, got %zu\n",
-            args->values_count
-        );
-        exit(1);
-    }
+    expect_arg_count(args, 0);
 
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
@@ -636,15 +644,7 @@ render_list_count(
         exit(1);
     }
 
-    if (args->values_count != 1) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.count expecting 1 argument, got %zu\n",
-            args->values_count
-        );
-        exit(1);
-    }
+    expect_arg_count(args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
     C_Assignment item_assignment = {
@@ -687,7 +687,28 @@ render_list_extend(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_extend is not implemented");
+    expect_arg_count(args, 1);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_var);
+    C_Assignment other_assignment = {
+        .section = assignment->section,
+        .type_info = list_assignment->type_info,
+        .variable_name = other_var,
+        .is_declared = false};
+    render_expression_assignment(compiler, &other_assignment, args->values[0]);
+
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    write_many_to_section(
+        assignment->section,
+        "list_extend(",
+        list_assignment->variable_name,
+        ", ",
+        other_assignment.variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void
@@ -840,6 +861,7 @@ render_builtin(
 )
 {
     if (strcmp(fn_identifier, "print") == 0) {
+        ;
         render_builtin_print(compiler, assignment->section, args);
         return;
     }
