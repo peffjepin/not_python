@@ -569,7 +569,22 @@ render_list_clear(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_clear is not implemented");
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    if (args->values_count != 0) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.clear expecting 0 arguments, got %zu\n",
+            args->values_count
+        );
+        exit(1);
+    }
+
+    write_many_to_section(
+        assignment->section, "list_clear(", list_assignment->variable_name, ");\n", NULL
+    );
 }
 
 static void
