@@ -59,6 +59,7 @@ typedef struct {
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
+// TODO: maybe C_Variable is a better name
 typedef struct {
     CompilerSection* section;
     TypeInfo type_info;
@@ -525,7 +526,39 @@ render_list_append(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_append is not implemented");
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    if (args->values_count != 1) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.append expecting 1 argument, got %zu\n",
+            args->values_count
+        );
+        exit(1);
+    }
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, list_item_var);
+    C_Assignment item_assignment = {
+        .section = assignment->section,
+        .type_info = list_content_type,
+        .variable_name = list_item_var,
+        .is_declared = false};
+    render_expression_assignment(compiler, &item_assignment, args->values[0]);
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_APPEND(",
+        list_assignment->variable_name,
+        ", ",
+        type_info_to_c_syntax(list_content_type),
+        ", ",
+        list_item_var,
+        ");\n",
+        NULL
+    );
 }
 
 static void
@@ -754,7 +787,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -767,7 +800,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -782,6 +815,7 @@ render_operation(
                 (char*)op_to_cstr(op_type),
                 (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
                 operand_reprs[1],
+                ";\n",
                 NULL
             );
             return;
@@ -794,7 +828,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -809,7 +843,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -824,7 +858,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -839,7 +873,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -854,7 +888,7 @@ render_operation(
                     operand_reprs[0],
                     ", ",
                     operand_reprs[1],
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -885,7 +919,7 @@ render_operation(
                     operand_reprs[1],
                     ", ",
                     assignment->variable_name,
-                    ")",
+                    ");\n",
                     NULL
                 );
                 return;
@@ -903,6 +937,7 @@ render_operation(
         operand_reprs[0],
         (char*)op_to_cstr(op_type),
         operand_reprs[1],
+        ";\n",
         NULL
     );
     return;
@@ -994,8 +1029,6 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
         }
 
         render_operation(assignment, operation.op_type, operand_reprs, operand_types);
-        // do this in the render operation call once refactoring is complete
-        write_to_section(assignment->section, ";\n");
         return;
     }
     UNREACHABLE("end of write simple expression");
@@ -1080,7 +1113,47 @@ render_expression_assignment(
             continue;
         }
         else if (operation.op_type == OPERATOR_GET_ATTR) {
-            UNIMPLEMENTED("getattr unimplemented");
+            C_Assignment left_assignment = {0};
+            C_Assignment* previous =
+                operation_renders.operand_index_to_previous_assignment[operation.left];
+            if (previous)
+                left_assignment = *previous;
+            else {
+                Operand operand = expr->operands[operation.left];
+                GENERATE_UNIQUE_VAR_NAME(compiler, left_variable);
+                left_assignment.section = assignment->section;
+                left_assignment.variable_name = left_variable;
+                render_operand(compiler, &left_assignment, operand);
+            }
+            if (left_assignment.type_info.type == PYTYPE_LIST) {
+                if (i == expr->operations_count - 1) {
+                    UNIMPLEMENTED("function references are not currently implemented");
+                }
+                Operation next_operation = expr->operations[i + 1];
+                if (next_operation.op_type != OPERATOR_CALL) {
+                    // TODO: error message
+                    fprintf(stderr, "ERROR: expecting function call\n");
+                    exit(1);
+                }
+                compile_list_builtin(
+                    compiler,
+                    this_assignment,
+                    &left_assignment,
+                    expr->operands[operation.right].token.value,
+                    expr->operands[next_operation.right].args
+                );
+                i++;
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, operation
+                );
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, next_operation
+                );
+                continue;
+            }
+            else {
+                UNIMPLEMENTED("getattr only currently implemented on lists");
+            }
         }
 
         size_t operand_indices[2] = {operation.left, operation.right};
@@ -1124,7 +1197,6 @@ render_expression_assignment(
             this_assignment, operation.op_type, operand_reprs, operand_types
         );
         update_rendered_operation_memory(&operation_renders, this_assignment, operation);
-        write_to_section(assignment->section, ";\n");
     }
 }
 
