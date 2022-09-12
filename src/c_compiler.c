@@ -517,6 +517,204 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     write_to_section(section, ");\n");
 }
 
+static void
+render_list_append(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_append is not implemented");
+}
+
+static void
+render_list_clear(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_clear is not implemented");
+}
+
+static void
+render_list_copy(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_copy is not implemented");
+}
+
+static void
+render_list_count(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_count is not implemented");
+}
+
+static void
+render_list_extend(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_extend is not implemented");
+}
+
+static void
+render_list_index(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_index is not implemented");
+}
+
+static void
+render_list_insert(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_insert is not implemented");
+}
+
+static void
+render_list_pop(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_pop is not implemented");
+}
+
+static void
+render_list_remove(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_remove is not implemented");
+}
+
+static void
+render_list_reverse(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_reverse is not implemented");
+}
+
+static void
+render_list_sort(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("render_list_sort is not implemented");
+}
+
+static void
+compile_list_builtin(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* list_assignment,
+    char* fn_name,
+    Arguments* args
+)
+{
+    assert(fn_name && "fn_name cannot be NULL");
+    switch (fn_name[0]) {
+        case 'a':
+            if (strcmp(fn_name, "append") == 0) {
+                render_list_append(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 'c':
+            if (strcmp(fn_name, "clear") == 0) {
+                render_list_clear(compiler, assignment, list_assignment, args);
+                return;
+            }
+            else if (strcmp(fn_name, "copy") == 0) {
+                render_list_copy(compiler, assignment, list_assignment, args);
+                return;
+            }
+            else if (strcmp(fn_name, "count") == 0) {
+                render_list_count(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 'e':
+            if (strcmp(fn_name, "extend") == 0) {
+                render_list_extend(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 'i':
+            if (strcmp(fn_name, "index") == 0) {
+                render_list_index(compiler, assignment, list_assignment, args);
+                return;
+            }
+            else if (strcmp(fn_name, "insert") == 0) {
+                render_list_insert(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 'p':
+            if (strcmp(fn_name, "pop") == 0) {
+                render_list_pop(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 'r':
+            if (strcmp(fn_name, "remove") == 0) {
+                render_list_remove(compiler, assignment, list_assignment, args);
+                return;
+            }
+            else if (strcmp(fn_name, "reverse") == 0) {
+                render_list_reverse(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        case 's':
+            if (strcmp(fn_name, "sort") == 0) {
+                render_list_sort(compiler, assignment, list_assignment, args);
+                return;
+            }
+            break;
+        default:
+            // TODO: error message
+            fprintf(stderr, "ERROR: unrecognized list builtin -> %s\n", fn_name);
+            exit(1);
+            break;
+    }
+}
+
 // TODO: parser will need to enforce that builtins dont get defined by the user
 static void
 render_builtin(
