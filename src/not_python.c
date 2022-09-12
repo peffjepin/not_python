@@ -229,6 +229,20 @@ list_grow(List* list)
     list->data = np_realloc(list->data, list->element_size * list->capacity);
 }
 
+void
+list_reverse(List* list)
+{
+    uint8_t tmp[list->element_size];
+    for (size_t i = 0; i < list->count / 2; i++) {
+        uint8_t* left = (uint8_t*)list->data + (list->element_size * i);
+        uint8_t* right =
+            (uint8_t*)list->data + (list->element_size * (list->count - 1 - i));
+        memcpy(tmp, right, list->element_size);
+        memcpy(right, left, list->element_size);
+        memcpy(left, tmp, list->element_size);
+    }
+}
+
 List*
 np_internal_list_init(size_t elem_size)
 {

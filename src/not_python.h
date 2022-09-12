@@ -49,6 +49,7 @@ List* list_copy(List* list);
 void list_extend(List* list, List* other);
 void list_del(List* list, PYINT index);
 void list_grow(List* list);
+void list_reverse(List* list);
 List* np_internal_list_init(size_t elem_size);
 void np_internal_list_prepare_insert(List* list, PYINT index);
 

@@ -935,7 +935,14 @@ render_list_reverse(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_reverse is not implemented");
+    expect_arg_count(args, 0);
+
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    write_many_to_section(
+        assignment->section, "list_reverse(", list_assignment->variable_name, ");\n", NULL
+    );
 }
 
 static void
