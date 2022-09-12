@@ -896,7 +896,35 @@ render_list_remove(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_remove is not implemented");
+    expect_arg_count(args, 1);
+
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    const char* cmp = cmp_for_type_info(list_content_type);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
+    C_Assignment item_assignment = {
+        .section = assignment->section,
+        .type_info = list_content_type,
+        .variable_name = item_variable,
+        .is_declared = false};
+    render_expression_assignment(compiler, &item_assignment, args->values[0]);
+
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_REMOVE(",
+        list_assignment->variable_name,
+        ", ",
+        type_info_to_c_syntax(list_content_type),
+        ", ",
+        cmp,
+        ", ",
+        item_variable,
+        ");\n",
+        NULL
+    );
 }
 
 static void
