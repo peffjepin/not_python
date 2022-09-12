@@ -48,7 +48,7 @@ typedef struct {
     char name[UNIQUE_VAR_LENGTH];                                                        \
     sprintf(name, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
-#define REGENERATE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                   \
+#define WRITE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                        \
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
 #define DATATYPE_INT "PYINT"
@@ -64,10 +64,10 @@ typedef struct {
     TypeInfo type_info;
     char* variable_name;
     bool is_declared;
-} CAssignment;
+} C_Assignment;
 
 static void
-set_assignment_type_info(CAssignment* assignment, TypeInfo type_info)
+set_assignment_type_info(C_Assignment* assignment, TypeInfo type_info)
 {
     if (assignment->type_info.type != PYTYPE_UNTYPED &&
         !compare_types(type_info, assignment->type_info)) {
@@ -77,7 +77,7 @@ set_assignment_type_info(CAssignment* assignment, TypeInfo type_info)
         //      ex: if expecting a float, and actually got an int, it's probably safe to
         //      just cast to float
         fprintf(
-            stderr, "ERROR: inconsistent typing when assigning type to CAssignment\n"
+            stderr, "ERROR: inconsistent typing when assigning type to C_Assignment\n"
         );
         exit(1);
     }
@@ -91,7 +91,7 @@ static void compile_statement(
 );
 
 static void render_expression_assignment(
-    C_Compiler* compiler, CAssignment* assignment, Expression* expr
+    C_Compiler* compiler, C_Assignment* assignment, Expression* expr
 );
 
 static void
@@ -180,7 +180,7 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
 }
 
 static void
-prepare_c_assignment_for_rendering(CAssignment* assignment)
+prepare_c_assignment_for_rendering(C_Assignment* assignment)
 {
     if (assignment->variable_name) {
         if (!assignment->is_declared) {
@@ -219,7 +219,7 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
 }
 
 static void
-render_simple_operand(C_Compiler* compiler, CAssignment* assignment, Operand operand)
+render_simple_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
 {
     set_assignment_type_info(assignment, resolve_operand_type(&compiler->tc, operand));
     prepare_c_assignment_for_rendering(assignment);
@@ -243,7 +243,7 @@ enclosure_type_to_python_type(EnclosureType enclosure_type)
 }
 
 static void
-render_empty_enclosure(CAssignment* enclosure_assignment, Operand operand)
+render_empty_enclosure(C_Assignment* enclosure_assignment, Operand operand)
 {
     switch (operand.enclosure->type) {
         case ENCLOSURE_LIST:
@@ -267,7 +267,7 @@ render_empty_enclosure(CAssignment* enclosure_assignment, Operand operand)
 
 static void
 render_enclosure_literal(
-    C_Compiler* compiler, CAssignment* enclosure_assignment, Operand operand
+    C_Compiler* compiler, C_Assignment* enclosure_assignment, Operand operand
 )
 {
     if (operand.enclosure->expressions_count == 0) {
@@ -285,14 +285,13 @@ render_enclosure_literal(
     }
 
     GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
-    CAssignment expression_assignment = {
+    C_Assignment expression_assignment = {
         .is_declared = false,
         .section = enclosure_assignment->section,
         .variable_name = expression_variable};
     render_expression_assignment(
         compiler, &expression_assignment, operand.enclosure->expressions[0]
     );
-    expression_assignment.is_declared = true;
 
     TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
     inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
@@ -343,34 +342,6 @@ render_enclosure_literal(
     }
 }
 
-static void
-render_simple_expression(C_Compiler* compiler, CAssignment* assignment, Expression* expr)
-{
-    assert(expr->operations_count == 0);
-    Operand operand = expr->operands[0];
-
-    switch (operand.kind) {
-        case OPERAND_EXPRESSION:
-            render_expression_assignment(compiler, assignment, expr);
-            return;
-        case OPERAND_ENCLOSURE_LITERAL:
-            render_enclosure_literal(compiler, assignment, operand);
-            return;
-        case OPERAND_COMPREHENSION:
-            UNIMPLEMENTED("render comprehension operand unimplemented");
-        case OPERAND_TOKEN:
-            render_simple_operand(compiler, assignment, operand);
-            return;
-        case OPERAND_ARGUMENTS:
-            UNREACHABLE("argument operand can not be rendered directly");
-        case OPERAND_SLICE:
-            UNREACHABLE("slice operand can not be rendered directly");
-        default:
-            UNREACHABLE("default case of write simple expression");
-    }
-    UNREACHABLE("end of write simple expression");
-}
-
 // -1 on bad kwd
 // TODO: should check if parser even allows this to happen in the future
 static int
@@ -419,7 +390,7 @@ write_variable_to_section_as_type(
 static void
 render_function_call(
     C_Compiler* compiler,
-    CAssignment* assignment,
+    C_Assignment* assignment,
     FunctionStatement* fndef,
     Arguments* args
 )
@@ -449,7 +420,7 @@ render_function_call(
     for (size_t arg_i = 0; arg_i < args->n_positional; arg_i++) {
         Expression* arg_value = args->values[arg_i];
         TypeInfo arg_type = fndef->sig.types[arg_i];
-        CAssignment arg_assignment = {
+        C_Assignment arg_assignment = {
             .section = assignment->section,
             .type_info = arg_type,
             .variable_name = param_vars[arg_i],
@@ -469,7 +440,7 @@ render_function_call(
 
         Expression* arg_value = args->values[i];
         TypeInfo arg_type = fndef->sig.types[kwd_index];
-        CAssignment arg_assignment = {
+        C_Assignment arg_assignment = {
             .section = assignment->section,
             .type_info = arg_type,
             .variable_name = param_vars[kwd_index],
@@ -494,7 +465,7 @@ render_function_call(
         else {
             Expression* arg_value = fndef->sig.defaults[i - required_count];
             TypeInfo arg_type = fndef->sig.types[i];
-            CAssignment arg_assignment = {
+            C_Assignment arg_assignment = {
                 .section = assignment->section,
                 .type_info = arg_type,
                 .variable_name = param_vars[i],
@@ -526,7 +497,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     GENERATE_UNIQUE_VAR_NAMES(compiler, args->values_count, string_vars)
     TypeInfo var_types[args->values_count];
     for (size_t i = 0; i < args->values_count; i++) {
-        CAssignment assignment = {
+        C_Assignment assignment = {
             .section = section, .variable_name = string_vars[i], .is_declared = false};
         render_expression_assignment(compiler, &assignment, args->values[i]);
         var_types[i] = assignment.type_info;
@@ -549,7 +520,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
 // TODO: parser will need to enforce that builtins dont get defined by the user
 static void
 render_builtin(
-    C_Compiler* compiler, CAssignment* assignment, char* fn_identifier, Arguments* args
+    C_Compiler* compiler, C_Assignment* assignment, char* fn_identifier, Arguments* args
 )
 {
     if (strcmp(fn_identifier, "print") == 0) {
@@ -565,12 +536,16 @@ render_builtin(
 
 static void
 render_operation(
-    CAssignment* assignment, Operator op_type, char** operand_reprs, TypeInfo* types
+    C_Assignment* assignment, Operator op_type, char** operand_reprs, TypeInfo* types
 )
 {
-    set_assignment_type_info(
-        assignment, resolve_operation_type(types[0], types[1], op_type)
-    );
+    TypeInfo type_info = resolve_operation_type(types[0], types[1], op_type);
+    if (type_info.type == PYTYPE_UNTYPED) {
+        fprintf(stderr, "ERROR: failed to resolve operand type\n");
+        exit(1);
+    }
+    set_assignment_type_info(assignment, type_info);
+
     switch (op_type) {
         case OPERATOR_PLUS:
             if (types[0].type == PYTYPE_STRING) {
@@ -735,78 +710,185 @@ render_operation(
     return;
 }
 
-/*
- * This function currently creates a new scope and renders each
- * operation of an expression into a variable on a new line and
- * assigns the final value to the destination at the end. I may
- * want to revisit this after the rest of the compiler is implemented.
- */
 static void
-render_expression_assignment(
-    C_Compiler* compiler, CAssignment* assignment, Expression* expr
+render_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
+{
+    switch (operand.kind) {
+        case OPERAND_ENCLOSURE_LITERAL:
+            render_enclosure_literal(compiler, assignment, operand);
+            break;
+        case OPERAND_COMPREHENSION:
+            UNIMPLEMENTED("comprehension rendering unimplemented");
+            break;
+        case OPERAND_SLICE:
+            UNIMPLEMENTED("slice rendering unimplemented");
+            break;
+        case OPERAND_EXPRESSION:
+            render_expression_assignment(compiler, assignment, operand.expr);
+            break;
+        case OPERAND_TOKEN:
+            render_simple_operand(compiler, assignment, operand);
+            break;
+        default:
+            UNREACHABLE("default case in expression rendering should not be reached");
+            break;
+    }
+}
+
+static void
+render_call_operation(
+    C_Compiler* compiler, C_Assignment* assignment, Expression* expr, Operation operation
 )
 {
+    char* fn_identifier = expr->operands[operation.left].token.value;
+    Arguments* args = expr->operands[operation.right].args;
+    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
+    if (!sym) {
+        render_builtin(compiler, assignment, fn_identifier, args);
+        return;
+    }
+    FunctionStatement* fndef = sym->func;
+    render_function_call(compiler, assignment, fndef, args);
+}
+
+static void
+render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Expression* expr)
+{
     if (expr->operations_count == 0) {
+        Operand operand = expr->operands[0];
+        render_operand(compiler, assignment, operand);
+        return;
+    }
+    else if (expr->operations_count == 1) {
+        Operation operation = expr->operations[0];
+
+        if (operation.op_type == OPERATOR_CALL) {
+            render_call_operation(compiler, assignment, expr, operation);
+            return;
+        }
+
+        bool is_unary =
+            (operation.op_type == OPERATOR_LOGICAL_NOT ||
+             operation.op_type == OPERATOR_NEGATIVE ||
+             operation.op_type == OPERATOR_BITWISE_NOT);
+
+        Operand operands[2] = {
+            expr->operands[operation.left], expr->operands[operation.right]};
+        TypeInfo operand_types[2] = {0};
+        char* operand_reprs[2];
+        char variable_memory[2][UNIQUE_VAR_LENGTH] = {0};
+
+        for (size_t lr = (is_unary) ? 1 : 0; lr < 2; lr++) {
+            if (operands[lr].kind == OPERAND_TOKEN) {
+                operand_reprs[lr] = simple_operand_repr(compiler, operands[lr]);
+                operand_types[lr] = resolve_operand_type(&compiler->tc, operands[lr]);
+            }
+            else {
+                WRITE_UNIQUE_VAR_NAME(compiler, variable_memory[lr]);
+                C_Assignment operand_assignment = {
+                    .section = assignment->section,
+                    .variable_name = variable_memory[lr],
+                    .is_declared = false};
+                render_operand(compiler, &operand_assignment, operands[lr]);
+                operand_reprs[lr] = variable_memory[lr];
+                operand_types[lr] = operand_assignment.type_info;
+            }
+        }
+
+        render_operation(assignment, operation.op_type, operand_reprs, operand_types);
+        // do this in the render operation call once refactoring is complete
+        write_to_section(assignment->section, ";\n");
+        return;
+    }
+    UNREACHABLE("end of write simple expression");
+}
+
+typedef struct {
+    C_Assignment* assignments;
+    C_Assignment** operand_index_to_previous_assignment;
+} RenderedOperationMemory;
+
+#define INIT_RENDERED_OPERATION_MEMORY(variable, expression_ptr)                         \
+    GENERATE_UNIQUE_VAR_NAMES(                                                           \
+        compiler, expr->operations_count - 1, intermediate_variables                     \
+    )                                                                                    \
+    C_Assignment assignments_memory[expr->operations_count - 1];                         \
+    C_Assignment* lookup_memory[expr->operands_count];                                   \
+    memset(assignments_memory, 0, sizeof(C_Assignment) * (expr->operations_count - 1));  \
+    memset(lookup_memory, 0, sizeof(C_Assignment*) * (expr->operands_count));            \
+    for (size_t i = 0; i < expr->operations_count - 1; i++)                              \
+        assignments_memory[i].variable_name = intermediate_variables[i];                 \
+    variable.assignments = assignments_memory;                                           \
+    variable.operand_index_to_previous_assignment = lookup_memory
+
+static void
+update_rendered_operation_memory(
+    RenderedOperationMemory* mem, C_Assignment* current, Operation operation
+)
+{
+    bool is_unary =
+        (operation.op_type == OPERATOR_LOGICAL_NOT ||
+         operation.op_type == OPERATOR_NEGATIVE ||
+         operation.op_type == OPERATOR_BITWISE_NOT);
+
+    C_Assignment** previously_rendered;
+
+    if (!is_unary) {
+        if ((previously_rendered =
+                 mem->operand_index_to_previous_assignment + operation.left)) {
+            *previously_rendered = current;
+        }
+        else
+            mem->operand_index_to_previous_assignment[operation.left] = current;
+    }
+
+    if ((previously_rendered =
+             mem->operand_index_to_previous_assignment + operation.right)) {
+        *previously_rendered = current;
+    }
+    else
+        mem->operand_index_to_previous_assignment[operation.right] = current;
+}
+
+static void
+render_expression_assignment(
+    C_Compiler* compiler, C_Assignment* assignment, Expression* expr
+)
+{
+    if (expr->operations_count <= 1) {
         render_simple_expression(compiler, assignment, expr);
         return;
     }
-    // when rendering: (1 + 2 * 3 + 4)
-    // first 2 * 3 is rendered
-    // next 1 + 2 must know that (2) now refers to the result of (2 * 3)
-    // these variables are used to facilitate this kind of logic
-    GENERATE_UNIQUE_VAR_NAMES(
-        compiler, expr->operations_count - 1, intermediate_variables
-    )
-    TypeInfo resolved_operation_types[expr->operations_count];
-    size_t size_t_ptr_memory[expr->operands_count];
-    size_t* operand_to_resolved_operation_index[expr->operands_count];
-    memset(resolved_operation_types, 0, sizeof(TypeInfo) * expr->operations_count);
-    memset(
-        operand_to_resolved_operation_index, 0, sizeof(size_t*) * expr->operands_count
-    );
+
+    RenderedOperationMemory operation_renders;
+    INIT_RENDERED_OPERATION_MEMORY(operation_renders, expr);
 
     for (size_t i = 0; i < expr->operations_count; i++) {
-        CAssignment this_assignment;
+        Operation operation = expr->operations[i];
+        C_Assignment* this_assignment;
 
         if (i == expr->operations_count - 1)
-            this_assignment = *assignment;
+            this_assignment = assignment;
         else {
-            this_assignment.section = assignment->section;
-            this_assignment.variable_name = intermediate_variables[i];
-            this_assignment.is_declared = false;
-            this_assignment.type_info.type = PYTYPE_UNTYPED;
+            this_assignment = operation_renders.assignments + i;
+            this_assignment->section = assignment->section;
         }
 
-        Operation operation = expr->operations[i];
-
         if (operation.op_type == OPERATOR_CALL) {
-            // TODO: does not work for methods
-            char* fn_identifier = expr->operands[operation.left].token.value;
-            Arguments* args = expr->operands[operation.right].args;
-            Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
-            if (!sym) {
-                render_builtin(compiler, &this_assignment, fn_identifier, args);
-                return;
-            }
-            FunctionStatement* fndef = sym->func;
-            resolved_operation_types[i] = fndef->sig.return_type;
-
-            render_function_call(compiler, &this_assignment, fndef, args);
-
-            size_t_ptr_memory[operation.left] = i;
-            size_t_ptr_memory[operation.right] = i;
-            operand_to_resolved_operation_index[operation.left] =
-                size_t_ptr_memory + operation.left;
-            operand_to_resolved_operation_index[operation.right] =
-                size_t_ptr_memory + operation.right;
+            render_call_operation(compiler, this_assignment, expr, operation);
+            update_rendered_operation_memory(
+                &operation_renders, this_assignment, operation
+            );
             continue;
+        }
+        else if (operation.op_type == OPERATOR_GET_ATTR) {
+            UNIMPLEMENTED("getattr unimplemented");
         }
 
         size_t operand_indices[2] = {operation.left, operation.right};
         TypeInfo operand_types[2] = {0};
-        // If we encounter an expression operand we will assign its value into
-        // an intermediate variable. `as_variable` is to remember the var name.
-        char as_variable[2][UNIQUE_VAR_LENGTH] = {0};
+        char* operand_reprs[2] = {0};
+        char variable_memory[2][UNIQUE_VAR_LENGTH] = {0};
 
         bool is_unary =
             (operation.op_type == OPERATOR_LOGICAL_NOT ||
@@ -814,85 +896,38 @@ render_expression_assignment(
              operation.op_type == OPERATOR_BITWISE_NOT);
 
         for (size_t lr = (is_unary) ? 1 : 0; lr < 2; lr++) {
-            size_t* resolved_ref =
-                operand_to_resolved_operation_index[operand_indices[lr]];
-            if (resolved_ref) {
-                operand_types[lr] = resolved_operation_types[*resolved_ref];
+            C_Assignment* previously_rendered =
+                operation_renders
+                    .operand_index_to_previous_assignment[operand_indices[lr]];
+            if (previously_rendered) {
+                operand_types[lr] = previously_rendered->type_info;
+                operand_reprs[lr] = previously_rendered->variable_name;
                 continue;
             }
 
             Operand operand = expr->operands[operand_indices[lr]];
-            switch (operand.kind) {
-                case OPERAND_ENCLOSURE_LITERAL:
-                    REGENERATE_UNIQUE_VAR_NAME(compiler, as_variable[lr]);
-                    CAssignment enclosure_assignment = {
-                        .section = assignment->section,
-                        .variable_name = as_variable[lr],
-                        .is_declared = false};
-                    render_enclosure_literal(compiler, &enclosure_assignment, operand);
-                    operand_types[lr] = enclosure_assignment.type_info;
-                    break;
-                case OPERAND_COMPREHENSION:
-                    UNIMPLEMENTED("comprehension rendering unimplemented");
-                    break;
-                case OPERAND_SLICE:
-                    operand_types[lr].type = PYTYPE_SLICE;
-                    break;
-                case OPERAND_EXPRESSION: {
-                    REGENERATE_UNIQUE_VAR_NAME(compiler, as_variable[lr]);
-                    CAssignment expression_assignment = {
-                        .section = assignment->section,
-                        .variable_name = as_variable[lr],
-                        .is_declared = false};
-                    render_expression_assignment(
-                        compiler, &expression_assignment, operand.expr
-                    );
-                    operand_types[lr] = expression_assignment.type_info;
-                    break;
-                }
-                case OPERAND_TOKEN:
-                    operand_types[lr] = resolve_operand_type(&compiler->tc, operand);
-                    break;
-                default:
-                    UNREACHABLE(
-                        "default case in expression rendering should not be reached"
-                    );
-                    break;
-            }
-        }
-
-        char* reprs[2] = {0};
-
-        for (size_t lr = (is_unary) ? 1 : 0; lr < 2; lr++) {
-            size_t operand_index = operand_indices[lr];
-            size_t* previously_rendered_ref =
-                operand_to_resolved_operation_index[operand_index];
-            if (previously_rendered_ref) {
-                reprs[lr] = intermediate_variables[*previously_rendered_ref];
-                *previously_rendered_ref = i;
+            if (operand.kind == OPERAND_TOKEN) {
+                operand_reprs[lr] = simple_operand_repr(compiler, operand);
+                operand_types[lr] = resolve_operand_type(&compiler->tc, operand);
             }
             else {
-                if (as_variable[lr][0] != '\0') {
-                    reprs[lr] = as_variable[lr];
-                }
-                else {
-                    reprs[lr] =
-                        simple_operand_repr(compiler, expr->operands[operand_index]);
-                }
-                size_t* new_ref = size_t_ptr_memory + operand_index;
-                *new_ref = i;
-                operand_to_resolved_operation_index[operand_index] = new_ref;
+                WRITE_UNIQUE_VAR_NAME(compiler, variable_memory[lr]);
+                C_Assignment operand_assignment = {
+                    .section = assignment->section,
+                    .variable_name = variable_memory[lr],
+                    .is_declared = false};
+                render_operand(compiler, &operand_assignment, operand);
+                operand_reprs[lr] = variable_memory[lr];
+                operand_types[lr] = operand_assignment.type_info;
             }
         }
 
-        render_operation(&this_assignment, operation.op_type, reprs, operand_types);
-        resolved_operation_types[i] = this_assignment.type_info;
+        render_operation(
+            this_assignment, operation.op_type, operand_reprs, operand_types
+        );
+        update_rendered_operation_memory(&operation_renders, this_assignment, operation);
         write_to_section(assignment->section, ";\n");
     }
-
-    set_assignment_type_info(
-        assignment, resolved_operation_types[expr->operations_count - 1]
-    );
 }
 
 static void
@@ -1016,7 +1051,7 @@ declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
 
 static void
 render_list_set_item(
-    C_Compiler* compiler, CAssignment list_assignment, AssignmentStatement* stmt
+    C_Compiler* compiler, C_Assignment list_assignment, AssignmentStatement* stmt
 )
 {
     Operand last_operand =
@@ -1027,7 +1062,7 @@ render_list_set_item(
         UNIMPLEMENTED("list setitem from slice is unimplemented");
     // render index to a variable
     GENERATE_UNIQUE_VAR_NAME(compiler, index_var);
-    CAssignment index_assignment = {
+    C_Assignment index_assignment = {
         .section = list_assignment.section,
         .type_info.type = PYTYPE_INT,
         .variable_name = index_var,
@@ -1041,7 +1076,7 @@ render_list_set_item(
 
     // render item to a variable
     GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
-    CAssignment item_assignment = {
+    C_Assignment item_assignment = {
         .section = list_assignment.section,
         .type_info = list_assignment.type_info.inner->types[0],
         .variable_name = item_var,
@@ -1075,7 +1110,7 @@ compile_complex_assignment(
         Expression container_expr = *stmt->storage;
         container_expr.operations_count -= 1;
         GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
-        CAssignment container_assignment = {
+        C_Assignment container_assignment = {
             .section = section,
             .variable_name = container_variable,
             .is_declared = false};
@@ -1098,7 +1133,7 @@ compile_simple_assignment(
     C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
 )
 {
-    CAssignment assignment = {
+    C_Assignment assignment = {
         .section = section,
         .variable_name = stmt->storage->operands[0].token.value,
         .is_declared = true};
@@ -1128,12 +1163,15 @@ compile_annotation(
 )
 {
     // TODO: implement default values for class members
-    if (scope_stack_peek(&compiler->scope_stack) == compiler->top_level_scope)
+
+    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+
+    if (scope == compiler->top_level_scope)
         declare_global_variable(compiler, annotation->type, annotation->identifier);
 
     if (annotation->initial) {
         // TODO: is_declared probably == false when not at top level scope
-        CAssignment assignment = {
+        C_Assignment assignment = {
             .section = section,
             .type_info = annotation->type,
             .variable_name = annotation->identifier,
@@ -1148,7 +1186,7 @@ compile_return_statement(
 )
 {
     GENERATE_UNIQUE_VAR_NAME(compiler, return_var);
-    CAssignment assignment = {
+    C_Assignment assignment = {
         .section = section, .variable_name = return_var, .is_declared = false};
     render_expression_assignment(compiler, &assignment, ret->value);
     write_to_section(section, "return ");
@@ -1162,7 +1200,7 @@ compile_for_loop(
 )
 {
     GENERATE_UNIQUE_VAR_NAME(compiler, iterable_variable);
-    CAssignment assignment = {
+    C_Assignment assignment = {
         .section = section, .variable_name = iterable_variable, .is_declared = false};
     render_expression_assignment(compiler, &assignment, for_loop->iterable);
 
@@ -1254,7 +1292,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_EXPR: {
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
-            CAssignment assignment = {
+            C_Assignment assignment = {
                 .section = section, .variable_name = NULL, .is_declared = false};
             render_expression_assignment(compiler, &assignment, stmt->expr);
             break;

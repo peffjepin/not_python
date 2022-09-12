@@ -180,7 +180,12 @@ def main():
         md5.update(str(p.returncode).encode("utf-8"))
         checksum = md5.hexdigest()
         exitcode_tag = f"\nexitcode={p.returncode}"
-        output = p.stdout.decode("utf-8") + exitcode_tag
+        try:
+            output = p.stdout.decode("utf-8") + exitcode_tag
+        except Exception:
+            print(f"failed to decode program output ({str(fp)}):")
+            print(p.stdout)
+            exit(1)
 
         if not VerifiedChecksums.present(test_key):
             handle_no_previous_verification_present(
