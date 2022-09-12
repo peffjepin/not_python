@@ -58,20 +58,20 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_GET_ITEM(list, type, index, var)                                            \
     do {                                                                                 \
-        PYINT i = (index < 0) ? list->count - i : index;                                 \
-        if (i < 0 || i >= list->count)                                                   \
+        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
-            var = ((type*)list->data)[i];                                                \
+            var = ((type*)list->data)[NP_i];                                             \
     } while (0)
 
 #define LIST_SET_ITEM(list, type, index, item)                                           \
     do {                                                                                 \
-        PYINT i = (index < 0) ? list->count - i : index;                                 \
-        if (i < 0 || i >= list->count)                                                   \
+        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else                                                                             \
-            ((type*)list->data)[i] = item;                                               \
+            ((type*)list->data)[NP_i] = item;                                            \
     } while (0)
 
 #define LIST_APPEND(list, type, item)                                                    \
@@ -80,21 +80,21 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_POP(list, type, index, var)                                                 \
     do {                                                                                 \
-        PYINT i = (index < 0) ? list->count - i : index;                                 \
-        if (i < 0 || i >= list->count)                                                   \
+        PYINT NP_i = (index < 0) ? list->count - NP_i : index;                           \
+        if (NP_i < 0 || NP_i >= list->count)                                             \
             index_error();                                                               \
         else {                                                                           \
-            var = ((type*)list->data)[i];                                                \
-            list_del(list, i);                                                           \
+            var = ((type*)list->data)[NP_i];                                             \
+            list_del(list, NP_i);                                                        \
         }                                                                                \
     } while (0)
 
 #define LIST_INDEX(list, type, cmp, item, var)                                           \
     do {                                                                                 \
         bool found = false;                                                              \
-        for (size_t i = 0; i < list->count; i++) {                                       \
-            if (cmp(item, list->data[i])) {                                              \
-                var = (PYINT)i;                                                          \
+        for (size_t NP_i = 0; NP_i < list->count; NP_i++) {                              \
+            if (cmp(item, ((type*)list->data)[NP_i])) {                                  \
+                var = (PYINT)NP_i;                                                       \
                 found = true;                                                            \
                 break;                                                                   \
             }                                                                            \
@@ -104,9 +104,9 @@ List* np_internal_list_init(size_t elem_size);
 
 #define LIST_REMOVE(list, type, cmp, item)                                               \
     do {                                                                                 \
-        PYINT index;                                                                     \
-        LIST_INDEX(list, type, cmp, item, index);                                        \
-        list_del(list, index);                                                           \
+        PYINT NP_index;                                                                  \
+        LIST_INDEX(list, type, cmp, item, NP_index);                                     \
+        list_del(list, NP_index);                                                        \
     } while (0)
 
 #define LIST_INIT(type) np_internal_list_init(sizeof(type))

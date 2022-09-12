@@ -628,6 +628,18 @@ static const char* CMP_TABLE[PYTYPE_COUNT] = {
     [PYTYPE_STRING] = "str_eq",
 };
 
+static const char*
+cmp_for_type_info(TypeInfo type_info)
+{
+    const char* cmp_for_type = CMP_TABLE[type_info.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+    return cmp_for_type;
+}
+
 static void
 render_list_count(
     C_Compiler* compiler,
@@ -637,12 +649,7 @@ render_list_count(
 )
 {
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
-    const char* cmp_for_type = CMP_TABLE[list_content_type.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
+    const char* cmp_func = cmp_for_type_info(list_content_type);
 
     expect_arg_count(args, 1);
 
@@ -669,7 +676,7 @@ render_list_count(
         ", ",
         type_info_to_c_syntax(list_content_type),
         ", ",
-        cmp_for_type,
+        cmp_func,
         ", ",
         item_var,
         ", ",
@@ -719,7 +726,56 @@ render_list_index(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_index is not implemented");
+    // TODO: start/stop
+    expect_arg_count(args, 1);
+
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    const char* cmp = cmp_for_type_info(list_content_type);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
+    C_Assignment item_assignment = {
+        .section = assignment->section,
+        .type_info = list_content_type,
+        .variable_name = item_variable,
+        .is_declared = false};
+    render_expression_assignment(compiler, &item_assignment, args->values[0]);
+
+    TypeInfo return_type = {.type = PYTYPE_INT};
+    set_assignment_type_info(assignment, return_type);
+
+    if (!assignment->variable_name) {
+        // TODO: maybe trying to call this without assigning it is just an error.
+        GENERATE_UNIQUE_VAR_NAME(compiler, result_variable);
+        assignment->variable_name = result_variable;
+        assignment->is_declared = false;
+    }
+
+    if (!assignment->is_declared) {
+        write_many_to_section(
+            assignment->section,
+            type_info_to_c_syntax(return_type),
+            " ",
+            assignment->variable_name,
+            ";\n",
+            NULL
+        );
+    }
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_INDEX(",
+        list_assignment->variable_name,
+        ", ",
+        type_info_to_c_syntax(list_content_type),
+        ", ",
+        cmp,
+        ", ",
+        item_variable,
+        ", ",
+        assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void
