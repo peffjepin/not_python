@@ -116,6 +116,17 @@ List* np_internal_list_init(size_t elem_size);
     for (type it = ((type*)list->data)[idx]; idx < list->count;                          \
          it = ((type*)list->data)[++idx])
 
+#define C_EQUALITY_TEST(a, b) (a) == (b)
+
+#define LIST_COUNT(list, type, cmp, item, count)                                         \
+    do {                                                                                 \
+        count = 0;                                                                       \
+        LIST_FOR_EACH(list, type, NP_count_it, NP_count_idx)                             \
+        {                                                                                \
+            if (cmp(item, NP_count_it)) count++;                                         \
+        }                                                                                \
+    } while (0)
+
 void builtin_print(size_t argc, ...);
 
 #endif

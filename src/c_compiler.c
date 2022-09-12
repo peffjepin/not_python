@@ -613,6 +613,13 @@ render_list_copy(
     );
 }
 
+static const char* CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "C_EQUALITY_TEST",
+    [PYTYPE_FLOAT] = "C_EQUALITY_TEST",
+    [PYTYPE_BOOL] = "C_EQUALITY_TEST",
+    [PYTYPE_STRING] = "str_eq",
+};
+
 static void
 render_list_count(
     C_Compiler* compiler,
@@ -621,7 +628,55 @@ render_list_count(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("render_list_count is not implemented");
+    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    const char* cmp_for_type = CMP_TABLE[list_content_type.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+
+    if (args->values_count != 1) {
+        // TODO: error message
+        fprintf(
+            stderr,
+            "ERROR: list.count expecting 1 argument, got %zu\n",
+            args->values_count
+        );
+        exit(1);
+    }
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
+    C_Assignment item_assignment = {
+        .section = assignment->section,
+        .variable_name = item_var,
+        .type_info = list_content_type,
+        .is_declared = false};
+    render_expression_assignment(compiler, &item_assignment, args->values[0]);
+
+    TypeInfo return_type = {.type = PYTYPE_INT};
+    set_assignment_type_info(assignment, return_type);
+    if (!assignment->is_declared) {
+        write_type_info_to_section(assignment->section, return_type);
+        write_to_section(assignment->section, assignment->variable_name);
+        write_to_section(assignment->section, ";\n");
+    }
+
+    write_many_to_section(
+        assignment->section,
+        "LIST_COUNT(",
+        list_assignment->variable_name,
+        ", ",
+        type_info_to_c_syntax(list_content_type),
+        ", ",
+        cmp_for_type,
+        ", ",
+        item_var,
+        ", ",
+        assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void
