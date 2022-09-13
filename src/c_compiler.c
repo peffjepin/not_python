@@ -1207,6 +1207,173 @@ compile_list_builtin(
     }
 }
 
+static void
+render_dict_clear(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.clear is not implemented");
+}
+
+static void
+render_dict_copy(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.copy is not implemented");
+}
+
+static void
+render_dict_get(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.get is not implemented");
+}
+
+static void
+render_dict_items(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.items is not implemented");
+}
+
+static void
+render_dict_keys(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.keys is not implemented");
+}
+
+static void
+render_dict_pop(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.pop is not implemented");
+}
+
+static void
+render_dict_popitem(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.popitem is not implemented");
+}
+
+static void
+render_dict_update(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.update is not implemented");
+}
+
+static void
+render_dict_values(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    Arguments* args
+)
+{
+    UNIMPLEMENTED("dict.values is not implemented");
+}
+
+static void
+compile_dict_builtin(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Assignment* dict_assignment,
+    char* fn_name,
+    Arguments* args
+)
+{
+    assert(fn_name && "fn_name cannot be NULL");
+
+    switch (fn_name[0]) {
+        case 'c':
+            if (strcmp(fn_name, "clear") == 0) {
+                render_dict_clear(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            else if (strcmp(fn_name, "copy") == 0) {
+                render_dict_copy(compiler, assignment, dict_assignment, args);
+                return;
+            }
+        case 'g':
+            if (strcmp(fn_name, "get") == 0) {
+                render_dict_get(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            break;
+        case 'i':
+            if (strcmp(fn_name, "items") == 0) {
+                render_dict_items(compiler, assignment, dict_assignment, args);
+                return;
+            }
+        case 'k':
+            if (strcmp(fn_name, "keys") == 0) {
+                render_dict_keys(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            break;
+        case 'p':
+            if (strcmp(fn_name, "pop") == 0) {
+                render_dict_pop(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            break;
+            if (strcmp(fn_name, "popitem") == 0) {
+                render_dict_popitem(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            break;
+        case 'u':
+            if (strcmp(fn_name, "update") == 0) {
+                render_dict_update(compiler, assignment, dict_assignment, args);
+                return;
+            }
+        case 'v':
+            if (strcmp(fn_name, "values") == 0) {
+                render_dict_values(compiler, assignment, dict_assignment, args);
+                return;
+            }
+            break;
+        default:
+            // TODO: error message
+            fprintf(stderr, "ERROR: unrecognized dict builtin -> %s\n", fn_name);
+            exit(1);
+            break;
+    }
+}
+
 // TODO: parser will need to enforce that builtins dont get defined by the user
 static void
 render_builtin(
@@ -1627,8 +1794,34 @@ render_expression_assignment(
                 );
                 continue;
             }
+            else if (left_assignment.type_info.type == PYTYPE_DICT) {
+                if (i == expr->operations_count - 1) {
+                    UNIMPLEMENTED("function references are not currently implemented");
+                }
+                if (++i == expr->operations_count - 1) this_assignment = assignment;
+                Operation next_operation = expr->operations[i];
+                if (next_operation.op_type != OPERATOR_CALL) {
+                    // TODO: error message
+                    fprintf(stderr, "ERROR: expecting function call\n");
+                    exit(1);
+                }
+                compile_dict_builtin(
+                    compiler,
+                    this_assignment,
+                    &left_assignment,
+                    expr->operands[operation.right].token.value,
+                    expr->operands[next_operation.right].args
+                );
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, operation
+                );
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, next_operation
+                );
+                continue;
+            }
             else {
-                UNIMPLEMENTED("getattr only currently implemented on lists");
+                UNIMPLEMENTED("getattr only currently implemented on lists and dicts");
             }
         }
 
