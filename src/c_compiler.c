@@ -1845,6 +1845,55 @@ render_list_set_item(
 }
 
 static void
+render_dict_set_item(
+    C_Compiler* compiler, C_Assignment dict_assignment, AssignmentStatement* stmt
+)
+{
+    Operand last_operand =
+        stmt->storage->operands
+            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
+
+    TypeInfo key_type_info = dict_assignment.type_info.inner->types[0];
+    TypeInfo val_type_info = dict_assignment.type_info.inner->types[1];
+
+    // render key to a variable
+    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
+    C_Assignment key_assignment = {
+        .section = dict_assignment.section,
+        .type_info = key_type_info,
+        .variable_name = key_variable,
+        .is_declared = false};
+    if (last_operand.kind == OPERAND_TOKEN)
+        render_simple_operand(compiler, &key_assignment, last_operand);
+    else if (last_operand.kind == OPERAND_EXPRESSION)
+        render_expression_assignment(compiler, &key_assignment, last_operand.expr);
+    else
+        UNREACHABLE("unexpected operand kind for setitem index")
+
+    // render val to a variable
+    GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
+    C_Assignment val_assignment = {
+        .section = dict_assignment.section,
+        .type_info = val_type_info,
+        .variable_name = val_variable,
+        .is_declared = false};
+    render_expression_assignment(compiler, &val_assignment, stmt->value);
+
+    // render set item operation
+    write_many_to_section(
+        dict_assignment.section,
+        "dict_set_item(",
+        dict_assignment.variable_name,
+        ", &",
+        key_assignment.variable_name,
+        ", &",
+        val_assignment.variable_name,
+        ");\n",
+        NULL
+    );
+}
+
+static void
 compile_complex_assignment(
     C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
 )
@@ -1865,6 +1914,9 @@ compile_complex_assignment(
                 render_list_set_item(compiler, container_assignment, stmt);
                 break;
             }
+            case PYTYPE_DICT:
+                render_dict_set_item(compiler, container_assignment, stmt);
+                break;
             default:
                 UNIMPLEMENTED("setitem not implemented for this data type");
         }
