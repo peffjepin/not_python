@@ -346,12 +346,84 @@ render_enclosure_literal(
 // -1 on bad kwd
 // TODO: should check if parser even allows this to happen in the future
 static int
-index_of_kwarg(FunctionStatement* fndef, char* kwd)
+index_of_kwarg(Signature sig, char* kwd)
 {
-    for (size_t i = 0; i < fndef->sig.params_count; i++) {
-        if (strcmp(kwd, fndef->sig.params[i]) == 0) return i;
+    for (size_t i = 0; i < sig.params_count; i++) {
+        if (strcmp(kwd, sig.params[i]) == 0) return i;
     }
     return -1;
+}
+
+static void
+render_function_args_to_variables(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    Arguments* args,
+    Signature sig,
+    char** variable_names
+)
+{
+    C_Assignment assignments[sig.params_count];
+    memset(assignments, 0, sizeof(C_Assignment) * sig.params_count);
+
+    for (size_t i = 0; i < sig.params_count; i++) {
+        assignments[i].section = section;
+        assignments[i].type_info = sig.types[i];
+        assignments[i].variable_name = variable_names[i];
+    }
+
+    if (args->values_count > sig.params_count) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: too many arguments provided\n");
+        exit(1);
+    }
+
+    bool params_fulfilled[sig.params_count];
+    memset(params_fulfilled, true, sizeof(bool) * args->n_positional);
+    memset(
+        params_fulfilled + args->n_positional,
+        false,
+        sizeof(bool) * (sig.params_count - args->n_positional)
+    );
+
+    // positional args
+    for (size_t arg_i = 0; arg_i < args->n_positional; arg_i++)
+        render_expression_assignment(compiler, assignments + arg_i, args->values[arg_i]);
+
+    // parse kwargs
+    for (size_t arg_i = args->n_positional; arg_i < args->values_count; arg_i++) {
+        int param_i = index_of_kwarg(sig, args->kwds[arg_i - args->n_positional]);
+        if (param_i < 0) {
+            // TODO: better error message with location diagnostics
+            fprintf(stderr, "ERROR: bad keyword argument\n");
+            exit(1);
+        }
+        params_fulfilled[param_i] = true;
+
+        render_expression_assignment(
+            compiler, assignments + param_i, args->values[arg_i]
+        );
+    }
+
+    // check that all required params are fulfilled
+    size_t required_count = sig.params_count - sig.defaults_count;
+    for (size_t i = 0; i < required_count; i++) {
+        if (!params_fulfilled[i]) {
+            // TODO: better error reporting
+            fprintf(stderr, "ERROR: required param not provided\n");
+            exit(1);
+        }
+    }
+
+    // fill in any unprovided values with their default expressions
+    for (size_t i = required_count; i < sig.params_count; i++) {
+        if (params_fulfilled[i])
+            continue;
+        else
+            render_expression_assignment(
+                compiler, assignments + i, sig.defaults[i - required_count]
+            );
+    }
 }
 
 static void
@@ -397,10 +469,6 @@ render_function_call(
 )
 {
     // TODO: better error reporting
-    if (args->values_count > fndef->sig.params_count) {
-        fprintf(stderr, "ERROR: too many arguments provided\n");
-        exit(1);
-    }
     if (fndef->sig.return_type.type == PYTYPE_NONE && assignment->variable_name != NULL) {
         fprintf(stderr, "ERROR: trying to assign from a return value of void\n");
         exit(1);
@@ -408,72 +476,13 @@ render_function_call(
 
     // intermediate variables to store args into
     GENERATE_UNIQUE_VAR_NAMES(compiler, fndef->sig.params_count, param_vars)
+    char* variable_names[fndef->sig.params_count];
+    for (size_t i = 0; i < fndef->sig.params_count; i++)
+        variable_names[i] = param_vars[i];
 
-    bool params_fulfilled[fndef->sig.params_count];
-    memset(params_fulfilled, true, sizeof(bool) * args->n_positional);
-    memset(
-        params_fulfilled + args->n_positional,
-        false,
-        sizeof(bool) * (fndef->sig.params_count - args->n_positional)
+    render_function_args_to_variables(
+        compiler, assignment->section, args, fndef->sig, variable_names
     );
-
-    // parse positional args
-    for (size_t arg_i = 0; arg_i < args->n_positional; arg_i++) {
-        Expression* arg_value = args->values[arg_i];
-        TypeInfo arg_type = fndef->sig.types[arg_i];
-        C_Assignment arg_assignment = {
-            .section = assignment->section,
-            .type_info = arg_type,
-            .variable_name = param_vars[arg_i],
-            .is_declared = false};
-        render_expression_assignment(compiler, &arg_assignment, arg_value);
-    }
-
-    // parse kwargs
-    for (size_t i = args->n_positional; i < args->values_count; i++) {
-        int kwd_index = index_of_kwarg(fndef, args->kwds[i - args->n_positional]);
-        if (kwd_index < 0) {
-            // TODO: better error message with location diagnostics
-            fprintf(stderr, "ERROR: bad keyword argument\n");
-            exit(1);
-        }
-        params_fulfilled[kwd_index] = true;
-
-        Expression* arg_value = args->values[i];
-        TypeInfo arg_type = fndef->sig.types[kwd_index];
-        C_Assignment arg_assignment = {
-            .section = assignment->section,
-            .type_info = arg_type,
-            .variable_name = param_vars[kwd_index],
-            .is_declared = false};
-        render_expression_assignment(compiler, &arg_assignment, arg_value);
-    }
-
-    // check that all required params are fulfilled
-    size_t required_count = fndef->sig.params_count - fndef->sig.defaults_count;
-    for (size_t i = 0; i < required_count; i++) {
-        if (!params_fulfilled[i]) {
-            // TODO: better error reporting
-            fprintf(stderr, "ERROR: required param not provided\n");
-            exit(1);
-        }
-    }
-
-    // fill in any unprovided values with their default expressions
-    for (size_t i = required_count; i < fndef->sig.params_count; i++) {
-        if (params_fulfilled[i])
-            continue;
-        else {
-            Expression* arg_value = fndef->sig.defaults[i - required_count];
-            TypeInfo arg_type = fndef->sig.types[i];
-            C_Assignment arg_assignment = {
-                .section = assignment->section,
-                .type_info = arg_type,
-                .variable_name = param_vars[i],
-                .is_declared = false};
-            render_expression_assignment(compiler, &arg_assignment, arg_value);
-        }
-    }
 
     // write the call statement
     set_assignment_type_info(assignment, fndef->sig.return_type);
@@ -593,6 +602,7 @@ render_list_clear(
     Arguments* args
 )
 {
+    (void)compiler;
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(assignment, return_type);
 
@@ -611,6 +621,7 @@ render_list_copy(
     Arguments* args
 )
 {
+    (void)compiler;
     set_assignment_type_info(assignment, list_assignment->type_info);
 
     expect_arg_count(args, 0);
@@ -965,6 +976,7 @@ render_list_reverse(
     Arguments* args
 )
 {
+    (void)compiler;
     expect_arg_count(args, 0);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
@@ -997,7 +1009,8 @@ render_list_sort(
     if (bad_args) {
         fprintf(
             stderr,
-            "ERROR: list.sort expecting either 0 args or boolean keyword arg `reverse`\n"
+            "ERROR: list.sort expecting either 0 args or boolean keyword arg "
+            "`reverse`\n"
         );
         exit(1);
     }
@@ -1651,9 +1664,9 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
     }
     write_to_section(&compiler->struct_declarations, "};\n");
     if (member_count == 0) {
-        // TODO: better error reporting or perhaps this should be an error from the parser
-        // also worth considering if classes can exist without members as namespaces for
-        // functions
+        // TODO: better error reporting or perhaps this should be an error from the
+        // parser also worth considering if classes can exist without members as
+        // namespaces for functions
         fprintf(stderr, "ERROR: class defined with no members\n");
         exit(1);
     }
@@ -1779,8 +1792,8 @@ compile_simple_assignment(
         declare_global_variable(compiler, assignment.type_info, assignment.variable_name);
 }
 
-// TODO: looks like this always assumes it's dealing with a global variable which is not
-// the case
+// TODO: looks like this always assumes it's dealing with a global variable which is
+// not the case
 static void
 compile_assignment(
     C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
