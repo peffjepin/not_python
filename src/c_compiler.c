@@ -56,8 +56,77 @@ typedef struct {
 #define DATATYPE_STRING "PYSTRING"
 #define DATATYPE_BOOL "PYBOOL"
 #define DATATYPE_LIST "PYLIST"
+#define DATATYPE_DICT "PYDICT"
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
+
+static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
+    [PYTYPE_BOOL] = "pybool_sort_fn",
+    [PYTYPE_STRING] = "ptstr_sort_fn",
+};
+
+static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn_rev",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
+    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
+    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
+};
+
+static const char*
+sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
+{
+    const char* rtval;
+    if (reversed)
+        rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
+    else
+        rtval = SORT_CMP_TABLE[type_info.type];
+    if (!rtval) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
+        exit(1);
+    }
+    return rtval;
+}
+
+static const char* VOIDPTR_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "void_int_eq",
+    [PYTYPE_FLOAT] = "void_float_eq",
+    [PYTYPE_BOOL] = "void_bool_eq",
+    [PYTYPE_STRING] = "void_str_eq",
+};
+
+static const char* CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "int_eq",
+    [PYTYPE_FLOAT] = "float_eq",
+    [PYTYPE_BOOL] = "bool_eq",
+    [PYTYPE_STRING] = "str_eq",
+};
+
+static const char*
+voidptr_cmp_for_type_info(TypeInfo type_info)
+{
+    const char* cmp_for_type = VOIDPTR_CMP_TABLE[type_info.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+    return cmp_for_type;
+}
+
+static const char*
+cmp_for_type_info(TypeInfo type_info)
+{
+    const char* cmp_for_type = CMP_TABLE[type_info.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+    return cmp_for_type;
+}
 
 // TODO: maybe C_Variable is a better name
 typedef struct {
@@ -128,8 +197,7 @@ type_info_to_c_syntax(TypeInfo info)
             UNIMPLEMENTED("tuple to c syntax unimplemented");
             break;
         case PYTYPE_DICT:
-            UNIMPLEMENTED("dict to c syntax unimplemented");
-            break;
+            return DATATYPE_DICT;
         case PYTYPE_OBJECT:
             UNIMPLEMENTED("object to c syntax unimplemented");
             break;
@@ -169,7 +237,7 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
             UNIMPLEMENTED("tuple to c syntax unimplemented");
             break;
         case PYTYPE_DICT:
-            UNIMPLEMENTED("dict to c syntax unimplemented");
+            write_to_section(section, DATATYPE_DICT " ");
             break;
         case PYTYPE_OBJECT:
             UNIMPLEMENTED("object to c syntax unimplemented");
@@ -228,21 +296,6 @@ render_simple_operand(C_Compiler* compiler, C_Assignment* assignment, Operand op
     write_to_section(assignment->section, ";\n");
 }
 
-static PythonType
-enclosure_type_to_python_type(EnclosureType enclosure_type)
-{
-    // TODO: maybe enclosure type should just be pythontype directly
-    switch (enclosure_type) {
-        case ENCLOSURE_LIST:
-            return PYTYPE_LIST;
-        case ENCLOSURE_TUPLE:
-            return PYTYPE_TUPLE;
-        case ENCLOSURE_DICT:
-            return PYTYPE_DICT;
-    }
-    UNREACHABLE("end of enclosure type to python type")
-}
-
 static void
 render_empty_enclosure(C_Assignment* enclosure_assignment, Operand operand)
 {
@@ -258,11 +311,124 @@ render_empty_enclosure(C_Assignment* enclosure_assignment, Operand operand)
             );
             break;
         case ENCLOSURE_DICT:
-            UNIMPLEMENTED("empty dict rendering unimplemented");
+            prepare_c_assignment_for_rendering(enclosure_assignment);
+            TypeInfo key_type = enclosure_assignment->type_info.inner->types[0];
+            write_many_to_section(
+                enclosure_assignment->section,
+                "DICT_INIT(",
+                type_info_to_c_syntax(key_type),
+                ", ",
+                type_info_to_c_syntax(enclosure_assignment->type_info.inner->types[1]),
+                ", ",
+                voidptr_cmp_for_type_info(key_type),
+                ");\n",
+                NULL
+            );
+            break;
         case ENCLOSURE_TUPLE:
             UNIMPLEMENTED("empty tuple rendering unimplemented");
         default:
             UNREACHABLE("end of render empty enclosure switch");
+    }
+}
+
+static void
+render_list_literal(
+    C_Compiler* compiler, C_Assignment* enclosure_assignment, Operand operand
+)
+{
+    GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
+    C_Assignment expression_assignment = {
+        .is_declared = false,
+        .section = enclosure_assignment->section,
+        .variable_name = expression_variable};
+    render_expression_assignment(
+        compiler, &expression_assignment, operand.enclosure->expressions[0]
+    );
+
+    TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
+    inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
+    inner->types[0] = expression_assignment.type_info;
+    inner->count = 1;
+    TypeInfo enclosure_type_info = {.type = PYTYPE_LIST, .inner = inner};
+    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
+
+    // TODO: for now we're just going to init an empty list and append everything
+    // to it. eventually we should allocate enough room to begin with because we
+    // already know the length of the list
+    render_empty_enclosure(enclosure_assignment, operand);
+    size_t i = 1;
+    for (;;) {
+        write_many_to_section(
+            enclosure_assignment->section,
+            "LIST_APPEND(",
+            enclosure_assignment->variable_name,
+            ", ",
+            type_info_to_c_syntax(expression_assignment.type_info),
+            ", ",
+            expression_assignment.variable_name,
+            ");\n",
+            NULL
+        );
+        if (i == operand.enclosure->expressions_count) break;
+        render_expression_assignment(
+            compiler, &expression_assignment, operand.enclosure->expressions[i++]
+        );
+    }
+}
+
+static void
+render_dict_literal(
+    C_Compiler* compiler, C_Assignment* enclosure_assignment, Operand operand
+)
+{
+    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
+    C_Assignment key_assignment = {
+        .is_declared = false,
+        .section = enclosure_assignment->section,
+        .variable_name = key_variable};
+    render_expression_assignment(
+        compiler, &key_assignment, operand.enclosure->expressions[0]
+    );
+    GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
+    C_Assignment val_assignment = {
+        .is_declared = false,
+        .section = enclosure_assignment->section,
+        .variable_name = val_variable};
+    render_expression_assignment(
+        compiler, &val_assignment, operand.enclosure->expressions[1]
+    );
+
+    TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
+    inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo) * 2);
+    inner->types[0] = key_assignment.type_info;
+    inner->types[1] = val_assignment.type_info;
+    inner->count = 2;
+    TypeInfo enclosure_type_info = {.type = PYTYPE_DICT, .inner = inner};
+    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
+
+    // TODO: better initialization
+    render_empty_enclosure(enclosure_assignment, operand);
+    size_t expression_index = 2;
+    for (;;) {
+        write_many_to_section(
+            enclosure_assignment->section,
+            "dict_set_item(",
+            enclosure_assignment->variable_name,
+            ", &",
+            key_assignment.variable_name,
+            ", &",
+            val_assignment.variable_name,
+            ");\n",
+            NULL
+        );
+        if (expression_index == operand.enclosure->expressions_count) break;
+        render_expression_assignment(
+            compiler, &key_assignment, operand.enclosure->expressions[expression_index++]
+        );
+        render_expression_assignment(
+            compiler, &val_assignment, operand.enclosure->expressions[expression_index++]
+        );
     }
 }
 
@@ -285,58 +451,20 @@ render_enclosure_literal(
         return;
     }
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
-    C_Assignment expression_assignment = {
-        .is_declared = false,
-        .section = enclosure_assignment->section,
-        .variable_name = expression_variable};
-    render_expression_assignment(
-        compiler, &expression_assignment, operand.enclosure->expressions[0]
-    );
-
-    TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
-    inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
-    inner->types[0] = expression_assignment.type_info;
-    inner->count = 1;
-    TypeInfo enclosure_type_info = {
-        .type = enclosure_type_to_python_type(operand.enclosure->type), .inner = inner};
-    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
-
     if (enclosure_assignment->variable_name == NULL) {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
         fprintf(stderr, "ERROR: enclosures must be assigned\n");
         exit(1);
     }
 
-    switch (enclosure_type_info.type) {
-        case PYTYPE_LIST: {
-            // TODO: for now we're just going to init an empty list and append everything
-            // to it. eventually we should allocate enough room to begin with because we
-            // already know the length of the list
-            render_empty_enclosure(enclosure_assignment, operand);
-            size_t i = 1;
-            for (;;) {
-                write_many_to_section(
-                    enclosure_assignment->section,
-                    "LIST_APPEND(",
-                    enclosure_assignment->variable_name,
-                    ", ",
-                    type_info_to_c_syntax(expression_assignment.type_info),
-                    ", ",
-                    expression_assignment.variable_name,
-                    ");\n",
-                    NULL
-                );
-                if (i == operand.enclosure->expressions_count) break;
-                render_expression_assignment(
-                    compiler, &expression_assignment, operand.enclosure->expressions[i++]
-                );
-            }
-        } break;
-
-        case PYTYPE_DICT:
-            UNIMPLEMENTED("rendering of dict enclosure literal unimplemented");
-        case PYTYPE_TUPLE:
+    switch (operand.enclosure->type) {
+        case ENCLOSURE_LIST:
+            render_list_literal(compiler, enclosure_assignment, operand);
+            break;
+        case ENCLOSURE_DICT:
+            render_dict_literal(compiler, enclosure_assignment, operand);
+            break;
+        case ENCLOSURE_TUPLE:
             UNIMPLEMENTED("rendering of tuple enclosure literal unimplemented");
         default:
             UNREACHABLE("enclosure literal default case unreachable")
@@ -630,55 +758,6 @@ render_list_copy(
     write_many_to_section(
         assignment->section, "list_copy(", list_assignment->variable_name, ");\n", NULL
     );
-}
-
-static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
-    [PYTYPE_BOOL] = "pybool_sort_fn",
-    [PYTYPE_STRING] = "ptstr_sort_fn",
-};
-
-static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn_rev",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
-    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
-    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
-};
-
-static const char*
-sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
-{
-    const char* rtval;
-    if (reversed)
-        rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
-    else
-        rtval = SORT_CMP_TABLE[type_info.type];
-    if (!rtval) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
-        exit(1);
-    }
-    return rtval;
-}
-
-static const char* CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "C_EQUALITY_TEST",
-    [PYTYPE_FLOAT] = "C_EQUALITY_TEST",
-    [PYTYPE_BOOL] = "C_EQUALITY_TEST",
-    [PYTYPE_STRING] = "str_eq",
-};
-
-static const char*
-cmp_for_type_info(TypeInfo type_info)
-{
-    const char* cmp_for_type = CMP_TABLE[type_info.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
-    return cmp_for_type;
 }
 
 static void

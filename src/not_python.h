@@ -11,6 +11,7 @@
 #define PYSTRING StringView
 #define PYBOOL bool
 #define PYLIST List*
+#define PYDICT Dict*
 
 void memory_error(void);
 void index_error(void);
@@ -25,6 +26,15 @@ typedef struct {
     size_t offset;
     size_t length;
 } StringView;
+
+PYBOOL int_eq(PYINT int1, PYINT int2);
+PYBOOL float_eq(PYFLOAT float1, PYFLOAT float2);
+PYBOOL bool_eq(PYBOOL bool1, PYBOOL bool2);
+
+PYBOOL void_int_eq(void* int1, void* int2);
+PYBOOL void_float_eq(void* float1, void* float2);
+PYBOOL void_bool_eq(void* bool1, void* bool2);
+PYBOOL void_str_eq(void* str1, void* str2);
 
 PYSTRING str_add(PYSTRING str1, PYSTRING str2);
 PYBOOL str_eq(PYSTRING str1, PYSTRING str2);
@@ -69,6 +79,9 @@ Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
 void dict_set_item(Dict* dict, void* key, void* val);
 void* dict_get_val(Dict* dict, void* key);
 void dict_del(Dict* dict, void* key);
+
+#define DICT_INIT(key_type, val_type, cmp)                                               \
+    dict_init(sizeof(key_type), sizeof(val_type), cmp);
 
 // TODO: use uint8_t* directly instead of casting to uint8_t to do pointer arithmetic
 typedef struct {

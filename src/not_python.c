@@ -1,5 +1,5 @@
-#include <np_hash.h>
 #include <not_python.h>
+#include <np_hash.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -343,6 +343,25 @@ ptstr_sort_fn_rev(const void* elem1, const void* elem2)
     if (str_gt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return -1;
     return 0;
 }
+
+PYBOOL
+int_eq(PYINT int1, PYINT int2) { return int1 == int2; }
+PYBOOL
+float_eq(PYFLOAT float1, PYFLOAT float2) { return float1 == float2; }
+PYBOOL
+bool_eq(PYBOOL bool1, PYBOOL bool2) { return bool1 == bool2; }
+
+PYBOOL
+void_int_eq(void* int1, void* int2) { return *(PYINT*)int1 == *(PYINT*)int2; }
+PYBOOL
+void_float_eq(void* float1, void* float2)
+{
+    return *(PYFLOAT*)float1 == *(PYFLOAT*)float2;
+}
+PYBOOL
+void_bool_eq(void* bool1, void* bool2) { return *(PYBOOL*)bool1 == *(PYBOOL*)bool2; }
+PYBOOL
+void_str_eq(void* str1, void* str2) { return str_eq(*(PYSTRING*)str1, *(PYSTRING*)str2); }
 
 Dict*
 dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)

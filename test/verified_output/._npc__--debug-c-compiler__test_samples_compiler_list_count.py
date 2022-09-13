@@ -26,7 +26,7 @@ NP_var0 = 3;
 LIST_APPEND(l, PYINT, NP_var0);
 PYLIST NP_var2 = l;
 PYINT NP_var3 = 2;
-LIST_COUNT(NP_var2, PYINT, C_EQUALITY_TEST, NP_var3, n);
+LIST_COUNT(NP_var2, PYINT, int_eq, NP_var3, n);
 }
 
 // MAIN FUNCTION COMPILER SECTION
