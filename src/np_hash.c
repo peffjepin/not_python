@@ -1,4 +1,4 @@
-#include "hash.h"
+#include "np_hash.h"
 #define XXH_STATIC_LINKING_ONLY
 #define XXH_IMPLEMENTATION
 #define XXH_INLINE_ALL

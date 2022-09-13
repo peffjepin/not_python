@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "hash.h"
+#include "np_hash.h"
 // TODO: once this module is finished we should find a way to not rely on lexer_helpers
 #include "c_compiler_helpers.h"
 #include "lexer_helpers.h"

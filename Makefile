@@ -15,11 +15,17 @@ SOURCES := $(filter-out $(wildcard src/debug*.c), $(ALL_SOURCES))
 OBJECTS = $(patsubst src/%.c, build/%.o, $(SOURCES))
 OBJECTS_DEBUG = $(patsubst src/%.c, build/%_db.o, $(ALL_SOURCES))
 
-debug: $(OBJECTS_DEBUG)
-	cp src/not_python.h build/not_python.h
+INCLUDE_HEADERS = src/not_python.h src/np_hash.h
+DEBUG_INCLUDE = $(patsubst src/%.h, build/include/%.h, $(INCLUDE_HEADERS))
+
+LIB_SOURCE = src/not_python.c src/np_hash.c
+LIB_OBJECTS = $(patsubst src/%.c, build/%.o, $(LIB_SOURCE))
+DEBUG_LIB_OBJECTS = $(patsubst src/%.c, build/%_db.o, $(LIB_SOURCE))
+
+debug: $(OBJECTS_DEBUG) $(DEBUG_INCLUDE) build/lib/not_python_db.a
 	$(CC) $(DEBUG_CPPFLAGS) $(DEBUG_CFLAGS) -o npc $^
 
-release: $(OBJECTS)
+release: $(OBJECTS) build/lib/not_python.a
 	$(CC) $(RELEASE_CPPFLAGS) $(RELEASE_CFLAGS) -o npc $^
 
 clean:
@@ -42,6 +48,18 @@ regenerate:
 	clang-format ./codegen/generated.c > src/generated.c
 	rm -rf codegen
 
+build/lib/not_python_db.a: $(DEBUG_LIB_OBJECTS)
+	@mkdir -p build/lib
+	ar -rc $@ $^
+
+build/lib/not_python.a: $(LIB_OBJECTS)
+	@mkdir -p build/lib
+	ar -rc $@ $^
+
+build/include/%.h: src/%.h
+	@mkdir -p build/include
+	cp $^ $@
+
 build/%.o: src/%.c
 	@mkdir -p build
 	$(CC) $(RELEASE_CPPFLAGS) $(RELEASE_CFLAGS) -c $^ -o $@
@@ -50,24 +68,26 @@ build/%_db.o: src/%.c
 	@mkdir -p build
 	$(CC) $(DEBUG_CPPFLAGS) $(DEBUG_CFLAGS) -c $^ -o $@
 
-install: build/not_python.o src/not_python.h release
+install: release
 	install -d $(INSTALL_DIR)/lib/
-	install -m 644 build/not_python.o $(INSTALL_DIR)/lib/
+	install -m 644 build/lib/not_python.a $(INSTALL_DIR)/lib/
 	install -d $(INSTALL_DIR)/include/
 	install -m 644 src/not_python.h $(INSTALL_DIR)/include/
+	install -m 644 src/np_hash.h $(INSTALL_DIR)/include/
 	install -d $(INSTALL_DIR)/bin/
 	install -m 777 npc $(INSTALL_DIR)/bin/
 
 uninstall:
-	-rm $(INSTALL_DIR)/lib/not_python.o
+	-rm $(INSTALL_DIR)/lib/not_python.a
 	-rm $(INSTALL_DIR)/include/not_python.h
+	-rm $(INSTALL_DIR)/include/np_hash.h
 	-rm $(INSTALL_DIR)/bin/npc
 
 test: run_test_symbol_hashmap test_tokens test_statements test_lexical_scopes test_c_compiler test_programs 
 
 test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_c_compiler_interactive test_programs_interactive
 
-test_symbol_hashmap: build/hash_db.o build/arena_db.o build/hashmap_db.o test/test_symbol_hashmap.c
+test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
 run_test_symbol_hashmap: test_symbol_hashmap

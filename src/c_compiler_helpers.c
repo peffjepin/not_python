@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hash.h"
+#include "np_hash.h"
 
 #define UNREACHABLE(msg) assert(0 && msg);
 

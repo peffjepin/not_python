@@ -1,3 +1,4 @@
+#include <np_hash.h>
 #include <not_python.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -28,6 +29,13 @@ void
 value_error(void)
 {
     fprintf(stderr, "ERROR: value error\n");
+    exit(1);
+}
+
+void
+key_error(void)
+{
+    fprintf(stderr, "ERROR: key error\n");
     exit(1);
 }
 
@@ -334,6 +342,195 @@ ptstr_sort_fn_rev(const void* elem1, const void* elem2)
     if (str_lt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return 1;
     if (str_gt(*(PYSTRING*)elem1, *(PYSTRING*)elem2)) return -1;
     return 0;
+}
+
+Dict*
+dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
+{
+    Dict* dict = np_alloc(sizeof(Dict));
+
+    dict->keycmp = cmp;
+    dict->key_size = key_size;
+    dict->val_size = val_size;
+    dict->item_size = 1 + key_size + val_size;
+    dict->key_offset = 1;
+    dict->val_offset = 1 + key_size;
+
+    dict->capacity = DICT_MIN_CAPACITY;
+    dict->lut_capacity = dict->capacity * DICT_LUT_FACTOR;
+    dict->count = 0;
+    dict->data = np_alloc(dict->item_size * dict->capacity);
+
+    size_t lut_bytes = dict->lut_capacity * sizeof(int);
+    dict->lut = np_alloc(lut_bytes);
+    memset(dict->lut, -1, lut_bytes);
+
+    return dict;
+}
+
+#define DICT_EFFECTIVE_COUNT(dict) dict->count + dict->tombstone_count
+#define DICT_FULL(dict) DICT_EFFECTIVE_COUNT(dict) == dict->capacity
+#define DICT_KEY_AT(dict, idx) dict->data + (idx * dict->item_size) + dict->key_offset
+
+size_t
+dict_find_lut_location(Dict* dict, void* key, int* lut_value)
+{
+    uint64_t hash = hash_bytes(key, dict->key_size);
+    size_t probe = hash % dict->lut_capacity;
+
+    for (;;) {
+        int index = dict->lut[probe];
+        if (index < 0 || dict->keycmp(key, DICT_KEY_AT(dict, index))) {
+            *lut_value = index;
+            return probe;
+        }
+        probe = (probe + 1) % dict->lut_capacity;
+    }
+}
+
+void
+dict_lut_rehash_item(Dict* dict, void* key, size_t item_index)
+{
+    uint64_t hash = hash_bytes(key, dict->key_size);
+    size_t probe = hash % dict->lut_capacity;
+
+    for (;;) {
+        int index = dict->lut[probe];
+        if (index < 0) {
+            dict->lut[probe] = item_index;
+            return;
+        }
+        probe = (probe + 1) % dict->lut_capacity;
+    }
+}
+
+void
+dict_grow(Dict* dict)
+{
+    dict->capacity *= DICT_GROW_FACTOR;
+    dict->lut_capacity *= DICT_GROW_FACTOR;
+    dict->data = np_realloc(dict->data, sizeof(dict->item_size) * dict->capacity);
+    dict->lut = np_realloc(dict->lut, sizeof(int) * dict->lut_capacity);
+    memset(dict->lut, -1, sizeof(int) * dict->lut_capacity);
+
+    uint8_t* write = dict->data;
+    size_t update_count = 0;
+    for (size_t i = 0; i < DICT_EFFECTIVE_COUNT(dict); i++) {
+        // update data array
+        size_t item_offset = i * dict->item_size;
+        if (!dict->data[item_offset]) continue;  // tombstone
+        write[0] = 1;
+        memmove(
+            write + dict->key_offset,
+            dict->data + item_offset + dict->key_offset,
+            dict->key_size
+        );
+        memmove(
+            write + dict->val_offset,
+            dict->data + item_offset + dict->val_offset,
+            dict->val_size
+        );
+        write += dict->item_size;
+
+        // update lut
+        dict_lut_rehash_item(
+            dict, dict->data + item_offset + dict->key_offset, update_count++
+        );
+    }
+
+    dict->tombstone_count = 0;
+}
+
+void
+dict_shrink(Dict* dict)
+{
+    dict->capacity *= DICT_SHRINK_FACTOR;
+    if (dict->capacity < DICT_MIN_CAPACITY) dict->capacity = DICT_MIN_CAPACITY;
+    dict->lut_capacity = dict->capacity * DICT_LUT_FACTOR;
+    uint8_t* old_data = dict->data;
+    dict->data = np_alloc(sizeof(dict->item_size) * dict->capacity);
+    dict->lut = np_realloc(dict->lut, sizeof(int) * dict->lut_capacity);
+    memset(dict->lut, -1, sizeof(int) * dict->lut_capacity);
+
+    uint8_t* write = dict->data;
+    size_t update_count = 0;
+    for (size_t i = 0; i < DICT_EFFECTIVE_COUNT(dict); i++) {
+        // update data array
+        size_t item_offset = i * dict->item_size;
+        if (!old_data[item_offset]) continue;  // tombstone
+        write[0] = 1;
+        memcpy(
+            write + dict->key_offset,
+            old_data + item_offset + dict->key_offset,
+            dict->key_size
+        );
+        memcpy(
+            write + dict->val_offset,
+            old_data + item_offset + dict->val_offset,
+            dict->val_size
+        );
+        write += dict->item_size;
+
+        // update lut
+        dict_lut_rehash_item(
+            dict, old_data + item_offset + dict->key_offset, update_count++
+        );
+    }
+
+    np_free(old_data);
+    dict->tombstone_count = 0;
+}
+
+void
+dict_set_item(Dict* dict, void* key, void* val)
+{
+    if (DICT_FULL(dict)) dict_grow(dict);
+    int lut_value;
+    size_t lut_location = dict_find_lut_location(dict, key, &lut_value);
+
+    if (lut_value < 0) {
+        // enter new item into dict
+        size_t item_index = DICT_EFFECTIVE_COUNT(dict);
+        size_t item_offset = item_index * dict->item_size;
+        dict->data[item_offset] = 1;
+        memcpy(dict->data + item_offset + dict->key_offset, key, dict->key_size);
+        memcpy(dict->data + item_offset + dict->val_offset, val, dict->val_size);
+        dict->lut[lut_location] = item_index;
+        dict->count += 1;
+    }
+    else {
+        // replace existing value
+        size_t item_offset = lut_value * dict->item_size;
+        memcpy(dict->data + item_offset + dict->val_offset, val, dict->val_size);
+    }
+}
+
+void*
+dict_get_val(Dict* dict, void* key)
+{
+    if (dict->count == 0) return NULL;
+    int item_index;
+    dict_find_lut_location(dict, key, &item_index);
+
+    if (item_index < 0)
+        return NULL;
+    else
+        return dict->data + (dict->item_size * item_index) + dict->val_offset;
+}
+
+void
+dict_del(Dict* dict, void* key)
+{
+    if (dict->count == 0) key_error();
+    int item_index;
+    size_t lut_index = dict_find_lut_location(dict, key, &item_index);
+    if (item_index < 0) key_error();
+    dict->lut[lut_index] = -1;
+    dict->data[dict->item_size * item_index] = 0;
+    dict->tombstone_count += 1;
+    dict->count -= 1;
+    if (DICT_EFFECTIVE_COUNT(dict) >= dict->capacity * DICT_SHRINK_THRESHOLD)
+        dict_shrink(dict);
 }
 
 // TODO: these are just stubs for now so I can keep track of where python

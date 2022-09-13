@@ -148,23 +148,21 @@ static void
 compile_to_binary(char* outfile)
 {
     char* compiled_c_file = INTERMEDIATE_FILEPATH;
-#if DEBUG
-    char* extra_include_dir = "-I" INSTALL_DIR;
-    char* extra_lib_dir = "-L" INSTALL_DIR;
-    char* static_linking_flag = "-l:not_python_db.o";
-#else
     char* extra_include_dir = "-I" INSTALL_DIR "/include";
     char* extra_lib_dir = "-L" INSTALL_DIR "/lib";
-    char* static_linking_flag = "-l:not_python.o";
+#if DEBUG
+    char* static_linking_flag = "-l:not_python_db.a";
+#else
+    char* static_linking_flag = "-l:not_python.a";
 #endif
     char* const argv[] = {
         "cc",
         "-o",
         outfile,
+        compiled_c_file,
         extra_lib_dir,
         extra_include_dir,
         static_linking_flag,
-        compiled_c_file,
         NULL};
     fork_and_run_sync(argv);
 }

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // TODO: maybe should be typedefs
 #define PYINT long long int
@@ -36,6 +37,40 @@ PYSTRING np_int_to_str(PYINT num);
 PYSTRING np_float_to_str(PYFLOAT num);
 PYSTRING np_bool_to_str(PYBOOL value);
 
+#define DICT_MIN_CAPACITY 10
+#define DICT_LUT_FACTOR 2
+#define DICT_GROW_FACTOR 2
+#define DICT_SHRINK_THRESHOLD 0.35
+#define DICT_SHRINK_FACTOR 0.5
+
+typedef bool (*DICT_KEYCMP_FUNCTION)(void* key1, void* key2);
+
+typedef struct {
+    DICT_KEYCMP_FUNCTION keycmp;
+    size_t key_size;
+    size_t val_size;
+    size_t item_size;
+    size_t key_offset;
+    size_t val_offset;
+    size_t count;
+    size_t tombstone_count;
+    size_t capacity;
+    size_t lut_capacity;
+    uint8_t* data;
+    int* lut;
+} Dict;
+
+typedef struct {
+    void* key;
+    void* val;
+} DictItem;
+
+Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
+void dict_set_item(Dict* dict, void* key, void* val);
+void* dict_get_val(Dict* dict, void* key);
+void dict_del(Dict* dict, void* key);
+
+// TODO: use uint8_t* directly instead of casting to uint8_t to do pointer arithmetic
 typedef struct {
     size_t count;
     size_t capacity;
