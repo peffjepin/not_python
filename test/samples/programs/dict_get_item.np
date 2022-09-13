@@ -1,0 +1,2 @@
+d = {1: "hello,", 2: "world!"}
+print(d[1], d[2])

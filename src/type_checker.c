@@ -458,6 +458,11 @@ resolve_get_item(TypeInfo left, TypeInfo right)
                 return left.inner->types[0];
             else
                 return (TypeInfo){.type = PYTYPE_UNTYPED};
+        case PYTYPE_DICT:
+            if (!compare_types(left.inner->types[0], right))
+                return (TypeInfo){.type = PYTYPE_UNTYPED};
+            else
+                return left.inner->types[1];
         default:
             UNIMPLEMENTED("getitem type resolution not implemented");
     }

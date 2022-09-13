@@ -1383,6 +1383,22 @@ render_operation(
                 );
                 return;
             }
+            else if (types[0].type == PYTYPE_DICT) {
+                prepare_c_assignment_for_rendering(assignment);
+                write_many_to_section(
+                    assignment->section,
+                    "*(",
+                    type_info_to_c_syntax(types[0].inner->types[1]),
+                    "*)",
+                    "dict_get_val(",
+                    operand_reprs[0],
+                    ", &",
+                    operand_reprs[1],
+                    ");\n",
+                    NULL
+                );
+                return;
+            }
             else {
                 UNIMPLEMENTED("getitem unimplemented for this type");
             }
