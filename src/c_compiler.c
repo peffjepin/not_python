@@ -57,6 +57,7 @@ typedef struct {
 #define DATATYPE_BOOL "PYBOOL"
 #define DATATYPE_LIST "PYLIST"
 #define DATATYPE_DICT "PYDICT"
+#define DATATYPE_ITER "PYITER"
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
@@ -1868,7 +1869,7 @@ render_dict_set_item(
     else if (last_operand.kind == OPERAND_EXPRESSION)
         render_expression_assignment(compiler, &key_assignment, last_operand.expr);
     else
-        UNREACHABLE("unexpected operand kind for setitem index")
+        UNREACHABLE("unexpected operand kind for dict setitem key")
 
     // render val to a variable
     GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
@@ -1992,57 +1993,106 @@ compile_return_statement(
 }
 
 static void
-compile_for_loop(
-    C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
-)
+put_variable_into_current_scope(C_Compiler* compiler, char* name, TypeInfo type_info)
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, iterable_variable);
-    C_Assignment assignment = {
-        .section = section, .variable_name = iterable_variable, .is_declared = false};
-    render_expression_assignment(compiler, &assignment, for_loop->iterable);
-
-    if (assignment.type_info.type != PYTYPE_LIST) {
-        fprintf(stderr, "ERROR: for loops currently implemented only for lists\n");
-        exit(1);
-    }
-    if (for_loop->it->identifiers_count > 1) {
-        fprintf(
-            stderr,
-            "ERROR: for loops with multiple identifiers not currently implemented\n"
-        );
-        exit(1);
-    }
-    if (for_loop->it->identifiers[0].kind != IT_ID) {
-        fprintf(
-            stderr,
-            "ERROR: for loops with multiple identifiers not currently implemented\n"
-        );
-        exit(1);
-    }
-
-    // put it variables into scope with type info
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
     Symbol sym = {
         .kind = SYM_VARIABLE, .variable = arena_alloc(compiler->arena, sizeof(Variable))};
-    sym.variable->identifier = for_loop->it->identifiers[0].name;
-    sym.variable->type = assignment.type_info.inner->types[0];
+    sym.variable->identifier = name;
+    sym.variable->type = type_info;
     symbol_hm_put(&scope->hm, sym);
+}
+
+static void
+render_list_for_each_head(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    ForLoopStatement* for_loop,
+    C_Assignment iterable
+)
+{
+    if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
+        UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
+
+    // put it variables into scope with type info
+    put_variable_into_current_scope(
+        compiler, for_loop->it->identifiers[0].name, iterable.type_info.inner->types[0]
+    );
 
     // render for loop
     GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
     write_many_to_section(
         section,
         "LIST_FOR_EACH(",
-        iterable_variable,
+        iterable.variable_name,
         ", ",
-        type_info_to_c_syntax(assignment.type_info.inner->types[0]),
+        type_info_to_c_syntax(iterable.type_info.inner->types[0]),
         ", ",
         for_loop->it->identifiers[0].name,
         ", ",
         index_variable,
-        ") {\n",
+        ")\n",
         NULL
     );
+}
+
+static void
+render_dict_for_each_head(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    ForLoopStatement* for_loop,
+    C_Assignment iterable
+)
+{
+    if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
+        UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
+
+    // TODO: at some point some decistion will need made and enforced about the lifetime
+    // of these variables. In python you could reuse common iterable identifiers because
+    // types can change. It would probably produce a funky error were used again
+    // inappropriately. Ultimately either the parser or the compiler should solely handle
+    // populating this data structure.
+    TypeInfo it_type = iterable.type_info.inner->types[0];
+    char* it_ident = for_loop->it->identifiers[0].name;
+    put_variable_into_current_scope(compiler, it_ident, it_type);
+
+    // render for loop
+    GENERATE_UNIQUE_VAR_NAME(compiler, iter_var);
+    write_many_to_section(
+        section,
+        "DICT_ITER_KEYS(",
+        iterable.variable_name,
+        ", ",
+        type_info_to_c_syntax(it_type),
+        ", ",
+        it_ident,
+        ", ",
+        iter_var,
+        ")\n",
+        NULL
+    );
+}
+
+static void
+compile_for_loop(
+    C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
+)
+{
+    GENERATE_UNIQUE_VAR_NAME(compiler, iterable_variable);
+    C_Assignment iterable = {
+        .section = section, .variable_name = iterable_variable, .is_declared = false};
+    render_expression_assignment(compiler, &iterable, for_loop->iterable);
+
+    if (iterable.type_info.type == PYTYPE_LIST)
+        render_list_for_each_head(compiler, section, for_loop, iterable);
+    else if (iterable.type_info.type == PYTYPE_DICT)
+        render_dict_for_each_head(compiler, section, for_loop, iterable);
+    else {
+        fprintf(stderr, "ERROR: for loops currently implemented only for lists\n");
+        exit(1);
+    }
+
+    write_to_section(section, "{\n");
     for (size_t i = 0; i < for_loop->body.stmts_count; i++) {
         compile_statement(compiler, section, for_loop->body.stmts[i]);
     }

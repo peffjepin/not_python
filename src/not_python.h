@@ -5,13 +5,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// TODO: maybe should be typedefs
 #define PYINT long long int
 #define PYFLOAT double
 #define PYSTRING StringView
 #define PYBOOL bool
 #define PYLIST List*
 #define PYDICT Dict*
+#define PYITER Iterator
 
 void memory_error(void);
 void index_error(void);
@@ -47,6 +47,22 @@ PYSTRING np_int_to_str(PYINT num);
 PYSTRING np_float_to_str(PYFLOAT num);
 PYSTRING np_bool_to_str(PYBOOL value);
 
+int pyint_sort_fn(const void*, const void*);
+int pyfloat_sort_fn(const void*, const void*);
+int pybool_sort_fn(const void*, const void*);
+int ptstr_sort_fn(const void*, const void*);
+int pyint_sort_fn_rev(const void*, const void*);
+int pyfloat_sort_fn_rev(const void*, const void*);
+int pybool_sort_fn_rev(const void*, const void*);
+int ptstr_sort_fn_rev(const void*, const void*);
+
+typedef struct {
+    void* (*next)(void* iter);
+    void* iter;
+} Iterator;
+
+typedef void* (*ITER_NEXT_FN)(void* iter);
+
 #define DICT_MIN_CAPACITY 10
 #define DICT_LUT_FACTOR 2
 #define DICT_GROW_FACTOR 2
@@ -75,6 +91,15 @@ typedef struct {
     void* val;
 } DictItem;
 
+typedef struct {
+    Dict* dict;
+    size_t yielded;
+    size_t item_idx;
+} DictKeysIter;
+
+Iterator dict_iter_keys(Dict* dict);
+void* dict_keys_next(void* iter);
+
 Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
 void dict_set_item(Dict* dict, void* key, void* val);
 void* dict_get_val(Dict* dict, void* key);
@@ -82,6 +107,16 @@ void dict_del(Dict* dict, void* key);
 
 #define DICT_INIT(key_type, val_type, cmp)                                               \
     dict_init(sizeof(key_type), sizeof(val_type), cmp);
+
+#define DICT_ITER_KEYS(dict, key_type, it, iter_var)                                     \
+    Iterator iter_var = dict_iter_keys(dict);                                            \
+    key_type it;                                                                         \
+    void* __##it;                                                                        \
+    while (                                                                              \
+        (__##it = iter_var.next(iter_var.iter),                                          \
+         it = (__##it) ? *(key_type*)__##it : it,                                        \
+         __##it)                                                                         \
+    )
 
 // TODO: use uint8_t* directly instead of casting to uint8_t to do pointer arithmetic
 typedef struct {
@@ -101,15 +136,6 @@ void list_reverse(List* list);
 void list_sort(List* list, int (*cmp_fn)(const void*, const void*));
 List* np_internal_list_init(size_t elem_size);
 void np_internal_list_prepare_insert(List* list, PYINT index);
-
-int pyint_sort_fn(const void*, const void*);
-int pyfloat_sort_fn(const void*, const void*);
-int pybool_sort_fn(const void*, const void*);
-int ptstr_sort_fn(const void*, const void*);
-int pyint_sort_fn_rev(const void*, const void*);
-int pyfloat_sort_fn_rev(const void*, const void*);
-int pybool_sort_fn_rev(const void*, const void*);
-int ptstr_sort_fn_rev(const void*, const void*);
 
 #define LIST_MIN_CAPACITY 10
 #define LIST_SHRINK_THRESHOLD 0.35

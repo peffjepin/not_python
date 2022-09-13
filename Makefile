@@ -83,9 +83,9 @@ uninstall:
 	-rm $(INSTALL_DIR)/include/np_hash.h
 	-rm $(INSTALL_DIR)/bin/npc
 
-test: run_test_symbol_hashmap test_tokens test_statements test_lexical_scopes test_c_compiler test_programs 
+test: run_test_symbol_hashmap test_tokens test_statements test_lexical_scopes test_programs test_c_compiler 
 
-test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_c_compiler_interactive test_programs_interactive
+test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_programs_interactive test_c_compiler_interactive 
 
 test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^

@@ -363,6 +363,31 @@ void_bool_eq(void* bool1, void* bool2) { return *(PYBOOL*)bool1 == *(PYBOOL*)boo
 PYBOOL
 void_str_eq(void* str1, void* str2) { return str_eq(*(PYSTRING*)str1, *(PYSTRING*)str2); }
 
+void*
+dict_keys_next(void* iter)
+{
+    DictKeysIter* iterd = iter;
+    if (iterd->yielded == iterd->dict->count) return NULL;
+    size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
+    while (!iterd->dict->data[current_item_offset]) {
+        iterd->item_idx += 1;
+        current_item_offset += iterd->dict->item_size;
+    }
+    iterd->item_idx += 1;
+    iterd->yielded += 1;
+    return (void*)(iterd->dict->data + current_item_offset + iterd->dict->key_offset);
+}
+
+Iterator
+dict_iter_keys(Dict* dict)
+{
+    // TODO: empty iterable is probably a bug
+    DictKeysIter* iter = np_alloc(sizeof(DictKeysIter));
+    iter->dict = dict;
+    Iterator iterd = {.next = (ITER_NEXT_FN)dict_keys_next, .iter = iter};
+    return iterd;
+}
+
 Dict*
 dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
 {

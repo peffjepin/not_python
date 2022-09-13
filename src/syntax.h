@@ -29,6 +29,7 @@ typedef enum {
     PYTYPE_OBJECT,
     PYTYPE_BOOL,
     PYTYPE_SLICE,
+    PYTYPE_ITER,
     PYTYPE_COUNT,
 } PythonType;
 
