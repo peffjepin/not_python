@@ -478,6 +478,23 @@ dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
     return dict;
 }
 
+void
+dict_clear(Dict* dict)
+{
+    np_free(dict->data);
+    np_free(dict->lut);
+
+    dict->capacity = DICT_MIN_CAPACITY;
+    dict->lut_capacity = dict->capacity * DICT_LUT_FACTOR;
+    dict->count = 0;
+    dict->tombstone_count = 0;
+    dict->data = np_alloc(dict->item_size * dict->capacity);
+
+    size_t lut_bytes = dict->lut_capacity * sizeof(int);
+    dict->lut = np_alloc(lut_bytes);
+    memset(dict->lut, -1, lut_bytes);
+}
+
 #define DICT_EFFECTIVE_COUNT(dict) dict->count + dict->tombstone_count
 #define DICT_FULL(dict) DICT_EFFECTIVE_COUNT(dict) == dict->capacity
 #define DICT_KEY_AT(dict, idx) dict->data + (idx * dict->item_size) + dict->key_offset

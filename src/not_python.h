@@ -96,6 +96,7 @@ Iterator dict_iter_vals(Dict* dict);
 Iterator dict_iter_items(Dict* dict);
 
 Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
+void dict_clear(Dict* dict);
 void dict_set_item(Dict* dict, void* key, void* val);
 void* dict_get_val(Dict* dict, void* key);
 void* dict_pop_val(Dict* dict, void* key);

@@ -1220,7 +1220,14 @@ render_dict_clear(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.clear is not implemented");
+    (void)compiler;
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+    expect_arg_count(args, 0);
+
+    write_many_to_section(
+        assignment->section, "dict_clear(", dict_assignment->variable_name, ");\n", NULL
+    );
 }
 
 static void
@@ -1242,6 +1249,10 @@ render_dict_get(
     Arguments* args
 )
 {
+    (void)compiler;
+    (void)assignment;
+    (void)dict_assignment;
+    (void)args;
     UNIMPLEMENTED("dict.get is not implemented");
 }
 
@@ -1345,6 +1356,10 @@ render_dict_popitem(
     Arguments* args
 )
 {
+    (void)compiler;
+    (void)assignment;
+    (void)dict_assignment;
+    (void)args;
     UNIMPLEMENTED("dict.popitem will not be implemented until tuples are implemented");
 }
 
