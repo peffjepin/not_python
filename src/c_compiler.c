@@ -1356,7 +1356,29 @@ render_dict_update(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.update is not implemented");
+    TypeInfo return_type = {.type = PYTYPE_NONE};
+    set_assignment_type_info(assignment, return_type);
+
+    // TODO: accept args other than another dict
+    expect_arg_count(args, 1);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_dict_variable);
+    C_Assignment other_dict_assignment = {
+        .section = assignment->section,
+        .type_info = dict_assignment->type_info,
+        .variable_name = other_dict_variable,
+        .is_declared = false};
+    render_expression_assignment(compiler, &other_dict_assignment, args->values[0]);
+
+    write_many_to_section(
+        assignment->section,
+        "dict_update(",
+        dict_assignment->variable_name,
+        ", ",
+        other_dict_variable,
+        ");\n",
+        NULL
+    );
 }
 
 static void

@@ -639,6 +639,19 @@ dict_del(Dict* dict, void* key)
         dict_shrink(dict);
 }
 
+void
+dict_update(Dict* dict, Dict* other)
+{
+    size_t updated_count = 0;
+    uint8_t* data = other->data;
+    while (updated_count != other->count) {
+        while (!data[0]) data += other->item_size;
+        dict_set_item(dict, data + other->key_offset, data + other->val_offset);
+        data += other->item_size;
+        updated_count += 1;
+    }
+}
+
 // TODO: these are just stubs for now so I can keep track of where python
 // allocs are coming from -- eventually these will need to be garbage collected
 // Until I get around to implementing that all python allocs will leak

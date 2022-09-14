@@ -100,6 +100,7 @@ Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
 void dict_set_item(Dict* dict, void* key, void* val);
 void* dict_get_val(Dict* dict, void* key);
 void* dict_pop_val(Dict* dict, void* key);
+void dict_update(Dict* dict, Dict* other);
 void dict_del(Dict* dict, void* key);
 
 #define DICT_INIT(key_type, val_type, cmp)                                               \
