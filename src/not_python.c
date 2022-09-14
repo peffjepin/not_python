@@ -478,6 +478,22 @@ dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
     return dict;
 }
 
+Dict*
+dict_copy(Dict* other)
+{
+    Dict* dict = np_alloc(sizeof(Dict));
+    memcpy(dict, other, sizeof(Dict));
+
+    size_t data_bytes = dict->item_size * dict->capacity;
+    size_t lut_bytes = dict->lut_capacity * sizeof(int);
+    dict->data = np_alloc(data_bytes);
+    dict->lut = np_alloc(lut_bytes);
+    memcpy(dict->data, other->data, data_bytes);
+    memcpy(dict->lut, other->lut, lut_bytes);
+
+    return dict;
+}
+
 void
 dict_clear(Dict* dict)
 {

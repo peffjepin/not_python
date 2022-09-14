@@ -1238,7 +1238,15 @@ render_dict_copy(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.copy is not implemented");
+    (void)compiler;
+    expect_arg_count(args, 0);
+
+    TypeInfo return_type = dict_assignment->type_info;
+    set_assignment_type_info(assignment, return_type);
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section, "dict_copy(", dict_assignment->variable_name, ");\n", NULL
+    );
 }
 
 static void
@@ -1264,6 +1272,8 @@ render_dict_items(
     Arguments* args
 )
 {
+    expect_arg_count(args, 0);
+
     // ITER of DICT_ITEMS of [KEY_TYPE, VALUE_TYPE]
     TypeInfo dict_items_type = {
         .type = PYTYPE_DICT_ITEMS, .inner = dict_assignment->type_info.inner};
@@ -1293,6 +1303,8 @@ render_dict_keys(
     Arguments* args
 )
 {
+    expect_arg_count(args, 0);
+
     // ITER of KEY_TYPE
     TypeInfo return_type = {
         .type = PYTYPE_ITER,
@@ -1404,6 +1416,8 @@ render_dict_values(
     Arguments* args
 )
 {
+    expect_arg_count(args, 0);
+
     // ITER of KEY_VALUE
     TypeInfo return_type = {
         .type = PYTYPE_ITER,
