@@ -603,6 +603,27 @@ dict_get_val(Dict* dict, void* key)
         return dict->data + (dict->item_size * item_index) + dict->val_offset;
 }
 
+void*
+dict_pop_val(Dict* dict, void* key)
+{
+    if (dict->count == 0) return NULL;
+    int item_index;
+    size_t lut_index = dict_find_lut_location(dict, key, &item_index);
+
+    if (item_index < 0)
+        return NULL;
+    else {
+        void* rtval = dict->data + (dict->item_size * item_index) + dict->val_offset;
+        dict->lut[lut_index] = -1;
+        dict->data[dict->item_size * item_index] = 0;
+        dict->tombstone_count += 1;
+        dict->count -= 1;
+        if (DICT_EFFECTIVE_COUNT(dict) >= dict->capacity * DICT_SHRINK_THRESHOLD)
+            dict_shrink(dict);
+        return rtval;
+    }
+}
+
 void
 dict_del(Dict* dict, void* key)
 {

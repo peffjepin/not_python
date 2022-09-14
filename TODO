@@ -2,3 +2,5 @@ global keyword
 decorators
 type hinting for callables
 diff viewer for test script
+del statements
+key errors for dict

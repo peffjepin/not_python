@@ -1309,7 +1309,32 @@ render_dict_pop(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.pop is not implemented");
+    TypeInfo return_type = dict_assignment->type_info.inner->types[1];
+    set_assignment_type_info(assignment, return_type);
+
+    // TODO: implement default value
+    expect_arg_count(args, 1);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
+    C_Assignment key_assignment = {
+        .section = assignment->section,
+        .type_info = dict_assignment->type_info.inner->types[0],
+        .variable_name = key_variable,
+        .is_declared = false};
+    render_expression_assignment(compiler, &key_assignment, args->values[0]);
+
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section,
+        "*(",
+        type_info_to_c_syntax(return_type),
+        "*)dict_pop_val(",
+        dict_assignment->variable_name,
+        ", &",
+        key_variable,
+        ");\n",
+        NULL
+    );
 }
 
 static void
@@ -1320,7 +1345,7 @@ render_dict_popitem(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.popitem is not implemented");
+    UNIMPLEMENTED("dict.popitem will not be implemented until tuples are implemented");
 }
 
 static void
