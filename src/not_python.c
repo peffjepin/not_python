@@ -363,10 +363,16 @@ void_bool_eq(void* bool1, void* bool2) { return *(PYBOOL*)bool1 == *(PYBOOL*)boo
 PYBOOL
 void_str_eq(void* str1, void* str2) { return str_eq(*(PYSTRING*)str1, *(PYSTRING*)str2); }
 
+typedef struct {
+    Dict* dict;
+    size_t yielded;
+    size_t item_idx;
+} DictIter;
+
 void*
 dict_keys_next(void* iter)
 {
-    DictKeysIter* iterd = iter;
+    DictIter* iterd = iter;
     if (iterd->yielded == iterd->dict->count) return NULL;
     size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
     while (!iterd->dict->data[current_item_offset]) {
@@ -382,9 +388,44 @@ Iterator
 dict_iter_keys(Dict* dict)
 {
     // TODO: empty iterable is probably a bug
-    DictKeysIter* iter = np_alloc(sizeof(DictKeysIter));
+    DictIter* iter = np_alloc(sizeof(DictIter));
     iter->dict = dict;
     Iterator iterd = {.next = (ITER_NEXT_FN)dict_keys_next, .iter = iter};
+    return iterd;
+}
+
+typedef struct {
+    Dict* dict;
+    size_t yielded;
+    size_t item_idx;
+    DictItem current_item;
+} DictItemsIter;
+
+void*
+dict_items_next(void* iter)
+{
+    DictItemsIter* iterd = iter;
+    if (iterd->yielded == iterd->dict->count) return NULL;
+    size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
+    while (!iterd->dict->data[current_item_offset]) {
+        iterd->item_idx += 1;
+        current_item_offset += iterd->dict->item_size;
+    }
+    iterd->item_idx += 1;
+    iterd->yielded += 1;
+    iterd->current_item.key =
+        (void*)(iterd->dict->data + current_item_offset + iterd->dict->key_offset);
+    iterd->current_item.val =
+        (void*)(iterd->dict->data + current_item_offset + iterd->dict->val_offset);
+    return (void*)&iterd->current_item;
+}
+
+Iterator
+dict_iter_items(Dict* dict)
+{
+    DictItemsIter* iter = np_alloc(sizeof(DictItemsIter));
+    iter->dict = dict;
+    Iterator iterd = {.next = (ITER_NEXT_FN)dict_items_next, .iter = iter};
     return iterd;
 }
 

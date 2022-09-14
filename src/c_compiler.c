@@ -202,6 +202,8 @@ type_info_to_c_syntax(TypeInfo info)
         case PYTYPE_OBJECT:
             UNIMPLEMENTED("object to c syntax unimplemented");
             break;
+        case PYTYPE_ITER:
+            return DATATYPE_ITER;
         default:
             UNREACHABLE("default type info to c syntax");
             break;
@@ -242,6 +244,9 @@ write_type_info_to_section(CompilerSection* section, TypeInfo info)
             break;
         case PYTYPE_OBJECT:
             UNIMPLEMENTED("object to c syntax unimplemented");
+            break;
+        case PYTYPE_ITER:
+            write_to_section(section, DATATYPE_ITER " ");
             break;
         default:
             UNREACHABLE("default type info to c syntax");
@@ -1248,7 +1253,25 @@ render_dict_items(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.items is not implemented");
+    // ITER of DICT_ITEMS of [KEY_TYPE, VALUE_TYPE]
+    TypeInfo dict_items_type = {
+        .type = PYTYPE_DICT_ITEMS, .inner = dict_assignment->type_info.inner};
+    TypeInfo return_type = {
+        .type = PYTYPE_ITER,
+        .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
+    return_type.inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
+    return_type.inner->types[0] = dict_items_type;
+    return_type.inner->count = 1;
+
+    set_assignment_type_info(assignment, return_type);
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section,
+        "dict_iter_items(",
+        dict_assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void
@@ -1327,6 +1350,7 @@ compile_dict_builtin(
                 render_dict_copy(compiler, assignment, dict_assignment, args);
                 return;
             }
+            break;
         case 'g':
             if (strcmp(fn_name, "get") == 0) {
                 render_dict_get(compiler, assignment, dict_assignment, args);
@@ -1338,6 +1362,7 @@ compile_dict_builtin(
                 render_dict_items(compiler, assignment, dict_assignment, args);
                 return;
             }
+            break;
         case 'k':
             if (strcmp(fn_name, "keys") == 0) {
                 render_dict_keys(compiler, assignment, dict_assignment, args);
@@ -1360,6 +1385,7 @@ compile_dict_builtin(
                 render_dict_update(compiler, assignment, dict_assignment, args);
                 return;
             }
+            break;
         case 'v':
             if (strcmp(fn_name, "values") == 0) {
                 render_dict_values(compiler, assignment, dict_assignment, args);
@@ -2240,11 +2266,11 @@ render_dict_for_each_head(
     if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
-    // TODO: at some point some decistion will need made and enforced about the lifetime
-    // of these variables. In python you could reuse common iterable identifiers because
-    // types can change. It would probably produce a funky error were used again
-    // inappropriately. Ultimately either the parser or the compiler should solely handle
-    // populating this data structure.
+    // TODO: at some point some decistion will need made and enforced about the
+    // lifetime of these variables. In python you could reuse common iterable
+    // identifiers because types can change. It would probably produce a funky error
+    // were used again inappropriately. Ultimately either the parser or the compiler
+    // should solely handle populating this data structure.
     TypeInfo it_type = iterable.type_info.inner->types[0];
     char* it_ident = for_loop->it->identifiers[0].name;
     put_variable_into_current_scope(compiler, it_ident, it_type);
@@ -2267,6 +2293,113 @@ render_dict_for_each_head(
 }
 
 static void
+render_dict_items_iterator_for_loop_head(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    ForLoopStatement* for_loop,
+    C_Assignment iterable
+)
+{
+    // TODO: once tuples are implemented this distinction can probably be generalized
+    // away with the implementation of variable packing/unpacking
+
+    // declare item struct
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_struct_variable);
+    write_many_to_section(section, "DictItem ", item_struct_variable, ";\n", NULL);
+
+    // parse key value variable names
+    char* key_variable;
+    char* val_variable;
+    if (for_loop->it->identifiers_count == 1 &&
+        for_loop->it->identifiers[0].kind == IT_GROUP) {
+        ItIdentifier inner_identifier = for_loop->it->identifiers[0];
+        if (inner_identifier.group->identifiers_count != 2) goto unexpected_identifiers;
+        key_variable = inner_identifier.group->identifiers[0].name;
+        val_variable = inner_identifier.group->identifiers[1].name;
+    }
+    else if (for_loop->it->identifiers_count == 2) {
+        key_variable = for_loop->it->identifiers[0].name;
+        val_variable = for_loop->it->identifiers[1].name;
+    }
+    else {
+    unexpected_identifiers:
+        // TODO: error message
+        fprintf(stderr, "ERROR: unexpected amount of values to unpack\n");
+        exit(1);
+    }
+
+    // declare key value variables
+    TypeInfoInner* iterable_inner = iterable.type_info.inner;
+    TypeInfoInner* items_inner = iterable_inner->types[0].inner;
+    TypeInfo key_type = items_inner->types[0];
+    TypeInfo val_type = items_inner->types[1];
+    write_many_to_section(
+        section,
+        type_info_to_c_syntax(key_type),
+        " ",
+        key_variable,
+        ";\n",
+        type_info_to_c_syntax(val_type),
+        " ",
+        val_variable,
+        ";\n",
+        NULL
+    );
+
+    // put it variables in scope
+    // TODO: (maybe should be done by parser)
+    put_variable_into_current_scope(compiler, key_variable, key_type);
+    put_variable_into_current_scope(compiler, val_variable, val_type);
+
+    // declare void* unpacking variable
+    GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
+    write_many_to_section(section, "void* ", voidptr_variable, " = NULL;\n", NULL);
+
+    // render while construct
+    // declare its;
+    // void* next;
+    // while (
+    //      (
+    //          next = iter.next(),
+    //          it = (next) ? unpack next : it,
+    //          ...,
+    //          next
+    //      )
+    // )
+    // clang-format off
+    write_many_to_section(
+        section,
+        "while ((",
+        voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
+        item_struct_variable," = (",voidptr_variable, ") ? *(DictItem*)",voidptr_variable," : ",item_struct_variable, ",\n",
+        key_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(key_type),"*)(",item_struct_variable,".key) : ",key_variable,",\n",
+        val_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(val_type),"*)(",item_struct_variable,".val) : ",val_variable,",\n",
+        voidptr_variable,
+        "))",
+        NULL
+    );
+    // clang-format on
+}
+
+static void
+render_iterator_for_loop_head(
+    C_Compiler* compiler,
+    CompilerSection* section,
+    ForLoopStatement* for_loop,
+    C_Assignment iterable
+)
+{
+    TypeInfoInner* iterable_inner = iterable.type_info.inner;
+
+    if (iterable_inner->count == 1 &&
+        iterable_inner->types[0].type == PYTYPE_DICT_ITEMS) {
+        render_dict_items_iterator_for_loop_head(compiler, section, for_loop, iterable);
+        return;
+    }
+    UNIMPLEMENTED("standard iterator iteration not yet implemented");
+}
+
+static void
 compile_for_loop(
     C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
 )
@@ -2280,8 +2413,13 @@ compile_for_loop(
         render_list_for_each_head(compiler, section, for_loop, iterable);
     else if (iterable.type_info.type == PYTYPE_DICT)
         render_dict_for_each_head(compiler, section, for_loop, iterable);
+    else if (iterable.type_info.type == PYTYPE_ITER)
+        render_iterator_for_loop_head(compiler, section, for_loop, iterable);
     else {
-        fprintf(stderr, "ERROR: for loops currently implemented only for lists\n");
+        fprintf(
+            stderr,
+            "ERROR: for loops currently implemented only for lists, dicts and iterators\n"
+        );
         exit(1);
     }
 

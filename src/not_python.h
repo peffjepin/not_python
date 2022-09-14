@@ -91,14 +91,10 @@ typedef struct {
     void* val;
 } DictItem;
 
-typedef struct {
-    Dict* dict;
-    size_t yielded;
-    size_t item_idx;
-} DictKeysIter;
-
 Iterator dict_iter_keys(Dict* dict);
 void* dict_keys_next(void* iter);
+Iterator dict_iter_items(Dict* dict);
+void* dict_items_next(void* iter);
 
 Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
 void dict_set_item(Dict* dict, void* key, void* val);
