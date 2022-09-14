@@ -1282,7 +1282,23 @@ render_dict_keys(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.keys is not implemented");
+    // ITER of KEY_TYPE
+    TypeInfo return_type = {
+        .type = PYTYPE_ITER,
+        .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
+    return_type.inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
+    return_type.inner->types[0] = dict_assignment->type_info.inner->types[0];
+    return_type.inner->count = 1;
+
+    set_assignment_type_info(assignment, return_type);
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section,
+        "dict_iter_keys(",
+        dict_assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void
@@ -2396,7 +2412,42 @@ render_iterator_for_loop_head(
         render_dict_items_iterator_for_loop_head(compiler, section, for_loop, iterable);
         return;
     }
-    UNIMPLEMENTED("standard iterator iteration not yet implemented");
+
+    if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
+        UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
+
+    TypeInfo it_type = iterable.type_info.inner->types[0];
+    char* it_ident = for_loop->it->identifiers[0].name;
+    put_variable_into_current_scope(compiler, it_ident, it_type);
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
+    write_many_to_section(section, "void* ", voidptr_variable, ";\n", NULL);
+    // TODO: it declaration robustness
+    write_many_to_section(
+        section, type_info_to_c_syntax(it_type), " ", it_ident, ";\n", NULL
+    );
+
+    // declare its;
+    // void* next;
+    // while (
+    //      (
+    //          next = iter.next(),
+    //          it = (next) ? unpack next : it,
+    //          ...,
+    //          next
+    //      )
+    // )
+    // clang-format off
+    write_many_to_section(
+        section,
+        "while ((",
+        voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
+        it_ident," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(it_type),"*)(",voidptr_variable,") : ",it_ident,",\n",
+        voidptr_variable,
+        "))",
+        NULL
+    );
+    // clang-format on
 }
 
 static void
