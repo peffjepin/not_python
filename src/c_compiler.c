@@ -1389,7 +1389,23 @@ render_dict_values(
     Arguments* args
 )
 {
-    UNIMPLEMENTED("dict.values is not implemented");
+    // ITER of KEY_VALUE
+    TypeInfo return_type = {
+        .type = PYTYPE_ITER,
+        .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
+    return_type.inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
+    return_type.inner->types[0] = dict_assignment->type_info.inner->types[1];
+    return_type.inner->count = 1;
+
+    set_assignment_type_info(assignment, return_type);
+    prepare_c_assignment_for_rendering(assignment);
+    write_many_to_section(
+        assignment->section,
+        "dict_iter_vals(",
+        dict_assignment->variable_name,
+        ");\n",
+        NULL
+    );
 }
 
 static void

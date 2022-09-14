@@ -394,6 +394,31 @@ dict_iter_keys(Dict* dict)
     return iterd;
 }
 
+void*
+dict_vals_next(void* iter)
+{
+    DictIter* iterd = iter;
+    if (iterd->yielded == iterd->dict->count) return NULL;
+    size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
+    while (!iterd->dict->data[current_item_offset]) {
+        iterd->item_idx += 1;
+        current_item_offset += iterd->dict->item_size;
+    }
+    iterd->item_idx += 1;
+    iterd->yielded += 1;
+    return (void*)(iterd->dict->data + current_item_offset + iterd->dict->val_offset);
+}
+
+Iterator
+dict_iter_vals(Dict* dict)
+{
+    // TODO: empty iterable is probably a bug
+    DictIter* iter = np_alloc(sizeof(DictIter));
+    iter->dict = dict;
+    Iterator iterd = {.next = (ITER_NEXT_FN)dict_vals_next, .iter = iter};
+    return iterd;
+}
+
 typedef struct {
     Dict* dict;
     size_t yielded;
