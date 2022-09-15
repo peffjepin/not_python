@@ -911,7 +911,7 @@ parse_expression(Parser* parser)
             }
             default:
                 fprintf(
-                    stderr, "loc: %s:%u:%u\n", tok.loc.filename, tok.loc.line, tok.loc.col
+                    stderr, "loc: %s:%u:%u\n", tok.loc.filepath, tok.loc.line, tok.loc.col
                 );
                 UNIMPLEMENTED("token not recognized within expression parsing");
         };
@@ -1538,10 +1538,7 @@ lex_file(const char* filepath)
     }
     Arena* arena = arena_init();
     Lexer lexer = {.arena = arena, .top_level = scope_init(arena)};
-    Location start_location = {
-        .line = 1,
-        .filename = filepath + filename_offset(filepath),
-    };
+    Location start_location = {.line = 1, .filepath = filepath};
     TokenQueue tq = {0};
     Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};
     Parser parser = {.arena = arena, .scanner = &scanner, .tq = &tq};
@@ -1583,10 +1580,7 @@ tokenize_file(const char* filepath, size_t* token_count)
         exit(1);
     }
 
-    Location start_location = {
-        .line = 1,
-        .filename = filepath + filename_offset(filepath),
-    };
+    Location start_location = {.line = 1, .filepath = filepath};
     TokenQueue tq = {0};
     Arena* arena = arena_init();
     Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};

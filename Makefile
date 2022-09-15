@@ -1,3 +1,5 @@
+.PHONY: clean debug release regenerate test test_update run_test_symbol_hashmap
+
 INSTALL_DIR ?= /usr
 
 CC = cc
@@ -83,9 +85,11 @@ uninstall:
 	-rm $(INSTALL_DIR)/include/np_hash.h
 	-rm $(INSTALL_DIR)/bin/npc
 
-test: run_test_symbol_hashmap test_tokens test_statements test_lexical_scopes test_programs test_c_compiler 
+test: debug run_test_symbol_hashmap
+	./scripts/test.py 
 
-test_update: test_tokens_interactive test_statements_interactive test_lexical_scopes_interactive test_programs_interactive test_c_compiler_interactive 
+test_update: debug
+	./scripts/test.py --interactive
 
 test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
@@ -93,33 +97,3 @@ test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o test
 run_test_symbol_hashmap: test_symbol_hashmap
 	./$^
 	@echo "PASS"
-
-test_programs: debug
-	./scripts/test.py --command="./npc -o testmain --file --run" --directory="test/samples/programs"
-
-test_programs_interactive: debug
-	./scripts/test.py --command="./npc -o testmain --file --run" --directory="test/samples/programs" --interactive
-
-test_lexical_scopes: debug
-	./scripts/test.py --command="./npc --debug-scopes --file" --directory="test/samples/scoping"
-
-test_lexical_scopes_interactive: debug
-	./scripts/test.py --command="./npc --debug-scopes --file" --directory="test/samples/scoping" --interactive
-
-test_c_compiler: debug
-	./scripts/test.py --command="./npc --debug-c-compiler --file" --directory="test/samples/compiler"
-
-test_c_compiler_interactive: debug
-	./scripts/test.py --command="./npc --debug-c-compiler --file" --directory="test/samples/compiler" --interactive
-
-test_tokens: debug
-	./scripts/test.py --command="./npc --debug-tokens --file" --directory="test/samples/tokenization"
-
-test_tokens_interactive: debug
-	./scripts/test.py --command="./npc --debug-tokens --file" --directory="test/samples/tokenization" --interactive
-
-test_statements: debug
-	./scripts/test.py --command="./npc --debug-statements --file" --directory="test/samples/statements"
-
-test_statements_interactive: debug
-	./scripts/test.py --command="./npc --debug-statements --file" --directory="test/samples/statements" --interactive

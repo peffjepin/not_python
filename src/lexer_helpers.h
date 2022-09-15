@@ -15,7 +15,7 @@
         fprintf(                                                                         \
             stderr,                                                                      \
             "%s:%u:%u SYNTAX ERROR: %s\n",                                               \
-            (loc).filename,                                                              \
+            (loc).filepath,                                                              \
             (loc).line,                                                                  \
             (loc).col,                                                                   \
             msg                                                                          \
@@ -28,7 +28,7 @@
         fprintf(                                                                         \
             stderr,                                                                      \
             "%s:%u:%u SYNTAX ERROR: " msg "\n",                                          \
-            (loc).filename,                                                              \
+            (loc).filepath,                                                              \
             (loc).line,                                                                  \
             (loc).col,                                                                   \
             __VA_ARGS__                                                                  \
@@ -154,7 +154,5 @@ void et_push_operation_type(ExpressionTable* et, Operator op_type);
 Expression* et_to_expr(ExpressionTable* et);
 
 PythonType cstr_to_python_type(char* cstr);
-
-size_t filename_offset(const char* filepath);
 
 #endif

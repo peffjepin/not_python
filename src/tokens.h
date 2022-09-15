@@ -27,7 +27,7 @@ typedef enum {
 } TokenType;
 
 typedef struct {
-    const char* filename;
+    const char* filepath;
     unsigned int col;
     unsigned int line;
 } Location;

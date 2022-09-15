@@ -559,7 +559,7 @@ print_token(Token tok)
 {
     printf(
         "%s:%u:%u %s",
-        tok.loc.filename,
+        tok.loc.filepath,
         tok.loc.line,
         tok.loc.col,
         token_type_to_cstr(tok.type)

@@ -330,15 +330,3 @@ cstr_to_python_type(char* cstr)
     }
     UNREACHABLE("cstr_to_python_type");
 }
-
-// TODO: portability
-size_t
-filename_offset(const char* filepath)
-{
-    size_t length = strlen(filepath);
-    for (size_t i = 0; i < length; i++) {
-        size_t index = length - 1 - i;
-        if (filepath[index] == '/') return index + 1;
-    }
-    return 0;
-}
