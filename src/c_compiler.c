@@ -1128,10 +1128,12 @@ compile_list_builtin(
             }
             break;
         default:
-            // TODO: error message
-            fprintf(stderr, "ERROR: unrecognized list builtin -> %s\n", fn_name);
-            exit(1);
-            break;
+            name_errorf(
+                compiler->file_index,
+                compiler->current_operation_location,
+                "unrecognized list builtin: %s",
+                fn_name
+            );
     }
 }
 
@@ -1424,10 +1426,12 @@ compile_dict_builtin(
             }
             break;
         default:
-            // TODO: error message
-            fprintf(stderr, "ERROR: unrecognized dict builtin -> %s\n", fn_name);
-            exit(1);
-            break;
+            name_errorf(
+                compiler->file_index,
+                compiler->current_operation_location,
+                "unrecognized dict builtin: %s",
+                fn_name
+            );
     }
 }
 

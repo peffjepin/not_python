@@ -118,6 +118,7 @@ typedef enum {
     LABEL_SYNTAX_ERROR,
     LABEL_DEFAULT_ERROR,
     LABEL_TYPE_ERROR,
+    LABEL_NAME_ERROR,
     LABEL_WARNING,
     LABEL_SOURCE_CODE,
     LABEL_SOURCE_CODE_HIGHLIGHTED,
@@ -130,6 +131,7 @@ static const char* LABELS_TEXT[LABEL_COUNT] = {
     [LABEL_DEFAULT_ERROR] = "ERROR: ",
     [LABEL_SYNTAX_ERROR] = "SyntaxError: ",
     [LABEL_TYPE_ERROR] = "TypeError: ",
+    [LABEL_NAME_ERROR] = "NameError: ",
     [LABEL_WARNING] = "WARNING: ",
     [LABEL_DEBUG] = "DEBUG: ",
     [LABEL_SOURCE_CODE] = "",
@@ -141,6 +143,7 @@ static const char* LABELS_COLOR[LABEL_COUNT] = {
     [LABEL_DEFAULT_ERROR] = TERMINAL_RED,
     [LABEL_SYNTAX_ERROR] = TERMINAL_RED,
     [LABEL_TYPE_ERROR] = TERMINAL_RED,
+    [LABEL_NAME_ERROR] = TERMINAL_RED,
     [LABEL_WARNING] = TERMINAL_YELLOW,
     [LABEL_DEBUG] = TERMINAL_MAGENTA,
     [LABEL_SOURCE_CODE] = TERMINAL_RESET,
@@ -273,6 +276,29 @@ type_errorf(FileIndex index, Location loc, char* fmt, ...)
     va_start(args, fmt);
 
     eprintf(LABEL_TYPE_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    veprintf(LABEL_NORMAL, fmt, args, true);
+    print_source_code(index, loc, 0);
+
+    va_end(args);
+
+    exit(1);
+}
+
+void
+name_error(FileIndex index, Location loc, char* msg)
+{
+    eprintf(LABEL_NAME_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    eprintf(LABEL_NORMAL, "%s:\n", msg);
+    print_source_code(index, loc, 0);
+    exit(1);
+}
+void
+name_errorf(FileIndex index, Location loc, char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    eprintf(LABEL_NAME_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
     veprintf(LABEL_NORMAL, fmt, args, true);
     print_source_code(index, loc, 0);
 
