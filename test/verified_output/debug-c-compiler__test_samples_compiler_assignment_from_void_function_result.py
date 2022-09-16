@@ -1,3 +1,27 @@
-ERROR: trying to assign from a return value of void
+// FORWARD COMPILER SECTION
+#include <not_python.h>
+PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+};
 
-exitcode=1
+// STRUCT DECLARATIONS COMPILER SECTION
+
+// VARIABLE DECLARATIONS COMPILER SECTION
+void* x;
+
+// FUNCTION DECLARATIONS COMPILER SECTION
+void void_fn();
+
+// FUNCTION DEFINITIONS COMPILER SECTION
+void void_fn() {
+}
+
+// INIT MODULE FUNCTION COMPILER SECTION
+static void init_module(void) {
+x = void_fn();
+}
+
+// MAIN FUNCTION COMPILER SECTION
+int main(void) {
+init_module();
+}
+exitcode=0

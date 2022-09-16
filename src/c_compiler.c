@@ -529,8 +529,7 @@ write_variable_to_section_as_type(
             }
             break;
         default:
-            // TODO: error message
-            UNIMPLEMENTED("type conversion unimplemented");
+            UNREACHABLE("type conversion unimplemented");
     }
 }
 
@@ -542,12 +541,6 @@ render_function_call(
     Arguments* args
 )
 {
-    // TODO: better error reporting
-    if (fndef->sig.return_type.type == PYTYPE_NONE && assignment->variable_name != NULL) {
-        fprintf(stderr, "ERROR: trying to assign from a return value of void\n");
-        exit(1);
-    }
-
     // intermediate variables to store args into
     GENERATE_UNIQUE_VAR_NAMES(compiler, fndef->sig.params_count, param_vars)
     char* variable_names[fndef->sig.params_count];
