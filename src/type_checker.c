@@ -609,6 +609,9 @@ resolve_operand_type(TypeChecker* tc, Operand operand)
             break;
         case OPERAND_TOKEN: {
             if (operand.token.type == TOK_IDENTIFIER) {
+                // TODO: should investigate why this isn't a keyword
+                if (strcmp(operand.token.value, "None") == 0)
+                    return (TypeInfo){.type = PYTYPE_NONE};
                 return resolve_from_scopes(tc, operand.token.value);
             }
             return resolve_literal_type(operand.token);

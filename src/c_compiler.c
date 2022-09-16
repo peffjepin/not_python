@@ -194,8 +194,11 @@ prepare_c_assignment_for_rendering(C_Assignment* assignment)
 static char*
 simple_operand_repr(C_Compiler* compiler, Operand operand)
 {
-    if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER)
+    if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER) {
+        // TODO: None should probably be a keyword
+        if (strcmp(operand.token.value, "None") == 0) return "NULL";
         return operand.token.value;
+    }
     else if (operand.token.type == TOK_STRING) {
         size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
         char strindex[10];
@@ -2272,12 +2275,24 @@ compile_return_statement(
 )
 {
     GENERATE_UNIQUE_VAR_NAME(compiler, return_var);
+
+    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+
     C_Assignment assignment = {
-        .section = section, .variable_name = return_var, .is_declared = false};
+        .section = section,
+        .type_info = scope->func->sig.return_type,
+        .variable_name = return_var,
+        .is_declared = false};
     render_expression_assignment(compiler, &assignment, ret->value);
-    write_to_section(section, "return ");
-    write_to_section(section, return_var);
-    write_to_section(section, ";\n");
+
+    if (assignment.type_info.type == PYTYPE_NONE) {
+        write_to_section(section, "return;\n");
+    }
+    else {
+        write_to_section(section, "return ");
+        write_to_section(section, return_var);
+        write_to_section(section, ";\n");
+    }
 }
 
 static void

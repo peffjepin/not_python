@@ -89,8 +89,7 @@ type_info_to_c_syntax(TypeInfo info)
             UNTYPED_ERROR();
             break;
         case PYTYPE_NONE:
-            UNIMPLEMENTED("None to c syntax unimplemented");
-            break;
+            return "void*";
         case PYTYPE_INT:
             return DATATYPE_INT;
         case PYTYPE_FLOAT:
@@ -121,44 +120,8 @@ type_info_to_c_syntax(TypeInfo info)
 void
 write_type_info_to_section(CompilerSection* section, TypeInfo info)
 {
-    switch (info.type) {
-        case PYTYPE_UNTYPED:
-            UNTYPED_ERROR();
-            break;
-        case PYTYPE_NONE:
-            UNIMPLEMENTED("None to c syntax unimplemented");
-            break;
-        case PYTYPE_INT:
-            write_to_section(section, DATATYPE_INT " ");
-            break;
-        case PYTYPE_FLOAT:
-            write_to_section(section, DATATYPE_FLOAT " ");
-            break;
-        case PYTYPE_STRING:
-            write_to_section(section, DATATYPE_STRING " ");
-            break;
-        case PYTYPE_BOOL:
-            write_to_section(section, DATATYPE_BOOL " ");
-            break;
-        case PYTYPE_LIST:
-            write_to_section(section, DATATYPE_LIST " ");
-            break;
-        case PYTYPE_TUPLE:
-            UNIMPLEMENTED("tuple to c syntax unimplemented");
-            break;
-        case PYTYPE_DICT:
-            write_to_section(section, DATATYPE_DICT " ");
-            break;
-        case PYTYPE_OBJECT:
-            UNIMPLEMENTED("object to c syntax unimplemented");
-            break;
-        case PYTYPE_ITER:
-            write_to_section(section, DATATYPE_ITER " ");
-            break;
-        default:
-            UNREACHABLE("default type info to c syntax");
-            break;
-    }
+    write_to_section(section, (char*)type_info_to_c_syntax(info));
+    write_to_section(section, " ");
 }
 
 static void

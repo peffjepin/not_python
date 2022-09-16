@@ -1,4 +1,4 @@
-def my_function(x: int, y: float) -> int:
+def my_function(x: int, y: float) -> float:
     return x / y
 
 
