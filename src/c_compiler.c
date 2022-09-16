@@ -140,8 +140,6 @@ set_assignment_type_info(
 {
     if (assignment->type_info.type != PYTYPE_UNTYPED &&
         !compare_types(type_info, assignment->type_info)) {
-        // TODO: error message
-        //
         // TODO: some kind of check if this is safe to cast such
         //      ex: if expecting a float, and actually got an int, it's probably safe to
         //      just cast to float
@@ -2216,25 +2214,26 @@ compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* st
 }
 
 static void
-compile_annotation(
-    C_Compiler* compiler, CompilerSection* section, AnnotationStatement* annotation
-)
+compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
     // TODO: implement default values for class members
 
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
 
     if (scope == compiler->top_level_scope)
-        declare_global_variable(compiler, annotation->type, annotation->identifier);
+        declare_global_variable(
+            compiler, stmt->annotation->type, stmt->annotation->identifier
+        );
 
-    if (annotation->initial) {
+    if (stmt->annotation->initial) {
         // TODO: is_declared probably == false when not at top level scope
         C_Assignment assignment = {
+            .loc = &stmt->loc,
             .section = section,
-            .type_info = annotation->type,
-            .variable_name = annotation->identifier,
+            .type_info = stmt->annotation->type,
+            .variable_name = stmt->annotation->identifier,
             .is_declared = true};
-        render_expression_assignment(compiler, &assignment, annotation->initial);
+        render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
     }
 }
 
@@ -2541,7 +2540,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_ANNOTATION: {
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
-            compile_annotation(compiler, section, stmt->annotation);
+            compile_annotation(compiler, section, stmt);
             break;
         }
         case STMT_EXPR: {
