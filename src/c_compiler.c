@@ -419,31 +419,36 @@ render_function_args_to_variables(
     C_Compiler* compiler,
     CompilerSection* section,
     Arguments* args,
-    Signature sig,
+    FunctionStatement* fndef,
     char** variable_names
 )
 {
-    C_Assignment assignments[sig.params_count];
-    memset(assignments, 0, sizeof(C_Assignment) * sig.params_count);
+    C_Assignment assignments[fndef->sig.params_count];
+    memset(assignments, 0, sizeof(C_Assignment) * fndef->sig.params_count);
 
-    for (size_t i = 0; i < sig.params_count; i++) {
+    for (size_t i = 0; i < fndef->sig.params_count; i++) {
         assignments[i].section = section;
-        assignments[i].type_info = sig.types[i];
+        assignments[i].type_info = fndef->sig.types[i];
         assignments[i].variable_name = variable_names[i];
     }
 
-    if (args->values_count > sig.params_count) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: too many arguments provided\n");
-        exit(1);
+    if (args->values_count > fndef->sig.params_count) {
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "function `%s` takes %zu arguments but %zu were given",
+            fndef->name,
+            fndef->sig.params_count,
+            args->values_count
+        );
     }
 
-    bool params_fulfilled[sig.params_count];
+    bool params_fulfilled[fndef->sig.params_count];
     memset(params_fulfilled, true, sizeof(bool) * args->n_positional);
     memset(
         params_fulfilled + args->n_positional,
         false,
-        sizeof(bool) * (sig.params_count - args->n_positional)
+        sizeof(bool) * (fndef->sig.params_count - args->n_positional)
     );
 
     // positional args
@@ -452,11 +457,16 @@ render_function_args_to_variables(
 
     // parse kwargs
     for (size_t arg_i = args->n_positional; arg_i < args->values_count; arg_i++) {
-        int param_i = index_of_kwarg(sig, args->kwds[arg_i - args->n_positional]);
+        char* kwd = args->kwds[arg_i - args->n_positional];
+        int param_i = index_of_kwarg(fndef->sig, kwd);
         if (param_i < 0) {
-            // TODO: better error message with location diagnostics
-            fprintf(stderr, "ERROR: bad keyword argument\n");
-            exit(1);
+            type_errorf(
+                compiler->file_index,
+                compiler->current_operation_location,
+                "function `%s` was given an unexpected keyword argument `%s`",
+                fndef->name,
+                kwd
+            );
         }
         params_fulfilled[param_i] = true;
 
@@ -466,22 +476,26 @@ render_function_args_to_variables(
     }
 
     // check that all required params are fulfilled
-    size_t required_count = sig.params_count - sig.defaults_count;
+    size_t required_count = fndef->sig.params_count - fndef->sig.defaults_count;
     for (size_t i = 0; i < required_count; i++) {
         if (!params_fulfilled[i]) {
-            // TODO: better error reporting
-            fprintf(stderr, "ERROR: required param not provided\n");
-            exit(1);
+            type_errorf(
+                compiler->file_index,
+                compiler->current_operation_location,
+                "function `%s` missing required param `%s`",
+                fndef->name,
+                fndef->sig.params[i]
+            );
         }
     }
 
     // fill in any unprovided values with their default expressions
-    for (size_t i = required_count; i < sig.params_count; i++) {
+    for (size_t i = required_count; i < fndef->sig.params_count; i++) {
         if (params_fulfilled[i])
             continue;
         else
             render_expression_assignment(
-                compiler, assignments + i, sig.defaults[i - required_count]
+                compiler, assignments + i, fndef->sig.defaults[i - required_count]
             );
     }
 }
@@ -541,7 +555,7 @@ render_function_call(
         variable_names[i] = param_vars[i];
 
     render_function_args_to_variables(
-        compiler, assignment->section, args, fndef->sig, variable_names
+        compiler, assignment->section, args, fndef, variable_names
     );
 
     // write the call statement
