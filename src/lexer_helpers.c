@@ -146,39 +146,41 @@ tq_discard(TokenQueue* tq)
     tq->head++;
 }
 
-void
+char*
 indent_check(IndentationStack* stack, Location loc, bool begin_block)
 {
     assert(loc.col > 0 && "bad location");
     // first statement checked
     if (stack->count == 0) {
         if (loc.col != 1) {
-            SYNTAX_ERROR(loc, "the top level of a file should not be indented");
+            return "the top level of a file should not be indented";
         }
         else
             stack->values[stack->count++] = loc.col;
     }
     // indentation unchanged
     else if (stack->values[stack->count - 1] == loc.col)
-        return;
+        return NULL;
     // indentation went down
     else if (stack->values[stack->count - 1] > loc.col) {
         assert(stack->count > 1 && "indentation stack corrupted");
         for (int i = stack->count - 2; i >= 1; i--) {
             if (stack->values[i] == loc.col) {
                 stack->count = i;
-                return;
+                return NULL;
             }
-            if (stack->values[i] < loc.col) SYNTAX_ERROR(loc, "inconsistent indentation");
+            if (stack->values[i] < loc.col) return "inconsistent indentation";
         }
     }
     // indentation went up
     else {
         if (stack->count == INDENTATION_MAX)
-            SYNTAX_ERRORF(loc, "max indenation levels (%u) exceeded", INDENTATION_MAX);
-        if (!begin_block) SYNTAX_ERROR(loc, "unexpected indentation");
+            return "max indenation level (" INDENTATION_MAX_STR ") exceeded";
+        if (!begin_block) return "unexpected indentation";
         stack->values[stack->count++] = loc.col;
     }
+
+    return NULL;
 }
 
 LexicalScope*

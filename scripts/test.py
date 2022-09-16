@@ -107,8 +107,7 @@ def verify_new_entry_with_user(test_key, checksum, output):
     print_labeled_separator(test_key)
     print((ROOT / test_key.sample_file).read_text())
     print_labeled_separator("OUTPUT")
-    print(output.replace(str(test_key.sample_file.absolute()),
-          str(test_key.sample_file)))
+    print(output)
     answer = input("enter 'y' to confirm this output is valid: ")
     if answer.strip().lower() != "y":
         return False
@@ -117,7 +116,7 @@ def verify_new_entry_with_user(test_key, checksum, output):
 
 
 def print_failing_test_case(test_key, output):
-    print("=" * LINE_LENGTH)
+    print("#" * LINE_LENGTH * 2)
     print("FAILED TEST CASE:")
     print_labeled_separator(test_key)
     print((ROOT / test_key.sample_file).read_text())
@@ -206,12 +205,14 @@ class TestGroup:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
-            md5.update(p.stdout)
-            md5.update(str(p.returncode).encode("utf-8"))
-            checksum = md5.hexdigest()
-            exitcode_tag = f"\nexitcode={p.returncode}"
             try:
-                output = p.stdout.decode("utf-8") + exitcode_tag
+                output = p.stdout.decode("utf-8").replace(str(test_key.sample_file.absolute()),
+                                                          str(test_key.sample_file))
+                md5.update(output.encode("utf-8"))
+                md5.update(str(p.returncode).encode("utf-8"))
+                checksum = md5.hexdigest()
+                exitcode_tag = f"\nexitcode={p.returncode}"
+                output += exitcode_tag
             except Exception:
                 print(f"failed to decode program output ({str(fp)}):")
                 print(p.stdout)

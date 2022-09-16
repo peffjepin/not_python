@@ -1,3 +1,7 @@
-/home/peffjepin/dev/not_python/test/samples/statements/inconsitent_indentation1.py:3:7 SYNTAX ERROR: inconsistent indentation
-
+[0;31mSYNTAX: test/samples/statements/inconsitent_indentation1.py:3:7
+[0m[0minconsistent indentation:
+[0m[0m  1| for x in range(10):
+[0m[0m  2|     pass
+[0m[0;33m  3|       pass
+[0m[0m[0m[0m[0m
 exitcode=1

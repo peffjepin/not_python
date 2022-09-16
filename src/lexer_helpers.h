@@ -10,32 +10,6 @@
 
 #define UNIMPLEMENTED(msg) assert(0 && msg)
 
-#define SYNTAX_ERROR(loc, msg)                                                           \
-    do {                                                                                 \
-        fprintf(                                                                         \
-            stderr,                                                                      \
-            "%s:%u:%u SYNTAX ERROR: %s\n",                                               \
-            (loc).filepath,                                                              \
-            (loc).line,                                                                  \
-            (loc).col,                                                                   \
-            msg                                                                          \
-        );                                                                               \
-        exit(1);                                                                         \
-    } while (0)
-
-#define SYNTAX_ERRORF(loc, msg, ...)                                                     \
-    do {                                                                                 \
-        fprintf(                                                                         \
-            stderr,                                                                      \
-            "%s:%u:%u SYNTAX ERROR: " msg "\n",                                          \
-            (loc).filepath,                                                              \
-            (loc).line,                                                                  \
-            (loc).col,                                                                   \
-            __VA_ARGS__                                                                  \
-        );                                                                               \
-        exit(1);                                                                         \
-    } while (0)
-
 /*
  * Notes on vector declarations
  *
@@ -87,8 +61,6 @@ VALUE_VECTOR_DECLARATION(ElifStatement, elif)
 VALUE_VECTOR_DECLARATION(ExceptStatement, except)
 VALUE_VECTOR_DECLARATION(TypeInfo, typing)
 
-void out_of_memory(void);
-
 #define TOKEN_QUEUE_CAPACITY 8
 
 const char* token_type_to_cstr(TokenType type);
@@ -120,13 +92,16 @@ void scope_stack_push(LexicalScopeStack* stack, LexicalScope* scope);
 LexicalScope* scope_stack_pop(LexicalScopeStack* stack);
 
 #define INDENTATION_MAX 10
+#define INDENTATION_MAX_STR "10"
 
 typedef struct {
     size_t count;
     unsigned int values[INDENTATION_MAX];
 } IndentationStack;
 
-void indent_check(IndentationStack* stack, Location loc, bool begin_block);
+// in the case of an error returns error message
+// else returns NULL
+char* indent_check(IndentationStack* stack, Location loc, bool begin_block);
 
 typedef struct {
     size_t count;

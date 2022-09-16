@@ -14,6 +14,8 @@ typedef struct {
     TokenQueue* tq;
     Token token;
     Location loc;
+    FileIndex* index;
+    size_t file_offset;
     unsigned int open_parens;
     unsigned int open_curly;
     unsigned int open_square;
@@ -28,6 +30,7 @@ scanner_getc(Scanner* scanner)
 {
     assert(scanner->buflen < SCANNER_BUF_CAPACITY && "scanner buffer overflow");
     scanner->c = fgetc(scanner->srcfile);
+    scanner->file_offset++;
     scanner->buf[scanner->buflen++] = scanner->c;
     scanner->loc.col++;
     scanner->buf[scanner->buflen] = '\0';
@@ -37,6 +40,7 @@ static inline void
 scanner_ungetc(Scanner* scanner)
 {
     assert(scanner->buflen && "ungetc from empty buffer");
+    scanner->file_offset--;
     scanner->loc.col--;
     ungetc(scanner->buf[--scanner->buflen], scanner->srcfile);
 }
@@ -120,6 +124,7 @@ handle_single_char_tokens(Scanner* scanner)
 {
     switch (scanner->c) {
         case '\n':
+            file_index_index_line(scanner->index, scanner->file_offset);
             scanner->token.type = TOK_NEWLINE;
             scanner->loc.line++;
             scanner->loc.col = 0;
@@ -129,7 +134,8 @@ handle_single_char_tokens(Scanner* scanner)
             scanner->token.type = TOK_OPEN_PARENS;
             return true;
         case ')':
-            if (scanner->open_parens == 0) SYNTAX_ERROR(scanner->loc, "no matching `(`");
+            if (scanner->open_parens == 0)
+                syntax_error(*scanner->index, scanner->loc, 2, "no matching `(`");
             scanner->open_parens -= 1;
             scanner->token.type = TOK_CLOSE_PARENS;
             return true;
@@ -138,7 +144,8 @@ handle_single_char_tokens(Scanner* scanner)
             scanner->token.type = TOK_OPEN_SQUARE;
             return true;
         case ']':
-            if (scanner->open_square == 0) SYNTAX_ERROR(scanner->loc, "no matching `[`");
+            if (scanner->open_square == 0)
+                syntax_error(*scanner->index, scanner->loc, 2, "no matching `[`");
             scanner->open_square -= 1;
             scanner->token.type = TOK_CLOSE_SQUARE;
             return true;
@@ -147,7 +154,8 @@ handle_single_char_tokens(Scanner* scanner)
             scanner->token.type = TOK_OPEN_CURLY;
             return true;
         case '}':
-            if (scanner->open_curly == 0) SYNTAX_ERROR(scanner->loc, "no matching `{`");
+            if (scanner->open_curly == 0)
+                syntax_error(*scanner->index, scanner->loc, 2, "no matching `{`");
             scanner->open_curly -= 1;
             scanner->token.type = TOK_CLOSE_CURLY;
             return true;
@@ -221,7 +229,9 @@ tokenize_string_literal(Scanner* scanner)
          scanner->c != opening_quote || scanner->buf[scanner->buflen - 2] == '\\';
          scanner_getc(scanner)) {
         if (scanner->c == EOF)
-            SYNTAX_ERROR(scanner->token.loc, "unterminated string literal");
+            syntax_error(
+                *scanner->index, scanner->token.loc, 0, "unterminated string literal"
+            );
         if (scanner->c == opening_quote) {
             // an escaped version of starting quote
             // we should overwrite the preceding `\` with this quote
@@ -267,6 +277,7 @@ scan_token(Scanner* scanner)
     if (scanner->finished) goto push_token;
 
     if (scanner->c == '\n' && !should_tokenize_newlines(scanner)) {
+        file_index_index_line(scanner->index, scanner->file_offset);
         scanner->loc.line++;
         scanner->loc.col = 0;
         scan_token(scanner);
@@ -434,11 +445,17 @@ parse_iterable_identifiers(Parser* parser)
                 break;
             }
             default:
-                SYNTAX_ERROR(token.loc, "unexpected token");
+                syntax_error(*parser->scanner->index, token.loc, 0, "unexpected token");
         }
     }
 return_it_group:
-    if (vec.count == 0) SYNTAX_ERROR(peek_next_token(parser).loc, "no identifiers given");
+    if (vec.count == 0)
+        syntax_error(
+            *parser->scanner->index,
+            peek_next_token(parser).loc,
+            0,
+            "no identifiers given"
+        );
     it_group->identifiers = itid_vector_finalize(&vec);
     it_group->identifiers_count = vec.count;
     return it_group;
@@ -696,7 +713,12 @@ parse_getitem_arguments(Parser* parser)
     Token next;
     // []
     if (peek.type == TOK_CLOSE_SQUARE)
-        SYNTAX_ERROR(peek.loc, "some argument is required for the getitem operator");
+        syntax_error(
+            *parser->scanner->index,
+            peek.loc,
+            0,
+            "some argument is required for the getitem operator"
+        );
     // [expr1...
     else if (peek.type != TOK_COLON) {
         Expression* first_expr = parse_expression(parser);
@@ -715,7 +737,9 @@ parse_getitem_arguments(Parser* parser)
             goto slice_stop_expr;
         }
         else {
-            SYNTAX_ERROR(next.loc, "expected either `:` or `]`");
+            syntax_error(
+                *parser->scanner->index, next.loc, 0, "expected either `:` or `]`"
+            );
         }
     }
     // [:...
@@ -751,7 +775,7 @@ slice_stop_expr:
         goto return_slice_operand;
     }
     else
-        SYNTAX_ERROR(next.loc, "expected either `:` or `]`");
+        syntax_error(*parser->scanner->index, next.loc, 0, "expected either `:` or `]`");
 slice_step_expr:
     // [...:...:...
     peek = peek_next_token(parser);
@@ -775,7 +799,9 @@ expect_keyword(Parser* parser, Keyword kw)
 {
     Token tok = get_next_token(parser);
     if (tok.type != TOK_KEYWORD || tok.kw != kw)
-        SYNTAX_ERRORF(tok.loc, "expected keyword `%s`", kw_to_cstr(kw));
+        syntax_errorf(
+            *parser->scanner->index, tok.loc, 0, "expected keyword `%s`", kw_to_cstr(kw)
+        );
     return tok;
 }
 
@@ -784,8 +810,10 @@ expect_token_type(Parser* parser, TokenType type)
 {
     Token tok = get_next_token(parser);
     if (tok.type != type)
-        SYNTAX_ERRORF(
+        syntax_errorf(
+            *parser->scanner->index,
             tok.loc,
+            0,
             "expected token type `%s`, got `%s`",
             token_type_to_cstr(type),
             token_type_to_cstr(tok.type)
@@ -807,8 +835,11 @@ parse_expression(Parser* parser)
                 switch (tok.kw) {
                     case KW_IF:
                         if (rule == DISALLOW_CONDITIONAL_EXPRESSION)
-                            SYNTAX_ERROR(
-                                tok.loc, "conditional expression not allowed here"
+                            syntax_error(
+                                *parser->scanner->index,
+                                tok.loc,
+                                0,
+                                "conditional expression not allowed here"
                             );
                         et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
 
@@ -849,8 +880,12 @@ parse_expression(Parser* parser)
                         break;
                     }
                     default:
-                        SYNTAX_ERRORF(
-                            tok.loc, "not expecting keyword `%s` here", kw_to_cstr(tok.kw)
+                        syntax_errorf(
+                            *parser->scanner->index,
+                            tok.loc,
+                            0,
+                            "not expecting keyword `%s` here",
+                            kw_to_cstr(tok.kw)
                         );
                         break;
                 }
@@ -936,7 +971,9 @@ parse_block(Parser* parser, unsigned int parent_indent)
     parser->consumable_rule = BLOCK_BEGIN;
     Statement* first_body_stmt = parse_statement(parser);
     if (first_body_stmt->loc.col <= parent_indent)
-        SYNTAX_ERROR(first_body_stmt->loc, "expected indentation");
+        syntax_error(
+            *parser->scanner->index, first_body_stmt->loc, 2, "expected indentation"
+        );
     stmt_vector_append(&vec, first_body_stmt);
 
     for (;;) {
@@ -944,11 +981,15 @@ parse_block(Parser* parser, unsigned int parent_indent)
         Token peek = peek_next_token(parser);
         if (peek.loc.col < first_body_stmt->loc.col) {
             if (peek.loc.col > parent_indent)
-                SYNTAX_ERROR(peek.loc, "inconsistent indentation");
+                syntax_error(
+                    *parser->scanner->index, peek.loc, 2, "inconsistent indentation"
+                );
             break;
         }
         if (peek.loc.col > first_body_stmt->loc.col)
-            SYNTAX_ERROR(peek.loc, "inconsistent indentation");
+            syntax_error(
+                *parser->scanner->index, peek.loc, 2, "inconsistent indentation"
+            );
         stmt_vector_append(&vec, parse_statement(parser));
     }
 
@@ -979,7 +1020,7 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
         discard_next_token(parser);
         Token peek = peek_next_token(parser);
         if (peek.type == TOK_CLOSE_PARENS)
-            SYNTAX_ERROR(peek.loc, "empty import statement");
+            syntax_error(*parser->scanner->index, peek.loc, 0, "empty import statement");
         end_of_stmt = TOK_CLOSE_PARENS;
     }
     else {
@@ -1010,7 +1051,7 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
             break;
         }
         else
-            SYNTAX_ERROR(peek.loc, "unexpected token");
+            syntax_error(*parser->scanner->index, peek.loc, 0, "unexpected token");
     }
 
     stmt->what = str_vector_finalize(&what_vec);
@@ -1166,7 +1207,10 @@ parse_try_statement(Parser* parser, unsigned int indent)
         // start at expect
         consume_newline_tokens(parser);
         Token begin = expect_keyword(parser, KW_EXCEPT);
-        if (begin.loc.col != indent) SYNTAX_ERROR(begin.loc, "inconsistent indentation");
+        if (begin.loc.col != indent)
+            syntax_error(
+                *parser->scanner->index, begin.loc, 2, "inconsistent indentation"
+            );
         // we will need a str vector for exception names
         StringVector exceptions = str_vector_init(parser->arena);
         // parse either: an identifier
@@ -1192,8 +1236,10 @@ parse_try_statement(Parser* parser, unsigned int indent)
             discard_next_token(parser);
         }
         else {
-            SYNTAX_ERRORF(
+            syntax_errorf(
+                *parser->scanner->index,
                 peek.loc,
+                0,
                 "unexpected token type (%s) (note bare excepts not "
                 "allowed)",
                 token_type_to_cstr(peek.type)
@@ -1275,12 +1321,17 @@ parse_function_statement(Parser* parser, Location loc)
 
     LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
     if (parent_scope->kind == SCOPE_FUNCTION || parent_scope->kind == SCOPE_METHOD)
-        SYNTAX_ERROR(loc, "nested functions not supported");
+        syntax_error(*parser->scanner->index, loc, 2, "nested functions not supported");
     else if (parent_scope->kind == SCOPE_CLASS) {
         // parse and infer type of `self` param
         Token self_token = get_next_token(parser);
         if (self_token.type != TOK_IDENTIFIER) {
-            SYNTAX_ERROR(self_token.loc, "expecting `self` param for method def");
+            syntax_error(
+                *parser->scanner->index,
+                self_token.loc,
+                1,
+                "expecting `self` param for method def"
+            );
         }
         str_vector_append(&params, self_token.value);
         TypeInfo typing = {.type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
@@ -1302,7 +1353,12 @@ parse_function_statement(Parser* parser, Location loc)
             peek = peek_next_token(parser);
         }
         else if (defaults.count > 0) {
-            SYNTAX_ERROR(param.loc, "non default argument follows default argument");
+            syntax_error(
+                *parser->scanner->index,
+                param.loc,
+                1,
+                "non default argument follows default argument"
+            );
         }
     }
     discard_next_token(parser);  // close parens
@@ -1403,7 +1459,9 @@ parse_annotation_statement(Parser* parser, char* identifier)
     Token peek = peek_next_token(parser);
     if (peek.type != TOK_NEWLINE) {
         if (peek.type != TOK_OPERATOR && peek.op != OPERATOR_ASSIGNMENT)
-            SYNTAX_ERROR(peek.loc, "expecting either `newline` or `=`");
+            syntax_error(
+                *parser->scanner->index, peek.loc, 0, "expecting either `newline` or `=`"
+            );
         discard_next_token(parser);
         annotation->initial = parse_expression(parser);
         expect_token_type(parser, TOK_NEWLINE);
@@ -1428,7 +1486,8 @@ parse_statement(Parser* parser)
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
     stmt->loc = peek.loc;
-    indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
+    char* error = indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
+    if (error) syntax_error(*parser->scanner->index, stmt->loc, 2, error);
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
@@ -1532,28 +1591,33 @@ Lexer
 lex_file(const char* filepath)
 {
     FILE* file = fopen(filepath, "r");
-    if (!file) {
-        fprintf(stderr, "ERROR: failed to open file -- %s\n", strerror(errno));
-        exit(1);
-    }
+    if (!file) errorf("failed to open (%s) for reading: %s", filepath, strerror(errno));
     Arena* arena = arena_init();
-    Lexer lexer = {.arena = arena, .top_level = scope_init(arena)};
+    Lexer lexer = {
+        .arena = arena,
+        .top_level = scope_init(arena),
+        .index = create_file_index(arena, filepath)};
     Location start_location = {.line = 1, .filepath = filepath};
     TokenQueue tq = {0};
-    Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};
+    Scanner scanner = {
+        .arena = arena,
+        .loc = start_location,
+        .srcfile = file,
+        .index = &lexer.index,
+        .tq = &tq};
     Parser parser = {.arena = arena, .scanner = &scanner, .tq = &tq};
     scope_stack_push(&parser.scope_stack, lexer.top_level);
 
     size_t statements_capacity = LEXER_STATEMENTS_CHUNK_SIZE;
     lexer.statements = malloc(sizeof(Statement) * statements_capacity);
-    if (!lexer.statements) out_of_memory();
+    if (!lexer.statements) error("out of memory");
 
     do {
         if (lexer.n_statements >= statements_capacity) {
             statements_capacity += LEXER_STATEMENTS_CHUNK_SIZE;
             lexer.statements =
                 realloc(lexer.statements, sizeof(Statement) * statements_capacity);
-            if (!lexer.statements) out_of_memory();
+            if (!lexer.statements) error("out of memory");
         }
         lexer.statements[lexer.n_statements] = parse_statement(&parser);
     } while (lexer.statements[lexer.n_statements++]->kind != STMT_EOF);
@@ -1575,26 +1639,29 @@ Token*
 tokenize_file(const char* filepath, size_t* token_count)
 {
     FILE* file = fopen(filepath, "r");
-    if (!file) {
-        fprintf(stderr, "ERROR: unable to open %s (%s)\n", filepath, strerror(errno));
-        exit(1);
-    }
+    if (!file) errorf("failed to open (%s) for reading: %s", filepath, strerror(errno));
 
     Location start_location = {.line = 1, .filepath = filepath};
     TokenQueue tq = {0};
     Arena* arena = arena_init();
-    Scanner scanner = {.arena = arena, .loc = start_location, .srcfile = file, .tq = &tq};
+    FileIndex index = create_file_index(arena, filepath);
+    Scanner scanner = {
+        .arena = arena,
+        .loc = start_location,
+        .srcfile = file,
+        .tq = &tq,
+        .index = &index};
 
     size_t count = 0;
     size_t capacity = 64;
     Token* tokens = malloc(sizeof(Token) * capacity);
-    if (!tokens) out_of_memory();
+    if (!tokens) error("out of memory");
 
     do {
         if (count == capacity) {
             capacity *= 2;
             tokens = realloc(tokens, sizeof(Token) * capacity);
-            if (!tokens) out_of_memory();
+            if (!tokens) error("out of memory");
         }
         scan_token(&scanner);
         tq_consume(&tq);

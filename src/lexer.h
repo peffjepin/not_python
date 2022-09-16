@@ -5,11 +5,13 @@
 #include <stdlib.h>
 
 #include "arena.h"
+#include "diagnostics.h"
 #include "generated.h"
 #include "syntax.h"
 
 typedef struct {
     Arena* arena;
+    FileIndex index;
     size_t n_statements;
     Statement** statements;
     LexicalScope* top_level;
