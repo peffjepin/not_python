@@ -1447,9 +1447,12 @@ render_builtin(
         return;
     }
     else {
-        // TODO: better error message
-        fprintf(stderr, "ERROR: function undefined (%s)\n", fn_identifier);
-        exit(1);
+        name_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "function not implemented: %s",
+            fn_identifier
+        );
     }
 }
 
