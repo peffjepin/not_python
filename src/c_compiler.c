@@ -144,12 +144,14 @@ set_assignment_type_info(
         // TODO: some kind of check if this is safe to cast such
         //      ex: if expecting a float, and actually got an int, it's probably safe to
         //      just cast to float
+
+        static const size_t buflen = 1024;
+        char expected[buflen];
+        char actual[buflen];
+        render_type_info_human_readable(assignment->type_info, expected, buflen);
+        render_type_info_human_readable(type_info, actual, buflen);
+
         if (assignment->loc) {
-            static const size_t buflen = 1024;
-            char expected[buflen];
-            char actual[buflen];
-            render_type_info_human_readable(assignment->type_info, expected, buflen);
-            render_type_info_human_readable(type_info, actual, buflen);
             type_errorf(
                 compiler->file_index,
                 *assignment->loc,
@@ -159,10 +161,15 @@ set_assignment_type_info(
                 expected
             );
         }
-        fprintf(
-            stderr, "ERROR: inconsistent typing when assigning type to C_Assignment\n"
-        );
-        exit(1);
+        else {
+            unimplemented_errorf(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "inconsistent typing: expecting `%s` got `%s`",
+                expected,
+                actual
+            );
+        }
     }
     else {
         assignment->type_info = type_info;
@@ -385,8 +392,11 @@ render_enclosure_literal(
 
     if (enclosure_assignment->variable_name == NULL) {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
-        fprintf(stderr, "ERROR: enclosures must be assigned\n");
-        exit(1);
+        unimplemented_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "enclosures are currently required to be assigned to a variable"
+        );
     }
 
     switch (operand.enclosure->type) {
@@ -502,7 +512,11 @@ render_function_args_to_variables(
 
 static void
 write_variable_to_section_as_type(
-    CompilerSection* section, PythonType target_type, char* varname, PythonType vartype
+    C_Compiler* compiler,
+    CompilerSection* section,
+    PythonType target_type,
+    char* varname,
+    PythonType vartype
 )
 {
     if (target_type == vartype) {
@@ -523,13 +537,36 @@ write_variable_to_section_as_type(
                 case PYTYPE_BOOL:
                     write_many_to_section(section, "np_bool_to_str(", varname, ")", NULL);
                     break;
-                default:
-                    // TODO: error message
-                    UNIMPLEMENTED("string type conversion unimplemented");
+                default: {
+                    static const size_t buflen = 1024;
+                    char from_type[buflen];
+                    TypeInfo info = {.type = vartype};
+                    render_type_info_human_readable(info, from_type, buflen);
+                    unimplemented_errorf(
+                        compiler->file_index,
+                        compiler->current_stmt_location,
+                        "type conversion from `%s` to `str` not currently implemented",
+                        from_type
+                    );
+                }
             }
             break;
-        default:
-            UNREACHABLE("type conversion unimplemented");
+        default: {
+            static const size_t buflen = 1024;
+            char from_type[buflen];
+            char to_type[buflen];
+            TypeInfo info_from = {.type = vartype};
+            TypeInfo info_to = {.type = target_type};
+            render_type_info_human_readable(info_from, from_type, buflen);
+            render_type_info_human_readable(info_to, to_type, buflen);
+            unimplemented_errorf(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "type conversion from `%s` to `%s` not currently implemented",
+                from_type,
+                to_type
+            );
+        }
     }
 }
 
@@ -567,9 +604,11 @@ static void
 render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* args)
 {
     if (args->values_count != args->n_positional) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: print doesn't take keyword arguments\n");
-        exit(1);
+        type_error(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "print keyword arguments not currently implemented"
+        );
     }
     size_t args_count = (args->values_count == 0) ? 1 : args->values_count;
     GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
@@ -604,25 +643,24 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     for (size_t i = 0; i < args_count; i++) {
         if (i > 0) write_to_section(section, ", ");
         write_variable_to_section_as_type(
-            section, PYTYPE_STRING, string_vars[i], var_types[i].type
+            compiler, section, PYTYPE_STRING, string_vars[i], var_types[i].type
         );
     }
     write_to_section(section, ");\n");
 }
 
 static void
-expect_arg_count(Arguments* args, size_t count)
+expect_arg_count(C_Compiler* compiler, char* fn_name, Arguments* args, size_t count)
 {
     if (args->values_count != count) {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.append expecting %zu argument%s, got %zu\n",
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "`%s` expecting %zu arguments but got %zu",
+            fn_name,
             count,
-            (count == 1) ? "" : "s",
             args->values_count
         );
-        exit(1);
     }
 }
 
@@ -638,7 +676,7 @@ render_list_append(
     set_assignment_type_info(compiler, assignment, return_type);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "list.append", args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, list_item_var);
     C_Assignment item_assignment = {
@@ -673,7 +711,7 @@ render_list_clear(
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
 
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "list.clear", args, 0);
 
     write_many_to_section(
         assignment->section, "list_clear(", list_assignment->variable_name, ");\n", NULL
@@ -691,7 +729,7 @@ render_list_copy(
     (void)compiler;
     set_assignment_type_info(compiler, assignment, list_assignment->type_info);
 
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "list.copy", args, 0);
 
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
@@ -710,7 +748,7 @@ render_list_count(
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
     const char* cmp_func = cmp_for_type_info(list_content_type);
 
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "list.count", args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
     C_Assignment item_assignment = {
@@ -753,7 +791,7 @@ render_list_extend(
     Arguments* args
 )
 {
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "list.extend", args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, other_var);
     C_Assignment other_assignment = {
@@ -786,7 +824,7 @@ render_list_index(
 )
 {
     // TODO: start/stop
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "list.index", args, 1);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
     const char* cmp = cmp_for_type_info(list_content_type);
@@ -845,7 +883,7 @@ render_list_insert(
     Arguments* args
 )
 {
-    expect_arg_count(args, 2);
+    expect_arg_count(compiler, "list.insert", args, 2);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
     C_Assignment index_assignment = {
@@ -905,13 +943,12 @@ render_list_pop(
         render_expression_assignment(compiler, &index_assignment, args->values[0]);
     }
     else {
-        // TODO: error message
-        fprintf(
-            stderr,
-            "ERROR: list.pop expecting 0-1 arguments, got %zu\n",
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "list.pop expecting 0-1 arguments but got %zu",
             args->values_count
         );
-        exit(1);
     }
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
@@ -955,7 +992,7 @@ render_list_remove(
     Arguments* args
 )
 {
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "list.remove", args, 1);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
     const char* cmp = cmp_for_type_info(list_content_type);
@@ -995,7 +1032,7 @@ render_list_reverse(
 )
 {
     (void)compiler;
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "list.reverse", args, 0);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
@@ -1158,7 +1195,7 @@ render_dict_clear(
     (void)compiler;
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "dict.clear", args, 0);
 
     write_many_to_section(
         assignment->section, "dict_clear(", dict_assignment->variable_name, ");\n", NULL
@@ -1174,7 +1211,7 @@ render_dict_copy(
 )
 {
     (void)compiler;
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "dict.copy", args, 0);
 
     TypeInfo return_type = dict_assignment->type_info;
     set_assignment_type_info(compiler, assignment, return_type);
@@ -1207,7 +1244,7 @@ render_dict_items(
     Arguments* args
 )
 {
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "dict.items", args, 0);
 
     // ITER of DICT_ITEMS of [KEY_TYPE, VALUE_TYPE]
     TypeInfo dict_items_type = {
@@ -1238,7 +1275,7 @@ render_dict_keys(
     Arguments* args
 )
 {
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "dict.keys", args, 0);
 
     // ITER of KEY_TYPE
     TypeInfo return_type = {
@@ -1271,7 +1308,7 @@ render_dict_pop(
     set_assignment_type_info(compiler, assignment, return_type);
 
     // TODO: implement default value
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "dict.pop", args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
     C_Assignment key_assignment = {
@@ -1322,7 +1359,7 @@ render_dict_update(
     set_assignment_type_info(compiler, assignment, return_type);
 
     // TODO: accept args other than another dict
-    expect_arg_count(args, 1);
+    expect_arg_count(compiler, "dict.update", args, 1);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, other_dict_variable);
     C_Assignment other_dict_assignment = {
@@ -1351,7 +1388,7 @@ render_dict_values(
     Arguments* args
 )
 {
-    expect_arg_count(args, 0);
+    expect_arg_count(compiler, "dict.values", args, 0);
 
     // ITER of KEY_VALUE
     TypeInfo return_type = {
@@ -1979,10 +2016,6 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     for (size_t i = 0; i < 2; i++) {
         TypeInfo type_info = func->sig.return_type;
 
-        // TODO: if we implemented functions returning None as void
-        // then it will have to be an error to explicitly `return None`
-        // unless the return type is a Union including None or Optional
-        // both of which are unimplemented at the time of writing.
         if (type_info.type == PYTYPE_NONE)
             write_to_section(sections[i], "void ");
         else
@@ -2054,20 +2087,12 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
     }
     write_to_section(&compiler->struct_declarations, "};\n");
     if (member_count == 0) {
-        // TODO: better error reporting or perhaps this should be an error from the
-        // parser also worth considering if classes can exist without members as
-        // namespaces for functions
-        fprintf(stderr, "ERROR: class defined with no members\n");
-        exit(1);
+        unimplemented_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "class defined without any annotated members"
+        );
     }
-}
-
-static void
-inconsistent_typing(void)
-{
-    // TODO: provide context and a good error message
-    fprintf(stderr, "ERROR: inconsistent typing");
-    exit(1);
 }
 
 static void
@@ -2082,7 +2107,20 @@ declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
         sym->variable->type = type;
     }
     else if (!compare_types(type, sym->variable->type)) {
-        inconsistent_typing();
+        static const size_t buflen = 1024;
+        char already_declared[buflen];
+        char trying_to_declare[buflen];
+        render_type_info_human_readable(type, trying_to_declare, buflen);
+        render_type_info_human_readable(sym->variable->type, already_declared, buflen);
+        type_errorf(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "trying to declare global variable `%s` with type `%s` but it is already "
+            "declared with type `%s`",
+            identifier,
+            trying_to_declare,
+            already_declared
+        );
     }
     write_type_info_to_section(&compiler->variable_declarations, type);
     write_to_section(&compiler->variable_declarations, identifier);
@@ -2414,9 +2452,11 @@ render_dict_items_iterator_for_loop_head(
     }
     else {
     unexpected_identifiers:
-        // TODO: error message
-        fprintf(stderr, "ERROR: unexpected amount of values to unpack\n");
-        exit(1);
+        unimplemented_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "expected 2 identifier variable for for dict.items"
+        );
     }
 
     // declare key value variables
@@ -2544,7 +2584,8 @@ compile_for_loop(
     else {
         fprintf(
             stderr,
-            "ERROR: for loops currently implemented only for lists, dicts and iterators\n"
+            "ERROR: for loops currently implemented only for lists, dicts and "
+            "iterators\n"
         );
         exit(1);
     }
@@ -2609,9 +2650,12 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
             break;
         case STMT_RETURN: {
             if (!section_or_null) {
-                // TODO: error message
-                fprintf(stderr, "ERROR: return statement can't be in top level scope\n");
-                exit(1);
+                syntax_error(
+                    compiler->file_index,
+                    stmt->loc,
+                    0,
+                    "return statement cannot be defined at the top level scope"
+                );
             }
             compile_return_statement(compiler, section_or_null, stmt->ret);
             break;
