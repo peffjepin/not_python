@@ -256,10 +256,13 @@ et_push_operation(ExpressionTable* et, Operation operation)
 }
 
 void
-et_push_operation_type(ExpressionTable* et, Operator op_type)
+et_push_operation_type(ExpressionTable* et, Operator op_type, Location* loc)
 {
     Operation operation = {
-        .op_type = op_type, .left = et->operands_count - 1, .right = et->operands_count};
+        .loc = loc,
+        .op_type = op_type,
+        .left = et->operands_count - 1,
+        .right = et->operands_count};
     et_push_operation(et, operation);
 }
 

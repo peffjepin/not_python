@@ -125,7 +125,7 @@ typedef struct {
 ExpressionTable et_init(Arena* arena);
 void et_push_operand(ExpressionTable* et, Operand operand);
 void et_push_operation(ExpressionTable* et, Operation operation);
-void et_push_operation_type(ExpressionTable* et, Operator op_type);
+void et_push_operation_type(ExpressionTable* et, Operator op_type, Location* loc);
 Expression* et_to_expr(ExpressionTable* et);
 
 PythonType cstr_to_python_type(char* cstr);

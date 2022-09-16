@@ -844,33 +844,35 @@ parse_expression(Parser* parser)
                                 0,
                                 "conditional expression not allowed here"
                             );
-                        et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF);
+                        et_push_operation_type(&et, OPERATOR_CONDITIONAL_IF, tok.loc);
 
                         Operand condition_operand = {
                             .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
                         et_push_operand(&et, condition_operand);
 
-                        expect_keyword(parser, KW_ELSE);
-                        et_push_operation_type(&et, OPERATOR_CONDITIONAL_ELSE);
+                        Token else_token = expect_keyword(parser, KW_ELSE);
+                        et_push_operation_type(
+                            &et, OPERATOR_CONDITIONAL_ELSE, else_token.loc
+                        );
 
                         Operand else_operand = {
                             .kind = OPERAND_EXPRESSION, .expr = parse_expression(parser)};
                         et_push_operand(&et, else_operand);
                         break;
                     case KW_AND:
-                        et_push_operation_type(&et, OPERATOR_LOGICAL_AND);
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_AND, tok.loc);
                         break;
                     case KW_OR:
-                        et_push_operation_type(&et, OPERATOR_LOGICAL_OR);
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_OR, tok.loc);
                         break;
                     case KW_NOT:
-                        et_push_operation_type(&et, OPERATOR_LOGICAL_NOT);
+                        et_push_operation_type(&et, OPERATOR_LOGICAL_NOT, tok.loc);
                         break;
                     case KW_IN:
-                        et_push_operation_type(&et, OPERATOR_IN);
+                        et_push_operation_type(&et, OPERATOR_IN, tok.loc);
                         break;
                     case KW_IS:
-                        et_push_operation_type(&et, OPERATOR_IS);
+                        et_push_operation_type(&et, OPERATOR_IS, tok.loc);
                         break;
                     case KW_FALSE: {
                         Operand operand = {.kind = OPERAND_TOKEN, .token = tok};
@@ -896,10 +898,10 @@ parse_expression(Parser* parser)
             case TOK_OPERATOR: {
                 if (tok.op == OPERATOR_MINUS &&
                     (et.previous == ET_NONE || et.previous == ET_OPERATION)) {
-                    et_push_operation_type(&et, OPERATOR_NEGATIVE);
+                    et_push_operation_type(&et, OPERATOR_NEGATIVE, tok.loc);
                 }
                 else
-                    et_push_operation_type(&et, tok.op);
+                    et_push_operation_type(&et, tok.op, tok.loc);
                 break;
             }
             case TOK_NUMBER: {
@@ -921,7 +923,7 @@ parse_expression(Parser* parser)
                 if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
                     et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    et_push_operation_type(&et, OPERATOR_CALL);
+                    et_push_operation_type(&et, OPERATOR_CALL, tok.loc);
                     et_push_operand(&et, parse_arguments(parser));
                 }
                 break;
@@ -930,7 +932,7 @@ parse_expression(Parser* parser)
                 if (parser->previous.type == TOK_OPERATOR || et.operands_count == 0)
                     et_push_operand(&et, parse_sequence_enclosure(parser));
                 else {
-                    et_push_operation_type(&et, OPERATOR_GET_ITEM);
+                    et_push_operation_type(&et, OPERATOR_GET_ITEM, tok.loc);
                     et_push_operand(&et, parse_getitem_arguments(parser));
                 }
                 break;
@@ -940,7 +942,7 @@ parse_expression(Parser* parser)
                 break;
             }
             case TOK_DOT: {
-                et_push_operation_type(&et, OPERATOR_GET_ATTR);
+                et_push_operation_type(&et, OPERATOR_GET_ATTR, tok.loc);
                 Operand right = {
                     .kind = OPERAND_TOKEN,
                     .token = expect_token_type(parser, TOK_IDENTIFIER)};

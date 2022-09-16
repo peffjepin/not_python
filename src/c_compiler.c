@@ -24,6 +24,7 @@ typedef struct {
     StringHashmap str_hm;
     FileIndex file_index;
     Location current_stmt_location;
+    Location current_operation_location;
     TypeChecker tc;
     CompilerSection forward;
     CompilerSection variable_declarations;
@@ -1459,8 +1460,19 @@ render_operation(
 {
     TypeInfo type_info = resolve_operation_type(types[0], types[1], op_type);
     if (type_info.type == PYTYPE_UNTYPED) {
-        fprintf(stderr, "ERROR: failed to resolve operand type\n");
-        exit(1);
+        static const size_t buflen = 1024;
+        char left[buflen];
+        char right[buflen];
+        render_type_info_human_readable(types[0], left, buflen);
+        render_type_info_human_readable(types[1], right, buflen);
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "unsupported operand types for `%s`: `%s` and `%s`",
+            op_to_cstr(op_type),
+            left,
+            right
+        );
     }
     set_assignment_type_info(compiler, assignment, type_info);
 
@@ -1697,6 +1709,7 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
     }
     else if (expr->operations_count == 1) {
         Operation operation = expr->operations[0];
+        compiler->current_operation_location = *operation.loc;
 
         if (operation.op_type == OPERATOR_CALL) {
             render_call_operation(compiler, assignment, expr, operation);
@@ -1801,6 +1814,7 @@ render_expression_assignment(
 
     for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = expr->operations[i];
+        compiler->current_operation_location = *operation.loc;
         C_Assignment* this_assignment;
 
         if (i == expr->operations_count - 1)
@@ -1837,10 +1851,14 @@ render_expression_assignment(
                 if (++i == expr->operations_count - 1) this_assignment = assignment;
                 Operation next_operation = expr->operations[i];
                 if (next_operation.op_type != OPERATOR_CALL) {
-                    // TODO: error message
-                    fprintf(stderr, "ERROR: expecting function call\n");
-                    exit(1);
+                    syntax_error(
+                        compiler->file_index,
+                        *next_operation.loc,
+                        0,
+                        "expecting function call"
+                    );
                 }
+                compiler->current_operation_location = *next_operation.loc;
                 compile_list_builtin(
                     compiler,
                     this_assignment,
@@ -1863,10 +1881,14 @@ render_expression_assignment(
                 if (++i == expr->operations_count - 1) this_assignment = assignment;
                 Operation next_operation = expr->operations[i];
                 if (next_operation.op_type != OPERATOR_CALL) {
-                    // TODO: error message
-                    fprintf(stderr, "ERROR: expecting function call\n");
-                    exit(1);
+                    syntax_error(
+                        compiler->file_index,
+                        *next_operation.loc,
+                        0,
+                        "expecting function call"
+                    );
                 }
+                compiler->current_operation_location = *next_operation.loc;
                 compile_dict_builtin(
                     compiler,
                     this_assignment,
