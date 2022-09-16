@@ -1,4 +1,4 @@
-[0;31mSYNTAX: test/samples/statements/inconsitent_indentation1.py:3:7
+[0;31mSyntaxError: test/samples/statements/inconsitent_indentation1.py:3:7
 [0m[0minconsistent indentation:
 [0m[0m  1| for x in range(10):
 [0m[0m  2|     pass

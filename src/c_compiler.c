@@ -7,6 +7,7 @@
 #include "np_hash.h"
 // TODO: once this module is finished we should find a way to not rely on lexer_helpers
 #include "c_compiler_helpers.h"
+#include "diagnostics.h"
 #include "lexer_helpers.h"
 #include "not_python.h"
 #include "syntax.h"
@@ -21,6 +22,8 @@ typedef struct {
     LexicalScopeStack scope_stack;
     IdentifierSet declared_globals;
     StringHashmap str_hm;
+    FileIndex file_index;
+    Location current_stmt_location;
     TypeChecker tc;
     CompilerSection forward;
     CompilerSection variable_declarations;
@@ -50,14 +53,6 @@ typedef struct {
 
 #define WRITE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                        \
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
-
-#define DATATYPE_INT "PYINT"
-#define DATATYPE_FLOAT "PYFLOAT"
-#define DATATYPE_STRING "PYSTRING"
-#define DATATYPE_BOOL "PYBOOL"
-#define DATATYPE_LIST "PYLIST"
-#define DATATYPE_DICT "PYDICT"
-#define DATATYPE_ITER "PYITER"
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
@@ -135,10 +130,13 @@ typedef struct {
     TypeInfo type_info;
     char* variable_name;
     bool is_declared;
+    Location* loc;  // NULL for intermediate assignments
 } C_Assignment;
 
 static void
-set_assignment_type_info(C_Assignment* assignment, TypeInfo type_info)
+set_assignment_type_info(
+    C_Compiler* compiler, C_Assignment* assignment, TypeInfo type_info
+)
 {
     if (assignment->type_info.type != PYTYPE_UNTYPED &&
         !compare_types(type_info, assignment->type_info)) {
@@ -147,6 +145,21 @@ set_assignment_type_info(C_Assignment* assignment, TypeInfo type_info)
         // TODO: some kind of check if this is safe to cast such
         //      ex: if expecting a float, and actually got an int, it's probably safe to
         //      just cast to float
+        if (assignment->loc) {
+            static const size_t buflen = 1024;
+            char expected[buflen];
+            char actual[buflen];
+            render_type_info_human_readable(assignment->type_info, expected, buflen);
+            render_type_info_human_readable(type_info, actual, buflen);
+            type_errorf(
+                compiler->file_index,
+                *assignment->loc,
+                "trying to assign type `%s` to variable `%s` of type `%s`",
+                actual,
+                assignment->variable_name,
+                expected
+            );
+        }
         fprintf(
             stderr, "ERROR: inconsistent typing when assigning type to C_Assignment\n"
         );
@@ -166,100 +179,11 @@ static void render_expression_assignment(
 );
 
 static void
-untyped_error(void)
-{
-    // TODO: locations of tokens should be available here to give a reasonable error
-    // should it occur
-    fprintf(stderr, "encountered untyped variable\n");
-    exit(1);
-}
-
-static const char*
-type_info_to_c_syntax(TypeInfo info)
-{
-    switch (info.type) {
-        case PYTYPE_UNTYPED:
-            untyped_error();
-            break;
-        case PYTYPE_NONE:
-            UNIMPLEMENTED("None to c syntax unimplemented");
-            break;
-        case PYTYPE_INT:
-            return DATATYPE_INT;
-        case PYTYPE_FLOAT:
-            return DATATYPE_FLOAT;
-        case PYTYPE_STRING:
-            return DATATYPE_STRING;
-        case PYTYPE_BOOL:
-            return DATATYPE_BOOL;
-        case PYTYPE_LIST:
-            return DATATYPE_LIST;
-        case PYTYPE_TUPLE:
-            UNIMPLEMENTED("tuple to c syntax unimplemented");
-            break;
-        case PYTYPE_DICT:
-            return DATATYPE_DICT;
-        case PYTYPE_OBJECT:
-            UNIMPLEMENTED("object to c syntax unimplemented");
-            break;
-        case PYTYPE_ITER:
-            return DATATYPE_ITER;
-        default:
-            UNREACHABLE("default type info to c syntax");
-            break;
-    }
-    UNREACHABLE("end of type info to c syntax");
-}
-
-static void
-write_type_info_to_section(CompilerSection* section, TypeInfo info)
-{
-    switch (info.type) {
-        case PYTYPE_UNTYPED:
-            untyped_error();
-            break;
-        case PYTYPE_NONE:
-            UNIMPLEMENTED("None to c syntax unimplemented");
-            break;
-        case PYTYPE_INT:
-            write_to_section(section, DATATYPE_INT " ");
-            break;
-        case PYTYPE_FLOAT:
-            write_to_section(section, DATATYPE_FLOAT " ");
-            break;
-        case PYTYPE_STRING:
-            write_to_section(section, DATATYPE_STRING " ");
-            break;
-        case PYTYPE_BOOL:
-            write_to_section(section, DATATYPE_BOOL " ");
-            break;
-        case PYTYPE_LIST:
-            write_to_section(section, DATATYPE_LIST " ");
-            break;
-        case PYTYPE_TUPLE:
-            UNIMPLEMENTED("tuple to c syntax unimplemented");
-            break;
-        case PYTYPE_DICT:
-            write_to_section(section, DATATYPE_DICT " ");
-            break;
-        case PYTYPE_OBJECT:
-            UNIMPLEMENTED("object to c syntax unimplemented");
-            break;
-        case PYTYPE_ITER:
-            write_to_section(section, DATATYPE_ITER " ");
-            break;
-        default:
-            UNREACHABLE("default type info to c syntax");
-            break;
-    }
-}
-
-static void
 prepare_c_assignment_for_rendering(C_Assignment* assignment)
 {
     if (assignment->variable_name) {
         if (!assignment->is_declared) {
-            if (assignment->type_info.type == PYTYPE_UNTYPED) untyped_error();
+            if (assignment->type_info.type == PYTYPE_UNTYPED) UNTYPED_ERROR();
             write_type_info_to_section(assignment->section, assignment->type_info);
             assignment->is_declared = true;
         }
@@ -296,7 +220,9 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
 static void
 render_simple_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
 {
-    set_assignment_type_info(assignment, resolve_operand_type(&compiler->tc, operand));
+    set_assignment_type_info(
+        compiler, assignment, resolve_operand_type(&compiler->tc, operand)
+    );
     prepare_c_assignment_for_rendering(assignment);
     write_to_section(assignment->section, simple_operand_repr(compiler, operand));
     write_to_section(assignment->section, ";\n");
@@ -357,7 +283,7 @@ render_list_literal(
     inner->types[0] = expression_assignment.type_info;
     inner->count = 1;
     TypeInfo enclosure_type_info = {.type = PYTYPE_LIST, .inner = inner};
-    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
+    set_assignment_type_info(compiler, enclosure_assignment, enclosure_type_info);
 
     // TODO: for now we're just going to init an empty list and append everything
     // to it. eventually we should allocate enough room to begin with because we
@@ -411,7 +337,7 @@ render_dict_literal(
     inner->types[1] = val_assignment.type_info;
     inner->count = 2;
     TypeInfo enclosure_type_info = {.type = PYTYPE_DICT, .inner = inner};
-    set_assignment_type_info(enclosure_assignment, enclosure_type_info);
+    set_assignment_type_info(compiler, enclosure_assignment, enclosure_type_info);
 
     // TODO: better initialization
     render_empty_enclosure(enclosure_assignment, operand);
@@ -445,13 +371,11 @@ render_enclosure_literal(
 {
     if (operand.enclosure->expressions_count == 0) {
         if (enclosure_assignment->type_info.type == PYTYPE_UNTYPED) {
-            // TODO: error message
-            fprintf(
-                stderr,
-                "ERROR: empty containers must have their type annotated when "
-                "initialized\n"
+            type_error(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "empty containers must have their type annotated when initialized"
             );
-            exit(1);
         }
         render_empty_enclosure(enclosure_assignment, operand);
         return;
@@ -619,7 +543,7 @@ render_function_call(
     );
 
     // write the call statement
-    set_assignment_type_info(assignment, fndef->sig.return_type);
+    set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(assignment);
     write_to_section(assignment->section, fndef->name);
     write_to_section(assignment->section, "(");
@@ -702,7 +626,7 @@ render_list_append(
 )
 {
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
     expect_arg_count(args, 1);
@@ -738,7 +662,7 @@ render_list_clear(
 {
     (void)compiler;
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     expect_arg_count(args, 0);
 
@@ -756,7 +680,7 @@ render_list_copy(
 )
 {
     (void)compiler;
-    set_assignment_type_info(assignment, list_assignment->type_info);
+    set_assignment_type_info(compiler, assignment, list_assignment->type_info);
 
     expect_arg_count(args, 0);
 
@@ -788,7 +712,7 @@ render_list_count(
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_INT};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     if (!assignment->is_declared) {
         write_type_info_to_section(assignment->section, return_type);
         write_to_section(assignment->section, assignment->variable_name);
@@ -831,7 +755,7 @@ render_list_extend(
     render_expression_assignment(compiler, &other_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     write_many_to_section(
         assignment->section,
@@ -867,7 +791,7 @@ render_list_index(
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_INT};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     if (!assignment->variable_name) {
         // TODO: maybe trying to call this without assigning it is just an error.
@@ -932,7 +856,7 @@ render_list_insert(
     render_expression_assignment(compiler, &item_assignment, args->values[1]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     write_many_to_section(
         assignment->section,
@@ -982,7 +906,7 @@ render_list_pop(
     }
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
-    set_assignment_type_info(assignment, list_content_type);
+    set_assignment_type_info(compiler, assignment, list_content_type);
     if (!assignment->variable_name) {
         GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
         assignment->variable_name = item_variable;
@@ -1036,7 +960,7 @@ render_list_remove(
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     write_many_to_section(
         assignment->section,
@@ -1065,7 +989,7 @@ render_list_reverse(
     expect_arg_count(args, 0);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     write_many_to_section(
         assignment->section, "list_reverse(", list_assignment->variable_name, ");\n", NULL
@@ -1101,7 +1025,7 @@ render_list_sort(
     }
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
     const char* rev_cmp = sort_cmp_for_type_info(list_content_type, true);
@@ -1222,7 +1146,7 @@ render_dict_clear(
 {
     (void)compiler;
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     expect_arg_count(args, 0);
 
     write_many_to_section(
@@ -1242,7 +1166,7 @@ render_dict_copy(
     expect_arg_count(args, 0);
 
     TypeInfo return_type = dict_assignment->type_info;
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
         assignment->section, "dict_copy(", dict_assignment->variable_name, ");\n", NULL
@@ -1284,7 +1208,7 @@ render_dict_items(
     return_type.inner->types[0] = dict_items_type;
     return_type.inner->count = 1;
 
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
         assignment->section,
@@ -1313,7 +1237,7 @@ render_dict_keys(
     return_type.inner->types[0] = dict_assignment->type_info.inner->types[0];
     return_type.inner->count = 1;
 
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
         assignment->section,
@@ -1333,7 +1257,7 @@ render_dict_pop(
 )
 {
     TypeInfo return_type = dict_assignment->type_info.inner->types[1];
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     // TODO: implement default value
     expect_arg_count(args, 1);
@@ -1384,7 +1308,7 @@ render_dict_update(
 )
 {
     TypeInfo return_type = {.type = PYTYPE_NONE};
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
 
     // TODO: accept args other than another dict
     expect_arg_count(args, 1);
@@ -1426,7 +1350,7 @@ render_dict_values(
     return_type.inner->types[0] = dict_assignment->type_info.inner->types[1];
     return_type.inner->count = 1;
 
-    set_assignment_type_info(assignment, return_type);
+    set_assignment_type_info(compiler, assignment, return_type);
     prepare_c_assignment_for_rendering(assignment);
     write_many_to_section(
         assignment->section,
@@ -1528,7 +1452,11 @@ render_builtin(
 
 static void
 render_operation(
-    C_Assignment* assignment, Operator op_type, char** operand_reprs, TypeInfo* types
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    Operator op_type,
+    char** operand_reprs,
+    TypeInfo* types
 )
 {
     TypeInfo type_info = resolve_operation_type(types[0], types[1], op_type);
@@ -1536,7 +1464,7 @@ render_operation(
         fprintf(stderr, "ERROR: failed to resolve operand type\n");
         exit(1);
     }
-    set_assignment_type_info(assignment, type_info);
+    set_assignment_type_info(compiler, assignment, type_info);
 
     switch (op_type) {
         case OPERATOR_PLUS:
@@ -1805,7 +1733,9 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
             }
         }
 
-        render_operation(assignment, operation.op_type, operand_reprs, operand_types);
+        render_operation(
+            compiler, assignment, operation.op_type, operand_reprs, operand_types
+        );
         return;
     }
     UNREACHABLE("end of write simple expression");
@@ -1997,7 +1927,7 @@ render_expression_assignment(
         }
 
         render_operation(
-            this_assignment, operation.op_type, operand_reprs, operand_types
+            compiler, this_assignment, operation.op_type, operand_reprs, operand_types
         );
         update_rendered_operation_memory(&operation_renders, this_assignment, operation);
     }
@@ -2223,13 +2153,14 @@ render_dict_set_item(
 
 static void
 compile_complex_assignment(
-    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
 )
 {
-    Operation last_op = stmt->storage->operations[stmt->storage->operations_count - 1];
+    Operation last_op = stmt->assignment->storage
+                            ->operations[stmt->assignment->storage->operations_count - 1];
 
     if (last_op.op_type == OPERATOR_GET_ITEM) {
-        Expression container_expr = *stmt->storage;
+        Expression container_expr = *stmt->assignment->storage;
         container_expr.operations_count -= 1;
         GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
         C_Assignment container_assignment = {
@@ -2239,11 +2170,11 @@ compile_complex_assignment(
         render_expression_assignment(compiler, &container_assignment, &container_expr);
         switch (container_assignment.type_info.type) {
             case PYTYPE_LIST: {
-                render_list_set_item(compiler, container_assignment, stmt);
+                render_list_set_item(compiler, container_assignment, stmt->assignment);
                 break;
             }
             case PYTYPE_DICT:
-                render_dict_set_item(compiler, container_assignment, stmt);
+                render_dict_set_item(compiler, container_assignment, stmt->assignment);
                 break;
             default:
                 UNIMPLEMENTED("setitem not implemented for this data type");
@@ -2254,15 +2185,19 @@ compile_complex_assignment(
 }
 
 static void
-compile_simple_assignment(
-    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
-)
+compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
+    char* identifier = stmt->assignment->storage->operands[0].token.value;
+    Symbol* sym =
+        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
     C_Assignment assignment = {
         .section = section,
-        .variable_name = stmt->storage->operands[0].token.value,
-        .is_declared = true};
-    render_expression_assignment(compiler, &assignment, stmt->value);
+        .variable_name = identifier,
+        .is_declared = true,
+        .loc = &stmt->loc,
+    };
+    if (sym) assignment.type_info = sym->variable->type;
+    render_expression_assignment(compiler, &assignment, stmt->assignment->value);
     if (section == &compiler->init_module_function)
         declare_global_variable(compiler, assignment.type_info, assignment.variable_name);
 }
@@ -2270,13 +2205,11 @@ compile_simple_assignment(
 // TODO: looks like this always assumes it's dealing with a global variable which is
 // not the case
 static void
-compile_assignment(
-    C_Compiler* compiler, CompilerSection* section, AssignmentStatement* stmt
-)
+compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    if (stmt->op_type != OPERATOR_ASSIGNMENT)
+    if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
         UNIMPLEMENTED("assignment op_type not implemented");
-    if (stmt->storage->operations_count != 0)
+    if (stmt->assignment->storage->operations_count != 0)
         compile_complex_assignment(compiler, section, stmt);
     else
         compile_simple_assignment(compiler, section, stmt);
@@ -2576,6 +2509,7 @@ compile_for_loop(
 static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
+    compiler->current_stmt_location = stmt->loc;
     switch (stmt->kind) {
         case STMT_FOR_LOOP: {
             CompilerSection* section =
@@ -2601,7 +2535,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_ASSIGNMENT: {
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
-            compile_assignment(compiler, section, stmt->assignment);
+            compile_assignment(compiler, section, stmt);
             break;
         }
         case STMT_ANNOTATION: {
@@ -2710,6 +2644,7 @@ compiler_init(Lexer* lexer)
     TypeChecker tc = {.arena = lexer->arena, .globals = lexer->top_level, .locals = NULL};
     C_Compiler compiler = {
         .arena = lexer->arena,
+        .file_index = lexer->index,
         .top_level_scope = lexer->top_level,
         .tc = tc,
         .sb = sb_init()};

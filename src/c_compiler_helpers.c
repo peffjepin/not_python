@@ -1,5 +1,6 @@
 #include "c_compiler_helpers.h"
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +8,158 @@
 
 #include "np_hash.h"
 
-#define UNREACHABLE(msg) assert(0 && msg);
+static const char*
+type_info_human_readable(TypeInfo info)
+{
+    switch (info.type) {
+        case PYTYPE_NONE:
+            return "None";
+        case PYTYPE_INT:
+            return "int";
+        case PYTYPE_FLOAT:
+            return "float";
+        case PYTYPE_STRING:
+            return "str";
+        case PYTYPE_LIST:
+            return "List";
+        case PYTYPE_TUPLE:
+            return "Tuple";
+        case PYTYPE_DICT:
+            return "Dict";
+        case PYTYPE_OBJECT:
+            return info.class_name;
+        case PYTYPE_BOOL:
+            return "bool";
+        case PYTYPE_SLICE:
+            return "slice";
+        case PYTYPE_ITER:
+            return "Iterator";
+        case PYTYPE_DICT_ITEMS:
+            return "DictItems";
+        default:
+            UNREACHABLE("default case type info to human readable");
+    }
+}
+
+size_t
+write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t remaining)
+{
+    size_t start = remaining;
+    const char* outer = type_info_human_readable(info);
+
+    while (*outer != '\0' && remaining > 1) {
+        *buffer++ = *outer++;
+        remaining--;
+    }
+    if (info.inner) {
+        if (remaining > 1) {
+            *buffer++ = '[';
+            remaining--;
+        }
+        for (size_t i = 0; i < info.inner->count; i++) {
+            if (i > 0 && remaining > 2) {
+                *buffer++ = ',';
+                *buffer++ = ' ';
+                remaining -= 2;
+            }
+            remaining -= write_type_info_into_buffer_human_readable(
+                info.inner->types[i], buffer, remaining
+            );
+        }
+        if (remaining > 1) {
+            *buffer++ = ']';
+            remaining--;
+        }
+    }
+    return start - remaining;
+}
+
+void
+render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
+{
+    size_t written = write_type_info_into_buffer_human_readable(info, buf, buflen);
+    buf[written] = '\0';
+}
+
+const char*
+type_info_to_c_syntax(TypeInfo info)
+{
+    switch (info.type) {
+        case PYTYPE_UNTYPED:
+            UNTYPED_ERROR();
+            break;
+        case PYTYPE_NONE:
+            UNIMPLEMENTED("None to c syntax unimplemented");
+            break;
+        case PYTYPE_INT:
+            return DATATYPE_INT;
+        case PYTYPE_FLOAT:
+            return DATATYPE_FLOAT;
+        case PYTYPE_STRING:
+            return DATATYPE_STRING;
+        case PYTYPE_BOOL:
+            return DATATYPE_BOOL;
+        case PYTYPE_LIST:
+            return DATATYPE_LIST;
+        case PYTYPE_TUPLE:
+            UNIMPLEMENTED("tuple to c syntax unimplemented");
+            break;
+        case PYTYPE_DICT:
+            return DATATYPE_DICT;
+        case PYTYPE_OBJECT:
+            UNIMPLEMENTED("object to c syntax unimplemented");
+            break;
+        case PYTYPE_ITER:
+            return DATATYPE_ITER;
+        default:
+            UNREACHABLE("default type info to c syntax");
+            break;
+    }
+    UNREACHABLE("end of type info to c syntax");
+}
+
+void
+write_type_info_to_section(CompilerSection* section, TypeInfo info)
+{
+    switch (info.type) {
+        case PYTYPE_UNTYPED:
+            UNTYPED_ERROR();
+            break;
+        case PYTYPE_NONE:
+            UNIMPLEMENTED("None to c syntax unimplemented");
+            break;
+        case PYTYPE_INT:
+            write_to_section(section, DATATYPE_INT " ");
+            break;
+        case PYTYPE_FLOAT:
+            write_to_section(section, DATATYPE_FLOAT " ");
+            break;
+        case PYTYPE_STRING:
+            write_to_section(section, DATATYPE_STRING " ");
+            break;
+        case PYTYPE_BOOL:
+            write_to_section(section, DATATYPE_BOOL " ");
+            break;
+        case PYTYPE_LIST:
+            write_to_section(section, DATATYPE_LIST " ");
+            break;
+        case PYTYPE_TUPLE:
+            UNIMPLEMENTED("tuple to c syntax unimplemented");
+            break;
+        case PYTYPE_DICT:
+            write_to_section(section, DATATYPE_DICT " ");
+            break;
+        case PYTYPE_OBJECT:
+            UNIMPLEMENTED("object to c syntax unimplemented");
+            break;
+        case PYTYPE_ITER:
+            write_to_section(section, DATATYPE_ITER " ");
+            break;
+        default:
+            UNREACHABLE("default type info to c syntax");
+            break;
+    }
+}
 
 static void
 out_of_memory(void)

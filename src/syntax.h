@@ -57,6 +57,7 @@ typedef enum {
 } OperandKind;
 
 struct Operand {
+    Location* loc;
     OperandKind kind;
     union {
         Token token;

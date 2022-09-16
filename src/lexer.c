@@ -90,7 +90,8 @@ skip_whitespace(Scanner* scanner)
                 break;
             case EOF:
                 scanner->token.type = TOK_EOF;
-                scanner->token.loc = scanner->loc;
+                scanner->token.loc = arena_alloc(scanner->arena, sizeof(Location));
+                memcpy(scanner->token.loc, &scanner->loc, sizeof(Location));
                 scanner->finished = true;
                 return;
             default:
@@ -109,7 +110,8 @@ skip_comments(Scanner* scanner)
             ;
         if (scanner->c == EOF) {
             scanner->token.type = TOK_EOF;
-            scanner->token.loc = scanner->loc;
+            scanner->token.loc = arena_alloc(scanner->arena, sizeof(Location));
+            memcpy(scanner->token.loc, &scanner->loc, sizeof(Location));
             scanner->finished = true;
             return;
         }
@@ -230,7 +232,7 @@ tokenize_string_literal(Scanner* scanner)
          scanner_getc(scanner)) {
         if (scanner->c == EOF)
             syntax_error(
-                *scanner->index, scanner->token.loc, 0, "unterminated string literal"
+                *scanner->index, *scanner->token.loc, 0, "unterminated string literal"
             );
         if (scanner->c == opening_quote) {
             // an escaped version of starting quote
@@ -285,7 +287,8 @@ scan_token(Scanner* scanner)
     }
 
     // we're now at the start of a new token
-    scanner->token.loc = scanner->loc;
+    scanner->token.loc = arena_alloc(scanner->arena, sizeof(Location));
+    memcpy(scanner->token.loc, &scanner->loc, sizeof(Location));
 
     if (handle_single_char_tokens(scanner))
         ;
@@ -445,14 +448,14 @@ parse_iterable_identifiers(Parser* parser)
                 break;
             }
             default:
-                syntax_error(*parser->scanner->index, token.loc, 0, "unexpected token");
+                syntax_error(*parser->scanner->index, *token.loc, 0, "unexpected token");
         }
     }
 return_it_group:
     if (vec.count == 0)
         syntax_error(
             *parser->scanner->index,
-            peek_next_token(parser).loc,
+            *peek_next_token(parser).loc,
             0,
             "no identifiers given"
         );
@@ -715,7 +718,7 @@ parse_getitem_arguments(Parser* parser)
     if (peek.type == TOK_CLOSE_SQUARE)
         syntax_error(
             *parser->scanner->index,
-            peek.loc,
+            *peek.loc,
             0,
             "some argument is required for the getitem operator"
         );
@@ -738,7 +741,7 @@ parse_getitem_arguments(Parser* parser)
         }
         else {
             syntax_error(
-                *parser->scanner->index, next.loc, 0, "expected either `:` or `]`"
+                *parser->scanner->index, *next.loc, 0, "expected either `:` or `]`"
             );
         }
     }
@@ -775,7 +778,7 @@ slice_stop_expr:
         goto return_slice_operand;
     }
     else
-        syntax_error(*parser->scanner->index, next.loc, 0, "expected either `:` or `]`");
+        syntax_error(*parser->scanner->index, *next.loc, 0, "expected either `:` or `]`");
 slice_step_expr:
     // [...:...:...
     peek = peek_next_token(parser);
@@ -800,7 +803,7 @@ expect_keyword(Parser* parser, Keyword kw)
     Token tok = get_next_token(parser);
     if (tok.type != TOK_KEYWORD || tok.kw != kw)
         syntax_errorf(
-            *parser->scanner->index, tok.loc, 0, "expected keyword `%s`", kw_to_cstr(kw)
+            *parser->scanner->index, *tok.loc, 0, "expected keyword `%s`", kw_to_cstr(kw)
         );
     return tok;
 }
@@ -812,7 +815,7 @@ expect_token_type(Parser* parser, TokenType type)
     if (tok.type != type)
         syntax_errorf(
             *parser->scanner->index,
-            tok.loc,
+            *tok.loc,
             0,
             "expected token type `%s`, got `%s`",
             token_type_to_cstr(type),
@@ -837,7 +840,7 @@ parse_expression(Parser* parser)
                         if (rule == DISALLOW_CONDITIONAL_EXPRESSION)
                             syntax_error(
                                 *parser->scanner->index,
-                                tok.loc,
+                                *tok.loc,
                                 0,
                                 "conditional expression not allowed here"
                             );
@@ -882,7 +885,7 @@ parse_expression(Parser* parser)
                     default:
                         syntax_errorf(
                             *parser->scanner->index,
-                            tok.loc,
+                            *tok.loc,
                             0,
                             "not expecting keyword `%s` here",
                             kw_to_cstr(tok.kw)
@@ -945,10 +948,7 @@ parse_expression(Parser* parser)
                 break;
             }
             default:
-                fprintf(
-                    stderr, "loc: %s:%u:%u\n", tok.loc.filepath, tok.loc.line, tok.loc.col
-                );
-                UNIMPLEMENTED("token not recognized within expression parsing");
+                syntax_error(*parser->scanner->index, *tok.loc, 0, "unexpected token");
         };
     } while (!is_end_of_expression(parser, rule));
 
@@ -979,16 +979,16 @@ parse_block(Parser* parser, unsigned int parent_indent)
     for (;;) {
         consume_newline_tokens(parser);
         Token peek = peek_next_token(parser);
-        if (peek.loc.col < first_body_stmt->loc.col) {
-            if (peek.loc.col > parent_indent)
+        if (peek.loc->col < first_body_stmt->loc.col) {
+            if (peek.loc->col > parent_indent)
                 syntax_error(
-                    *parser->scanner->index, peek.loc, 2, "inconsistent indentation"
+                    *parser->scanner->index, *peek.loc, 2, "inconsistent indentation"
                 );
             break;
         }
-        if (peek.loc.col > first_body_stmt->loc.col)
+        if (peek.loc->col > first_body_stmt->loc.col)
             syntax_error(
-                *parser->scanner->index, peek.loc, 2, "inconsistent indentation"
+                *parser->scanner->index, *peek.loc, 2, "inconsistent indentation"
             );
         stmt_vector_append(&vec, parse_statement(parser));
     }
@@ -1020,7 +1020,7 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
         discard_next_token(parser);
         Token peek = peek_next_token(parser);
         if (peek.type == TOK_CLOSE_PARENS)
-            syntax_error(*parser->scanner->index, peek.loc, 0, "empty import statement");
+            syntax_error(*parser->scanner->index, *peek.loc, 0, "empty import statement");
         end_of_stmt = TOK_CLOSE_PARENS;
     }
     else {
@@ -1051,7 +1051,7 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
             break;
         }
         else
-            syntax_error(*parser->scanner->index, peek.loc, 0, "unexpected token");
+            syntax_error(*parser->scanner->index, *peek.loc, 0, "unexpected token");
     }
 
     stmt->what = str_vector_finalize(&what_vec);
@@ -1167,7 +1167,7 @@ parse_if_statement(Parser* parser, unsigned int indent)
     for (;;) {
         consume_newline_tokens(parser);
         peek = peek_next_token(parser);
-        if (peek.type == TOK_KEYWORD && peek.kw == KW_ELIF && peek.loc.col == indent) {
+        if (peek.type == TOK_KEYWORD && peek.kw == KW_ELIF && peek.loc->col == indent) {
             discard_next_token(parser);
             ElifStatement elif = {0};
             elif.condition = parse_expression(parser);
@@ -1184,7 +1184,7 @@ parse_if_statement(Parser* parser, unsigned int indent)
 
     // maybe there is an else statment,
     // we have the next token in `peek` already
-    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE && peek.loc.col == indent) {
+    if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE && peek.loc->col == indent) {
         discard_next_token(parser);
         expect_token_type(parser, TOK_COLON);
         conditional->else_body = parse_block(parser, indent);
@@ -1207,9 +1207,9 @@ parse_try_statement(Parser* parser, unsigned int indent)
         // start at expect
         consume_newline_tokens(parser);
         Token begin = expect_keyword(parser, KW_EXCEPT);
-        if (begin.loc.col != indent)
+        if (begin.loc->col != indent)
             syntax_error(
-                *parser->scanner->index, begin.loc, 2, "inconsistent indentation"
+                *parser->scanner->index, *begin.loc, 2, "inconsistent indentation"
             );
         // we will need a str vector for exception names
         StringVector exceptions = str_vector_init(parser->arena);
@@ -1238,7 +1238,7 @@ parse_try_statement(Parser* parser, unsigned int indent)
         else {
             syntax_errorf(
                 *parser->scanner->index,
-                peek.loc,
+                *peek.loc,
                 0,
                 "unexpected token type (%s) (note bare excepts not "
                 "allowed)",
@@ -1264,12 +1264,12 @@ parse_try_statement(Parser* parser, unsigned int indent)
         except_vector_append(&excepts, except);
         consume_newline_tokens(parser);
         peek = peek_next_token(parser);
-        if (peek.loc.col < indent || peek.type != TOK_KEYWORD || peek.kw != KW_EXCEPT)
+        if (peek.loc->col < indent || peek.type != TOK_KEYWORD || peek.kw != KW_EXCEPT)
             break;
     }
     try_stmt->excepts = except_vector_finalize(&excepts);
     try_stmt->excepts_count = excepts.count;
-    if (peek.loc.col < indent) return try_stmt;
+    if (peek.loc->col < indent) return try_stmt;
     // maybe parse else
     if (peek.type == TOK_KEYWORD && peek.kw == KW_ELSE) {
         discard_next_token(parser);
@@ -1328,7 +1328,7 @@ parse_function_statement(Parser* parser, Location loc)
         if (self_token.type != TOK_IDENTIFIER) {
             syntax_error(
                 *parser->scanner->index,
-                self_token.loc,
+                *self_token.loc,
                 1,
                 "expecting `self` param for method def"
             );
@@ -1355,7 +1355,7 @@ parse_function_statement(Parser* parser, Location loc)
         else if (defaults.count > 0) {
             syntax_error(
                 *parser->scanner->index,
-                param.loc,
+                *param.loc,
                 1,
                 "non default argument follows default argument"
             );
@@ -1460,7 +1460,7 @@ parse_annotation_statement(Parser* parser, char* identifier)
     if (peek.type != TOK_NEWLINE) {
         if (peek.type != TOK_OPERATOR && peek.op != OPERATOR_ASSIGNMENT)
             syntax_error(
-                *parser->scanner->index, peek.loc, 0, "expecting either `newline` or `=`"
+                *parser->scanner->index, *peek.loc, 0, "expecting either `newline` or `=`"
             );
         discard_next_token(parser);
         annotation->initial = parse_expression(parser);
@@ -1485,7 +1485,7 @@ parse_statement(Parser* parser)
 
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
-    stmt->loc = peek.loc;
+    stmt->loc = *peek.loc;
     char* error = indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
     if (error) syntax_error(*parser->scanner->index, stmt->loc, 2, error);
 

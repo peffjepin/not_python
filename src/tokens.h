@@ -33,7 +33,7 @@ typedef struct {
 } Location;
 
 typedef struct {
-    Location loc;
+    Location* loc;
     TokenType type;
     union {
         Keyword kw;

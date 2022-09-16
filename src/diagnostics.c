@@ -92,7 +92,7 @@ source_lines(FileIndex index, size_t line_number, size_t ctx, LineBuffer* line_b
     size_t maxline = line_number + ctx;
     size_t line_number_required_length = snprintf(NULL, 0, "%zu", maxline);
 
-    for (int i = first_line_buffer; i < 1 + 2 * ctx; i++) {
+    for (int i = first_line_buffer; i < 1 + 2 * (int)ctx; i++) {
         read_source_line(
             fp,
             start_line + i - first_line_buffer,
@@ -117,17 +117,21 @@ source_lines(FileIndex index, size_t line_number, size_t ctx, LineBuffer* line_b
 typedef enum {
     LABEL_SYNTAX_ERROR,
     LABEL_DEFAULT_ERROR,
+    LABEL_TYPE_ERROR,
     LABEL_WARNING,
     LABEL_SOURCE_CODE,
     LABEL_SOURCE_CODE_HIGHLIGHTED,
     LABEL_NORMAL,
+    LABEL_DEBUG,
     LABEL_COUNT,
 } DiagnosticLabel;
 
 static const char* LABELS_TEXT[LABEL_COUNT] = {
     [LABEL_DEFAULT_ERROR] = "ERROR: ",
-    [LABEL_SYNTAX_ERROR] = "SYNTAX: ",
+    [LABEL_SYNTAX_ERROR] = "SyntaxError: ",
+    [LABEL_TYPE_ERROR] = "TypeError: ",
     [LABEL_WARNING] = "WARNING: ",
+    [LABEL_DEBUG] = "DEBUG: ",
     [LABEL_SOURCE_CODE] = "",
     [LABEL_SOURCE_CODE_HIGHLIGHTED] = "",
     [LABEL_NORMAL] = "",
@@ -136,7 +140,9 @@ static const char* LABELS_TEXT[LABEL_COUNT] = {
 static const char* LABELS_COLOR[LABEL_COUNT] = {
     [LABEL_DEFAULT_ERROR] = TERMINAL_RED,
     [LABEL_SYNTAX_ERROR] = TERMINAL_RED,
+    [LABEL_TYPE_ERROR] = TERMINAL_RED,
     [LABEL_WARNING] = TERMINAL_YELLOW,
+    [LABEL_DEBUG] = TERMINAL_MAGENTA,
     [LABEL_SOURCE_CODE] = TERMINAL_RESET,
     [LABEL_SOURCE_CODE_HIGHLIGHTED] = TERMINAL_YELLOW,
     [LABEL_NORMAL] = TERMINAL_RESET,
@@ -198,6 +204,23 @@ warnf(char* fmt, ...)
     va_end(vargs);
 }
 
+void
+debug(char* msg)
+{
+    eprintf(LABEL_DEBUG, "%s\n", msg);
+}
+
+void
+debugf(char* fmt, ...)
+{
+    va_list vargs;
+    va_start(vargs, fmt);
+
+    veprintf(LABEL_DEBUG, fmt, vargs, true);
+
+    va_end(vargs);
+}
+
 static void
 print_source_code(FileIndex index, Location loc, size_t ctx)
 {
@@ -225,8 +248,33 @@ syntax_errorf(FileIndex index, Location loc, size_t ctx, char* fmt, ...)
     va_list args;
     va_start(args, fmt);
 
-    veprintf(LABEL_SYNTAX_ERROR, fmt, args, true);
+    eprintf(LABEL_SYNTAX_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    veprintf(LABEL_NORMAL, fmt, args, true);
     print_source_code(index, loc, ctx);
+
+    va_end(args);
+
+    exit(1);
+}
+
+void
+type_error(FileIndex index, Location loc, char* msg)
+{
+    eprintf(LABEL_TYPE_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    eprintf(LABEL_NORMAL, "%s:\n", msg);
+    print_source_code(index, loc, 0);
+    exit(1);
+}
+
+void
+type_errorf(FileIndex index, Location loc, char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    eprintf(LABEL_TYPE_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    veprintf(LABEL_NORMAL, fmt, args, true);
+    print_source_code(index, loc, 0);
 
     va_end(args);
 
