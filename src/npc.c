@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "c_compiler.h"
+#include "diagnostics.h"
 #include "lexer.h"
 
 #if DEBUG
@@ -16,18 +17,6 @@
 #ifndef INSTALL_DIR
 #define INSTALL_DIR "/usr"
 #endif
-
-#define FATAL_ERRORF(msg, ...)                                                           \
-    do {                                                                                 \
-        fprintf(stderr, "ERROR: " msg "\n", __VA_ARGS__);                                \
-        exit(1);                                                                         \
-    } while (0)
-
-#define FATAL_ERROR(msg)                                                                 \
-    do {                                                                                 \
-        fprintf(stderr, "ERROR: " msg "\n");                                             \
-        exit(1);                                                                         \
-    } while (0)
 
 #define SHORT_STR_CAPACITY 128
 
@@ -42,9 +31,7 @@ static FILE*
 open_file_for_writing(char* filepath)
 {
     FILE* file = fopen(filepath, "w");
-    if (!file) {
-        FATAL_ERRORF("unable to open (%s) for writing (%s)", filepath, strerror(errno));
-    }
+    if (!file) errorf("unable to open (%s) for writing (%s)", filepath, strerror(errno));
     return file;
 }
 
@@ -53,12 +40,8 @@ make_build_directory(void)
 {
     int status = mkdir(BUILD_DIR, 0777);
 
-    if (status != 0 && errno != EEXIST) {
-        fprintf(
-            stderr, "ERROR: failed to make" BUILD_DIR "directory (%s)\n", strerror(errno)
-        );
-        exit(1);
-    }
+    if (status != 0 && errno != EEXIST)
+        errorf("failed to make" BUILD_DIR "directory (%s)", strerror(errno));
 }
 
 // TODO: in the future this will need to be more robust and support multiple files
@@ -96,7 +79,7 @@ shortstr_from_cstr(char* cstr)
 {
     ShortString str = {.length = strlen(cstr)};
     if (str.length >= SHORT_STR_CAPACITY) {
-        FATAL_ERRORF(
+        errorf(
             "input string (%s) overflowed ShortString capacity (%u)",
             cstr,
             SHORT_STR_CAPACITY
@@ -111,16 +94,16 @@ fork_and_run_sync(char* const* argv)
 {
     // TODO: portability
     pid_t child_pid = fork();
-    if (child_pid < 0) FATAL_ERRORF("unable to fork process (%s)", strerror(errno));
+    if (child_pid < 0) errorf("unable to fork process (%s)", strerror(errno));
     if (child_pid == 0) {
         if (execvp(argv[0], argv) < 0)
-            FATAL_ERRORF("unable to exec `%s` in child (%s)", argv[0], strerror(errno));
+            errorf("unable to exec `%s` in child (%s)", argv[0], strerror(errno));
     }
     else {
         int status;
         for (;;) {
             if (waitpid(child_pid, &status, 0) < 0) {
-                FATAL_ERRORF(
+                errorf(
                     "failed waiting on process (pid: %i) -> %s",
                     child_pid,
                     strerror(errno)
@@ -129,12 +112,12 @@ fork_and_run_sync(char* const* argv)
             if (WIFEXITED(status)) {
                 int exitcode = WEXITSTATUS(status);
                 if (exitcode != 0) {
-                    FATAL_ERRORF("`%s` exited with exitcode: %i", argv[0], exitcode);
+                    errorf("`%s` exited with exitcode: %i", argv[0], exitcode);
                 }
                 break;
             }
             if (WIFSIGNALED(status)) {
-                FATAL_ERRORF(
+                errorf(
                     "`%s` process was terminated by a signal: %i",
                     argv[0],
                     WTERMSIG(status)
@@ -207,8 +190,7 @@ typedef struct {
 static void
 set_cli_debug_program(CommandLine* cli, DebugProgram program)
 {
-    if (cli->debug_program != DEBUG_NONE)
-        FATAL_ERROR("debug programs are mutually exclusive");
+    if (cli->debug_program != DEBUG_NONE) error("debug programs are mutually exclusive");
     cli->debug_program = program;
 }
 
@@ -256,11 +238,11 @@ parse_args(size_t argc, char** argv)
             ;
 #endif
         else
-            FATAL_ERRORF("unexpected argument (%s)", arg);
+            errorf("unexpected argument (%s)", arg);
     }
 
     // TODO: usage string
-    if (!cli.target.length) FATAL_ERROR("no target provided");
+    if (!cli.target.length) errorf("no target provided");
     if (!cli.outfile.length) cli.outfile = default_outfile(cli.target.data);
 
     return cli;
