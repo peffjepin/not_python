@@ -298,8 +298,12 @@ scan_token(Scanner* scanner)
         tokenize_numeric(scanner);
     else if (scanner->c == '\'' || scanner->c == '"')
         tokenize_string_literal(scanner);
-    else
+    else {
+        if (!CHAR_IS_OPERATOR(scanner->c)) {
+            syntax_error(*scanner->index, *scanner->token.loc, 0, "unexpected token");
+        }
         tokenize_operator(scanner);
+    }
 
 push_token:
     tq_push(scanner->tq, scanner->token);
