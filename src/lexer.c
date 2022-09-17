@@ -1694,6 +1694,7 @@ lex_file(const char* filepath)
         }
         lexer.statements[lexer.n_statements] = parse_statement(&parser);
     } while (lexer.statements[lexer.n_statements++]->kind != STMT_EOF);
+    symbol_hm_finalize(&lexer.top_level->hm);
 
     fclose(file);
 
