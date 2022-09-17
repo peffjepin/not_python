@@ -7,6 +7,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYDICT d;
+PYINT NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -23,11 +24,10 @@ NP_var1 = 4;
 dict_set_item(d, &NP_var0, &NP_var1);
 PYDICT NP_var4 = d;
 PYITER NP_var2 = dict_iter_vals(NP_var4);
-void* NP_var5;
-PYINT v;
-while ((NP_var5 = NP_var2.next(NP_var2.iter),
-v = (NP_var5) ? *(PYINT*)(NP_var5) : v,
-NP_var5)){
+void* NP_var6;
+while ((NP_var6 = NP_var2.next(NP_var2.iter),
+NP_var5 = (NP_var6) ? *(PYINT*)(NP_var6) : NP_var5,
+NP_var6)){
 }
 }
 

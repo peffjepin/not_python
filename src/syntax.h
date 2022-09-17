@@ -16,6 +16,7 @@ typedef struct ItGroup ItGroup;
 typedef struct Statement Statement;
 typedef struct LexicalScope LexicalScope;
 typedef struct TypeInfo TypeInfo;
+typedef struct Variable Variable;
 
 typedef enum {
     PYTYPE_UNTYPED,
@@ -210,6 +211,8 @@ typedef struct {
     char* name;
     char* base;
     Block body;
+    size_t members_count;
+    Variable* members;
     LexicalScope* scope;
 } ClassStatement;
 
@@ -293,17 +296,33 @@ struct Statement {
 // TODO: not sure if the following belongs in this header or not yet.
 // it lives here for now
 
-typedef struct {
+struct Variable {
     char* identifier;
     TypeInfo type;
-} Variable;
+    bool declared;
+};
+
+// for k, v in d1.items():
+//     ...
+// print(k, v)  # k, v still in scope
+// for k, v in d2.items():
+//     ...
+// print(k, v)  # k, v can be reused and have their types changed
+//
+// This struct is to allow for this behavior while a standard variable
+// is defined only once and when it's type is determined it is immutable.
+typedef struct {
+    char* identifier;
+    char* current_id;
+    TypeInfo type;
+    bool directly_in_scope;  // type is immutable while directly in scope
+} SemiScopedVariable;
 
 typedef struct {
-    enum { SYM_VARIABLE, SYM_PARAM, SYM_MEMBER, SYM_FUNCTION, SYM_CLASS } kind;
-    AssignmentStatement* first_assignment;  // NULL when not applicable
+    enum { SYM_VARIABLE, SYM_SEMI_SCOPED, SYM_FUNCTION, SYM_CLASS } kind;
     union {
         Variable* variable;
-        Variable* member;
+        SemiScopedVariable* semi_scoped;
         FunctionStatement* func;
         ClassStatement* cls;
     };

@@ -584,8 +584,8 @@ print_symbol(Symbol sym, int indent)
         case SYM_VARIABLE:
             indent_printf("%s\n", sym.variable->identifier);
             break;
-        case SYM_MEMBER:
-            indent_printf("%s\n", sym.member->identifier);
+        case SYM_SEMI_SCOPED:
+            indent_printf("%s\n", sym.semi_scoped->identifier);
             break;
         case SYM_FUNCTION:
             indent_printf("%s:\n", sym.func->name);
@@ -600,9 +600,6 @@ print_symbol(Symbol sym, int indent)
                 Symbol inner = sym.cls->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);
             }
-            break;
-        case SYM_PARAM:
-            indent_printf("%s\n", sym.variable->identifier);
             break;
     }
 }

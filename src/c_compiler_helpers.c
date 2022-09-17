@@ -36,6 +36,8 @@ type_info_human_readable(TypeInfo info)
             return "Iterator";
         case PYTYPE_DICT_ITEMS:
             return "DictItems";
+        case PYTYPE_UNTYPED:
+            return "ERROR: UNTYPED";
         default:
             UNREACHABLE("default case type info to human readable");
     }
@@ -110,9 +112,14 @@ type_info_to_c_syntax(TypeInfo info)
             break;
         case PYTYPE_ITER:
             return DATATYPE_ITER;
-        default:
+        default: {
+            char buf[1024];
+            render_type_info_human_readable(info, buf, 1024);
+            fprintf(stderr, "%s\n", buf);
+            fflush(stderr);
             UNREACHABLE("default type info to c syntax");
             break;
+        }
     }
     UNREACHABLE("end of type info to c syntax");
 }

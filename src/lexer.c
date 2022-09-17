@@ -324,6 +324,11 @@ typedef struct {
     ConsumableParserRule consumable_rule;
     IndentationStack indent_stack;
     LexicalScopeStack scope_stack;
+
+    Variable* current_class_members;
+    size_t current_class_members_capacity;
+    size_t current_class_members_count;
+    size_t current_class_members_bytes;  // TODO: arena should track this
 } Parser;
 
 static inline ConsumableParserRule
@@ -426,6 +431,7 @@ parse_iterable_identifiers(Parser* parser)
 {
     ItIdentifierVector vec = itid_vector_init(parser->arena);
     ItGroup* it_group = arena_alloc(parser->arena, sizeof(ItGroup));
+    LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
 
     while (peek_next_token(parser).type != TOK_KEYWORD) {
         Token token = get_next_token(parser);
@@ -447,6 +453,11 @@ parse_iterable_identifiers(Parser* parser)
                 break;
             }
             case TOK_IDENTIFIER: {
+                SemiScopedVariable* var =
+                    arena_alloc(parser->arena, sizeof(SemiScopedVariable));
+                var->identifier = token.value;
+                Symbol sym = {.kind = SYM_SEMI_SCOPED, .semi_scoped = var};
+                symbol_hm_put(&scope->hm, sym);
                 ItIdentifier identifier = {.kind = IT_ID, .name = token.value};
                 itid_vector_append(&vec, identifier);
                 break;
@@ -1393,7 +1404,8 @@ parse_function_statement(Parser* parser, Location loc)
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->identifier = sig.params[i];
         local_var->type = sig.types[i];
-        Symbol local_sym = {.kind = SYM_PARAM, .variable = local_var};
+        local_var->declared = true;
+        Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
         symbol_hm_put(&fn_scope->hm, local_sym);
     }
 
@@ -1402,6 +1414,7 @@ parse_function_statement(Parser* parser, Location loc)
     func->scope = fn_scope;
     func->body = parse_block(parser, loc.col);
     scope_stack_pop(&parser->scope_stack);
+    symbol_hm_finalize(&fn_scope->hm);
 
     // add function to parents lexical scope
     Symbol sym = {.kind = SYM_FUNCTION, .func = func};
@@ -1410,26 +1423,81 @@ parse_function_statement(Parser* parser, Location loc)
 }
 
 static ClassStatement*
+init_class_statement(Parser* parser, char* name)
+{
+    // TODO: test a class with enough members to stress test this
+    ClassStatement* cls = arena_alloc(parser->arena, sizeof(ClassStatement));
+    LexicalScope* scope = scope_init(parser->arena);
+    scope->kind = SCOPE_CLASS;
+    scope->cls = cls;
+    cls->scope = scope;
+    cls->name = name;
+    parser->current_class_members =
+        arena_dynamic_alloc(parser->arena, &parser->current_class_members_bytes);
+    parser->current_class_members_capacity =
+        parser->current_class_members_bytes / sizeof(Variable);
+    Symbol sym = {.kind = SYM_CLASS, .cls = cls};
+    symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
+    scope_stack_push(&parser->scope_stack, cls->scope);
+    return cls;
+}
+
+static void
+add_cls_member(Parser* parser, Variable* variable)
+{
+    if (parser->current_class_members_count == parser->current_class_members_capacity) {
+        parser->current_class_members = arena_dynamic_grow(
+            parser->arena,
+            parser->current_class_members,
+            &parser->current_class_members_bytes
+        );
+        parser->current_class_members_capacity =
+            parser->current_class_members_bytes / sizeof(Variable);
+    }
+    parser->current_class_members[parser->current_class_members_count++] = *variable;
+}
+
+static void
+finalize_class_statement(Parser* parser, ClassStatement* cls)
+{
+    cls->members = arena_dynamic_finalize(
+        parser->arena,
+        parser->current_class_members,
+        sizeof(Variable) * parser->current_class_members_count
+    );
+    cls->members_count = parser->current_class_members_count;
+    parser->current_class_members_capacity = 0;
+    parser->current_class_members_count = 0;
+    parser->current_class_members_bytes = 0;
+    parser->current_class_members = NULL;
+    LexicalScope* scope = scope_stack_pop(&parser->scope_stack);
+    symbol_hm_finalize(&scope->hm);
+}
+
+static ClassStatement*
 parse_class_statement(Parser* parser, unsigned int indent)
 {
+    if (scope_stack_peek(&parser->scope_stack)->kind != SCOPE_TOP) {
+        syntax_error(
+            *parser->scanner->index,
+            *get_next_token(parser).loc,
+            0,
+            "class definitions currenly only allowed at top level scope"
+        );
+    }
     discard_next_token(parser);
-    ClassStatement* cls = arena_alloc(parser->arena, sizeof(ClassStatement));
-    cls->name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    char* cls_name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    ClassStatement* cls = init_class_statement(parser, cls_name);
+
     if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
         discard_next_token(parser);
         cls->base = expect_token_type(parser, TOK_IDENTIFIER).value;
         expect_token_type(parser, TOK_CLOSE_PARENS);
     }
     expect_token_type(parser, TOK_COLON);
-    LexicalScope* cls_scope = scope_init(parser->arena);
-    cls_scope->kind = SCOPE_CLASS;
-    cls_scope->cls = cls;
-    scope_stack_push(&parser->scope_stack, cls_scope);
-    cls->scope = cls_scope;
     cls->body = parse_block(parser, indent);
-    scope_stack_pop(&parser->scope_stack);
-    Symbol sym = {.kind = SYM_CLASS, .cls = cls};
-    symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
+
+    finalize_class_statement(parser, cls);
     return cls;
 }
 
@@ -1446,8 +1514,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
         var->identifier = assign_to->operands[0].token.value;
         var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
-        Symbol sym = {
-            .kind = SYM_VARIABLE, .variable = var, .first_assignment = assignment};
+        Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
         symbol_hm_put(&scope->hm, sym);
     }
     return assignment;
@@ -1475,10 +1542,10 @@ parse_annotation_statement(Parser* parser, char* identifier)
 
     LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
     Symbol sym = {
-        .kind = (scope->kind == SCOPE_CLASS) ? SYM_MEMBER : SYM_VARIABLE,
-        .variable = arena_alloc(parser->arena, sizeof(Variable))};
+        .kind = SYM_VARIABLE, .variable = arena_alloc(parser->arena, sizeof(Variable))};
     sym.variable->identifier = identifier;
     sym.variable->type = annotation->type;
+    if (scope->kind == SCOPE_CLASS) add_cls_member(parser, sym.variable);
     symbol_hm_put(&scope->hm, sym);
     return annotation;
 }

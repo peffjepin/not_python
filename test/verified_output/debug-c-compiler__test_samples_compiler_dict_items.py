@@ -9,6 +9,8 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYDICT d;
+PYINT NP_var6;
+PYSTRING NP_var7;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -29,17 +31,15 @@ dict_set_item(d, &NP_var0, &NP_var1);
 PYDICT NP_var4 = d;
 PYITER NP_var2 = dict_iter_items(NP_var4);
 DictItem NP_var5;
-PYINT k;
-PYSTRING v;
-void* NP_var6 = NULL;
-while ((NP_var6 = NP_var2.next(NP_var2.iter),
-NP_var5 = (NP_var6) ? *(DictItem*)NP_var6 : NP_var5,
-k = (NP_var6) ? *(PYINT*)(NP_var5.key) : k,
-v = (NP_var6) ? *(PYSTRING*)(NP_var5.val) : v,
-NP_var6)){
-PYINT NP_var7 = k;
-PYSTRING NP_var8 = v;
-builtin_print(2, np_int_to_str(NP_var7), NP_var8);
+void* NP_var8 = NULL;
+while ((NP_var8 = NP_var2.next(NP_var2.iter),
+NP_var5 = (NP_var8) ? *(DictItem*)NP_var8 : NP_var5,
+NP_var6 = (NP_var8) ? *(PYINT*)(NP_var5.key) : NP_var6,
+NP_var7 = (NP_var8) ? *(PYSTRING*)(NP_var5.val) : NP_var7,
+NP_var8)){
+PYINT NP_var9 = NP_var6;
+PYSTRING NP_var10 = NP_var7;
+builtin_print(2, np_int_to_str(NP_var9), NP_var10);
 }
 }
 

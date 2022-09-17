@@ -7,6 +7,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYLIST my_list;
+PYINT NP_var2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -22,10 +23,10 @@ LIST_APPEND(my_list, PYINT, NP_var0);
 NP_var0 = 3;
 LIST_APPEND(my_list, PYINT, NP_var0);
 PYLIST NP_var1 = my_list;
-LIST_FOR_EACH(NP_var1, PYINT, value, NP_var2)
+LIST_FOR_EACH(NP_var1, PYINT, NP_var2, NP_var3)
 {
-PYINT NP_var3 = value;
-builtin_print(1, np_int_to_str(NP_var3));
+PYINT NP_var4 = NP_var2;
+builtin_print(1, np_int_to_str(NP_var4));
 }
 }
 

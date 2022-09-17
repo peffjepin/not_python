@@ -593,7 +593,16 @@ resolve_from_scopes(TypeChecker* tc, char* identifier)
         if (sym) return sym->variable->type;
     }
     sym = symbol_hm_get(&tc->globals->hm, identifier);
-    if (sym) return sym->variable->type;
+    switch (sym->kind) {
+        case SYM_VARIABLE:
+            return sym->variable->type;
+        case SYM_SEMI_SCOPED:
+            return sym->semi_scoped->type;
+        case SYM_CLASS:
+            UNIMPLEMENTED("resolve class type from scope");
+        case SYM_FUNCTION:
+            UNIMPLEMENTED("resolve function type from scope");
+    }
     return (TypeInfo){.type = PYTYPE_UNTYPED};
 }
 

@@ -139,6 +139,7 @@ set_assignment_type_info(
     C_Compiler* compiler, C_Assignment* assignment, TypeInfo type_info
 )
 {
+    assert(assignment->type_info.type < PYTYPE_COUNT);
     if (assignment->type_info.type != PYTYPE_UNTYPED &&
         !compare_types(type_info, assignment->type_info)) {
         // TODO: some kind of check if this is safe to cast such
@@ -201,9 +202,16 @@ prepare_c_assignment_for_rendering(C_Assignment* assignment)
 static char*
 simple_operand_repr(C_Compiler* compiler, Operand operand)
 {
-    if (operand.token.type == TOK_IDENTIFIER || operand.token.type == TOK_NUMBER) {
+    if (operand.token.type == TOK_IDENTIFIER) {
         // TODO: None should probably be a keyword
         if (strcmp(operand.token.value, "None") == 0) return "NULL";
+        // TODO: should consider a way to avoid this lookup because it happens often
+        LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+        Symbol* sym = symbol_hm_get(&scope->hm, operand.token.value);
+        if (sym->kind == SYM_SEMI_SCOPED) return sym->semi_scoped->current_id;
+        return operand.token.value;
+    }
+    else if (operand.token.type == TOK_NUMBER) {
         return operand.token.value;
     }
     else if (operand.token.type == TOK_STRING) {
@@ -2056,11 +2064,24 @@ compile_method(C_Compiler* compiler, ClassStatement* cls, FunctionStatement* fun
 static void
 compile_class(C_Compiler* compiler, ClassStatement* cls)
 {
+    if (cls->members_count == 0) {
+        unimplemented_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "class defined without any annotated members"
+        );
+    }
     write_to_section(&compiler->struct_declarations, "struct ");
-    // TODO: name mangling
     write_to_section(&compiler->struct_declarations, cls->name);
     write_to_section(&compiler->struct_declarations, "{");
-    size_t member_count = 0;
+    // TODO: name mangling
+    for (size_t i = 0; i < cls->members_count; i++) {
+        if (i > 0) write_to_section(&compiler->struct_declarations, ", ");
+        Variable var = cls->members[i];
+        write_type_info_to_section(&compiler->struct_declarations, var.type);
+        write_to_section(&compiler->struct_declarations, var.identifier);
+    }
+
     for (size_t i = 0; i < cls->scope->hm.elements_count; i++) {
         Symbol sym = cls->scope->hm.elements[i];
         switch (sym.kind) {
@@ -2070,61 +2091,21 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
             case SYM_VARIABLE:
                 // TODO: incomplete -- type objects don't currently exist
                 break;
-            case SYM_MEMBER:
-                if (member_count > 0)
-                    write_to_section(&compiler->struct_declarations, ", ");
-                write_type_info_to_section(
-                    &compiler->struct_declarations, sym.member->type
-                );
-                write_to_section(&compiler->struct_declarations, sym.member->identifier);
-                member_count += 1;
-                break;
-            case SYM_CLASS:
-                UNREACHABLE("nested classes should error in the lexer");
             default:
-                UNREACHABLE("forward_declare_class default case unreachable")
+                UNREACHABLE("compile classcompile classdefault case unreachable")
         }
     }
     write_to_section(&compiler->struct_declarations, "};\n");
-    if (member_count == 0) {
-        unimplemented_error(
-            compiler->file_index,
-            compiler->current_stmt_location,
-            "class defined without any annotated members"
-        );
-    }
 }
 
 static void
-declare_global_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
+declare_variable(
+    C_Compiler* compiler, CompilerSection* section, TypeInfo type, char* identifier
+)
 {
-    if (!id_set_add(&compiler->declared_globals, identifier)) {
-        // already declared
-        return;
-    }
-    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
-    if (sym->variable->type.type == PYTYPE_UNTYPED) {
-        sym->variable->type = type;
-    }
-    else if (!compare_types(type, sym->variable->type)) {
-        static const size_t buflen = 1024;
-        char already_declared[buflen];
-        char trying_to_declare[buflen];
-        render_type_info_human_readable(type, trying_to_declare, buflen);
-        render_type_info_human_readable(sym->variable->type, already_declared, buflen);
-        type_errorf(
-            compiler->file_index,
-            compiler->current_stmt_location,
-            "trying to declare global variable `%s` with type `%s` but it is already "
-            "declared with type `%s`",
-            identifier,
-            trying_to_declare,
-            already_declared
-        );
-    }
-    write_type_info_to_section(&compiler->variable_declarations, type);
-    write_to_section(&compiler->variable_declarations, identifier);
-    write_to_section(&compiler->variable_declarations, ";\n");
+    write_type_info_to_section(section, type);
+    write_to_section(section, identifier);
+    write_to_section(section, ";\n");
 }
 
 static void
@@ -2265,20 +2246,42 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
     char* identifier = stmt->assignment->storage->operands[0].token.value;
     Symbol* sym =
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
+
+    bool top_level = section == &compiler->init_module_function;
+    bool declared;
+    char* variable_name;
+    TypeInfo* symtype;
+
+    if (sym->kind == SYM_VARIABLE) {
+        symtype = &sym->variable->type;
+        variable_name = identifier;
+        declared = (top_level) ? true : sym->variable->declared;
+    }
+    else {
+        symtype = &sym->semi_scoped->type;
+        variable_name = sym->semi_scoped->current_id;
+        declared = true;
+    }
+
     C_Assignment assignment = {
         .section = section,
-        .variable_name = identifier,
-        .is_declared = true,
+        .variable_name = variable_name,
+        .type_info = *symtype,
+        .is_declared = declared,
         .loc = &stmt->loc,
     };
-    if (sym) assignment.type_info = sym->variable->type;
     render_expression_assignment(compiler, &assignment, stmt->assignment->value);
-    if (section == &compiler->init_module_function)
-        declare_global_variable(compiler, assignment.type_info, assignment.variable_name);
+
+    if (symtype->type == PYTYPE_UNTYPED) *symtype = assignment.type_info;
+    if (top_level && sym->kind == SYM_VARIABLE && !sym->variable->declared)
+        declare_variable(
+            compiler,
+            &compiler->variable_declarations,
+            assignment.type_info,
+            assignment.variable_name
+        );
 }
 
-// TODO: looks like this always assumes it's dealing with a global variable which is
-// not the case
 static void
 compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
@@ -2296,14 +2299,20 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
     // TODO: implement default values for class members
 
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+    Symbol* sym = symbol_hm_get(&scope->hm, stmt->annotation->identifier);
+    if (sym->kind != SYM_VARIABLE)
+        syntax_error(compiler->file_index, stmt->loc, 0, "unexpected annotation");
 
-    if (scope == compiler->top_level_scope)
-        declare_global_variable(
-            compiler, stmt->annotation->type, stmt->annotation->identifier
+    if (!sym->variable->declared) {
+        CompilerSection* decl_section = (scope == compiler->top_level_scope)
+                                            ? &compiler->variable_declarations
+                                            : section;
+        declare_variable(
+            compiler, decl_section, stmt->annotation->type, stmt->annotation->identifier
         );
+    }
 
     if (stmt->annotation->initial) {
-        // TODO: is_declared probably == false when not at top level scope
         C_Assignment assignment = {
             .loc = &stmt->loc,
             .section = section,
@@ -2340,15 +2349,37 @@ compile_return_statement(
     }
 }
 
-static void
-put_variable_into_current_scope(C_Compiler* compiler, char* name, TypeInfo type_info)
+static char*
+init_semi_scoped_variable(
+    C_Compiler* compiler, CompilerSection* section, char* identifier, TypeInfo type_info
+)
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
-    Symbol sym = {
-        .kind = SYM_VARIABLE, .variable = arena_alloc(compiler->arena, sizeof(Variable))};
-    sym.variable->identifier = name;
-    sym.variable->type = type_info;
-    symbol_hm_put(&scope->hm, sym);
+    Symbol* sym = symbol_hm_get(&scope->hm, identifier);
+    if (sym->kind == SYM_VARIABLE) return sym->variable->identifier;
+    if (!sym->semi_scoped->current_id)
+        sym->semi_scoped->current_id = arena_alloc(compiler->arena, UNIQUE_VAR_LENGTH);
+    WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id);
+    sym->semi_scoped->type = type_info;
+    sym->semi_scoped->directly_in_scope = true;
+    write_many_to_section(
+        (section == &compiler->init_module_function) ? &compiler->variable_declarations
+                                                     : section,
+        type_info_to_c_syntax(type_info),
+        " ",
+        sym->semi_scoped->current_id,
+        ";\n",
+        NULL
+    );
+    return sym->semi_scoped->current_id;
+}
+
+static void
+release_semi_scoped_variable(C_Compiler* compiler, char* identifier)
+{
+    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+    Symbol* sym = symbol_hm_get(&scope->hm, identifier);
+    sym->semi_scoped->directly_in_scope = false;
 }
 
 static void
@@ -2362,9 +2393,10 @@ render_list_for_each_head(
     if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
-    // put it variables into scope with type info
-    put_variable_into_current_scope(
-        compiler, for_loop->it->identifiers[0].name, iterable.type_info.inner->types[0]
+    // TODO: should store these variables on the ItIdentifier struct to avoid lookup
+    char* actual_ident = for_loop->it->identifiers[0].name;
+    char* it_ident = init_semi_scoped_variable(
+        compiler, section, actual_ident, iterable.type_info.inner->types[0]
     );
 
     // render for loop
@@ -2376,12 +2408,14 @@ render_list_for_each_head(
         ", ",
         type_info_to_c_syntax(iterable.type_info.inner->types[0]),
         ", ",
-        for_loop->it->identifiers[0].name,
+        it_ident,
         ", ",
         index_variable,
         ")\n",
         NULL
     );
+
+    release_semi_scoped_variable(compiler, actual_ident);
 }
 
 static void
@@ -2395,14 +2429,9 @@ render_dict_for_each_head(
     if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
-    // TODO: at some point some decistion will need made and enforced about the
-    // lifetime of these variables. In python you could reuse common iterable
-    // identifiers because types can change. It would probably produce a funky error
-    // were used again inappropriately. Ultimately either the parser or the compiler
-    // should solely handle populating this data structure.
     TypeInfo it_type = iterable.type_info.inner->types[0];
-    char* it_ident = for_loop->it->identifiers[0].name;
-    put_variable_into_current_scope(compiler, it_ident, it_type);
+    char* actual_ident = for_loop->it->identifiers[0].name;
+    char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
     // render for loop
     GENERATE_UNIQUE_VAR_NAME(compiler, iter_var);
@@ -2419,6 +2448,8 @@ render_dict_for_each_head(
         ")\n",
         NULL
     );
+
+    release_semi_scoped_variable(compiler, actual_ident);
 }
 
 static void
@@ -2437,18 +2468,18 @@ render_dict_items_iterator_for_loop_head(
     write_many_to_section(section, "DictItem ", item_struct_variable, ";\n", NULL);
 
     // parse key value variable names
-    char* key_variable;
-    char* val_variable;
+    char* actual_key_var;
+    char* actual_val_var;
     if (for_loop->it->identifiers_count == 1 &&
         for_loop->it->identifiers[0].kind == IT_GROUP) {
         ItIdentifier inner_identifier = for_loop->it->identifiers[0];
         if (inner_identifier.group->identifiers_count != 2) goto unexpected_identifiers;
-        key_variable = inner_identifier.group->identifiers[0].name;
-        val_variable = inner_identifier.group->identifiers[1].name;
+        actual_key_var = inner_identifier.group->identifiers[0].name;
+        actual_val_var = inner_identifier.group->identifiers[1].name;
     }
     else if (for_loop->it->identifiers_count == 2) {
-        key_variable = for_loop->it->identifiers[0].name;
-        val_variable = for_loop->it->identifiers[1].name;
+        actual_key_var = for_loop->it->identifiers[0].name;
+        actual_val_var = for_loop->it->identifiers[1].name;
     }
     else {
     unexpected_identifiers:
@@ -2464,23 +2495,12 @@ render_dict_items_iterator_for_loop_head(
     TypeInfoInner* items_inner = iterable_inner->types[0].inner;
     TypeInfo key_type = items_inner->types[0];
     TypeInfo val_type = items_inner->types[1];
-    write_many_to_section(
-        section,
-        type_info_to_c_syntax(key_type),
-        " ",
-        key_variable,
-        ";\n",
-        type_info_to_c_syntax(val_type),
-        " ",
-        val_variable,
-        ";\n",
-        NULL
-    );
 
     // put it variables in scope
-    // TODO: (maybe should be done by parser)
-    put_variable_into_current_scope(compiler, key_variable, key_type);
-    put_variable_into_current_scope(compiler, val_variable, val_type);
+    char* key_variable =
+        init_semi_scoped_variable(compiler, section, actual_key_var, key_type);
+    char* val_variable =
+        init_semi_scoped_variable(compiler, section, actual_val_var, val_type);
 
     // declare void* unpacking variable
     GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
@@ -2510,6 +2530,9 @@ render_dict_items_iterator_for_loop_head(
         NULL
     );
     // clang-format on
+
+    release_semi_scoped_variable(compiler, actual_key_var);
+    release_semi_scoped_variable(compiler, actual_val_var);
 }
 
 static void
@@ -2532,15 +2555,11 @@ render_iterator_for_loop_head(
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
     TypeInfo it_type = iterable.type_info.inner->types[0];
-    char* it_ident = for_loop->it->identifiers[0].name;
-    put_variable_into_current_scope(compiler, it_ident, it_type);
+    char* actual_ident = for_loop->it->identifiers[0].name;
+    char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
     write_many_to_section(section, "void* ", voidptr_variable, ";\n", NULL);
-    // TODO: it declaration robustness
-    write_many_to_section(
-        section, type_info_to_c_syntax(it_type), " ", it_ident, ";\n", NULL
-    );
 
     // declare its;
     // void* next;
@@ -2563,6 +2582,7 @@ render_iterator_for_loop_head(
         NULL
     );
     // clang-format on
+    release_semi_scoped_variable(compiler, actual_ident);
 }
 
 static void
