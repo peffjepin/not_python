@@ -198,14 +198,15 @@ void np_internal_list_prepare_insert(List* list, PYINT index);
 
 #define LIST_FOR_EACH(list, type, it, idx)                                               \
     size_t idx = 0;                                                                      \
-    for (type it = ((type*)list->data)[idx]; idx < list->count;                          \
-         it = ((type*)list->data)[++idx])
+    for (it = ((type*)list->data)[idx]; idx < list->count;                               \
+         it = (++idx == list->count) ? it : ((type*)list->data)[idx])
 
 #define C_EQUALITY_TEST(a, b) (a) == (b)
 
 #define LIST_COUNT(list, type, cmp, item, count)                                         \
     do {                                                                                 \
         count = 0;                                                                       \
+        type NP_count_it;                                                                \
         LIST_FOR_EACH(list, type, NP_count_it, NP_count_idx)                             \
         {                                                                                \
             if (cmp(item, NP_count_it)) count++;                                         \

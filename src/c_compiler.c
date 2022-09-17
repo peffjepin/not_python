@@ -2099,9 +2099,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
 }
 
 static void
-declare_variable(
-    C_Compiler* compiler, CompilerSection* section, TypeInfo type, char* identifier
-)
+declare_variable(CompilerSection* section, TypeInfo type, char* identifier)
 {
     write_type_info_to_section(section, type);
     write_to_section(section, identifier);
@@ -2275,7 +2273,6 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
     if (symtype->type == PYTYPE_UNTYPED) *symtype = assignment.type_info;
     if (top_level && sym->kind == SYM_VARIABLE && !sym->variable->declared)
         declare_variable(
-            compiler,
             &compiler->variable_declarations,
             assignment.type_info,
             assignment.variable_name
@@ -2308,7 +2305,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
                                             ? &compiler->variable_declarations
                                             : section;
         declare_variable(
-            compiler, decl_section, stmt->annotation->type, stmt->annotation->identifier
+            decl_section, stmt->annotation->type, stmt->annotation->identifier
         );
     }
 
