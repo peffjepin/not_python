@@ -726,7 +726,7 @@ parse_arguments(Parser* parser)
 static Operand
 parse_getitem_arguments(Parser* parser)
 {
-    Slice* slice;
+    Slice* slice = NULL;
     Operand op = {0};
     Token peek = peek_next_token(parser);
     Token next;
@@ -1483,7 +1483,6 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
     cls->sig.return_type.type = PYTYPE_OBJECT;
     cls->sig.return_type.class_name = cls->name;
 
-    size_t defaults = 0;
     for (size_t i = 0; i < parser->current_class_members_count; i++) {
         AnnotationStatement annotation = parser->current_class_members[i];
         cls->sig.params[i] = annotation.identifier;

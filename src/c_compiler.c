@@ -20,7 +20,6 @@ typedef struct {
     Arena* arena;
     LexicalScope* top_level_scope;
     LexicalScopeStack scope_stack;
-    IdentifierSet declared_globals;
     StringHashmap str_hm;
     FileIndex file_index;
     Location current_stmt_location;
@@ -2540,8 +2539,8 @@ render_dict_items_iterator_for_loop_head(
     write_many_to_section(section, "DictItem ", item_struct_variable, ";\n", NULL);
 
     // parse key value variable names
-    char* actual_key_var;
-    char* actual_val_var;
+    char* actual_key_var = NULL;
+    char* actual_val_var = NULL;
     if (for_loop->it->identifiers_count == 1 &&
         for_loop->it->identifiers[0].kind == IT_GROUP) {
         ItIdentifier inner_identifier = for_loop->it->identifiers[0];
@@ -2856,7 +2855,6 @@ compile_to_c(FILE* outfile, Lexer* lexer)
     write_to_output(&compiler, outfile);
 
     str_hm_free(&compiler.str_hm);
-    id_set_free(&compiler.declared_globals);
     sb_free(&compiler.sb);
     section_free(&compiler.forward);
     section_free(&compiler.variable_declarations);

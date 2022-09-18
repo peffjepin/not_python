@@ -209,65 +209,6 @@ str_hm_free(StringHashmap* hm)
 }
 
 static void
-id_set_rehash(char** old_buffer, size_t old_count, char** new_buffer, size_t new_count)
-{
-    // during rehash we know elements are unique already
-    for (size_t i = 0; i < old_count; i++) {
-        char* id = old_buffer[i];
-        if (!id) continue;
-        uint64_t hash = hash_bytes(id, strlen(id));
-        size_t probe = hash % new_count;
-        for (;;) {
-            if (!new_buffer[probe]) {
-                new_buffer[probe] = id;
-                break;
-            }
-            if (probe == new_count - 1)
-                probe = 0;
-            else
-                probe++;
-        }
-    }
-}
-
-bool
-id_set_add(IdentifierSet* set, char* id)
-{
-    if (set->count >= set->capacity / 2) {
-        size_t old_capacity = set->capacity;
-        if (set->capacity == 0)
-            set->capacity = 8;
-        else
-            set->capacity *= 2;
-        char** new_buffer = calloc(set->capacity, sizeof(char*));
-        id_set_rehash(set->elements, old_capacity, new_buffer, set->capacity);
-        set->elements = new_buffer;
-    }
-    uint64_t hash = hash_bytes(id, strlen(id));
-    size_t probe = hash % set->capacity;
-    for (;;) {
-        char* elem = set->elements[probe];
-        if (!elem) {
-            set->elements[probe] = id;
-            set->count += 1;
-            return true;
-        }
-        else if (strcmp(id, elem) == 0)
-            return false;
-        if (probe == set->capacity - 1)
-            probe = 0;
-        else
-            probe++;
-    }
-}
-
-void
-id_set_free(IdentifierSet* set)
-{
-    free(set->elements);
-}
-
-static void
 section_grow(CompilerSection* section)
 {
     if (section->capacity == 0) {

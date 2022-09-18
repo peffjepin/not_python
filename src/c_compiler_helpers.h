@@ -32,17 +32,6 @@ size_t str_hm_put(StringHashmap* hm, StringView element);
 int str_hm_put_cstr(StringHashmap* hm, char* element);
 void str_hm_free(StringHashmap* hm);
 
-// TODO: I think this is dead code now, try to remove.
-typedef struct {
-    size_t capacity;
-    size_t count;
-    char** elements;
-} IdentifierSet;
-
-// returns true if it added a new element or false if element already exists
-bool id_set_add(IdentifierSet* set, char* id);
-void id_set_free(IdentifierSet* set);
-
 typedef struct {
     size_t capacity;
     size_t remaining;
