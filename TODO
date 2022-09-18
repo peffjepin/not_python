@@ -4,3 +4,4 @@ type hinting for callables
 diff viewer for test script
 del statements
 key errors for dict
+test function that annotates one return type and actually returns another

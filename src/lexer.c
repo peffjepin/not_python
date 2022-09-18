@@ -6,6 +6,8 @@
 
 #include "lexer_helpers.h"
 
+#define UNREACHABLE(msg) assert(0 && msg);
+
 #define SCANNER_BUF_CAPACITY 4096
 
 typedef struct {
@@ -1321,6 +1323,583 @@ parse_with_statement(Parser* parser, unsigned int indent)
     return with;
 }
 
+static void
+validate_object_model_signature(
+    Parser* parser, Location loc, ObjectModel om, Signature sig
+)
+{
+    // NOTE: being a method the first param `self` is already validated
+
+    switch (om) {
+        case OBJECT_MODEL_INIT:
+            if (sig.return_type.type != PYTYPE_NONE)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __init__ to return type: `None`"
+                );
+            break;
+        case OBJECT_MODEL_STR:
+            if (sig.return_type.type != PYTYPE_STRING)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __str__ to return type: `str`"
+                );
+            if (sig.params_count > 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __str__ to have a single param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_REPR:
+            if (sig.return_type.type != PYTYPE_STRING)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __repr__ to return type: `str`"
+                );
+            if (sig.params_count > 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __repr__ to have a single param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_GETITEM:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __getitem__ to have 2 params: `self` and `key`"
+                );
+            break;
+        case OBJECT_MODEL_SETITEM:
+            if (sig.params_count != 3)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __setitem__ to have 3 params: `self`, `key` and `value`"
+                );
+            break;
+        case OBJECT_MODEL_DELITEM:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __delitem__ to have 2 params: `self` and `key`"
+                );
+            break;
+        case OBJECT_MODEL_ITER:
+            // TODO: some general iterable interface
+            if (sig.return_type.type != PYTYPE_ITER)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __iter__ to return type: `Iterator` (general iterable "
+                    "interface not yet implemented)"
+                );
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __iter__ to have a single param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_NEXT:
+            UNIMPLEMENTED("__next__ is not currently implemented");
+        case OBJECT_MODEL_LEN:
+            if (sig.return_type.type != PYTYPE_INT)
+                type_error(
+                    *parser->scanner->index, loc, "expecting __len__ to return type `int`"
+                );
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __len__ to have a single param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_CONTAINS:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __contains__ to have 2 params: `self` and `item`"
+                );
+            break;
+        case OBJECT_MODEL_HASH:
+            if (sig.return_type.type != PYTYPE_INT)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __hash__ to return type: `int`"
+                );
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __hash__ to have a single param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_CALL:
+            break;
+        case OBJECT_MODEL_LT:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __lt__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __lt__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_LE:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __le__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __le__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_EQ:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __eq__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __eq__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_NE:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ne__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ne__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_GT:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __gt__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __gt__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_GE:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ge__ to return type: `bool`"
+                );
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ge__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_ADD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __add__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_SUB:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __sub__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_MUL:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __mul__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_TRUEDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __truefiv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_FLOORDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __floordiv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_DIVMOD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __divmod__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_MOD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __mod__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_POW:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __pow__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_LSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __lshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_AND:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __and__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_OR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __or__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_XOR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __xor__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RADD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __radd__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RSUB:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rsub__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RMUL:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rmul__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RTRUEDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rtruediv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RFLOORDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rfloordiv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RMOD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rmod__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RPOW:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rpow__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RLSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rlshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RRSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rrshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RAND:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rand__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_ROR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ror__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_RXOR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __rxor__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IADD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __iadd__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_ISUB:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __isub__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IMUL:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __imul__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_ITRUEDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __itruediv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IFLOORDIV:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ifloordiv__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IMOD:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __imod__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IPOW:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ipow__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_ILSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ilshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IRSHIFT:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __irshift__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IAND:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __iand__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IOR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ior__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_IXOR:
+            if (sig.params_count != 2)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __ixor__ to have 2 params: `self` and `other`"
+                );
+            break;
+        case OBJECT_MODEL_NEG:
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __neg__ to have 1 param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_ABS:
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __abs__ to have 1 param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_INVERT:
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __invert__ to have 1 param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_INT:
+            if (sig.return_type.type != PYTYPE_INT)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __int__ to return type: `int`"
+                );
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __int__ to have 1 param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_FLOAT:
+            if (sig.return_type.type != PYTYPE_FLOAT)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __float__ to return type: `float`"
+                );
+            if (sig.params_count != 1)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __float__ to have 1 param: `self`"
+                );
+            break;
+        case OBJECT_MODEL_ROUND:
+            UNIMPLEMENTED("__round__ is not yet implemented");
+            break;
+        case OBJECT_MODEL_TRUNC:
+            UNIMPLEMENTED("__trunc__ is not yet implemented");
+            break;
+        case OBJECT_MODEL_FLOOR:
+            UNIMPLEMENTED("__floor__ is not yet implemented");
+            break;
+        case OBJECT_MODEL_CEIL:
+            UNIMPLEMENTED("__ceil__ is not yet implemented");
+            break;
+        case OBJECT_MODEL_ENTER:
+            UNIMPLEMENTED("__enter__ is not yet implemented");
+            break;
+        case OBJECT_MODEL_EXIT:
+            UNIMPLEMENTED("__exit__ is not yet implemented");
+            break;
+        default:
+            UNREACHABLE("end of object model validation");
+    }
+}
+
 static FunctionStatement*
 parse_function_statement(Parser* parser, Location loc)
 {
@@ -1420,6 +1999,17 @@ parse_function_statement(Parser* parser, Location loc)
     // add function to parents lexical scope
     Symbol sym = {.kind = SYM_FUNCTION, .func = func};
     symbol_hm_put(&parent_scope->hm, sym);
+
+    // if function is part of the python object model validate it's signature and
+    // add it to the classes object model table
+    if (parent_scope->kind == SCOPE_CLASS) {
+        ObjectModel om = cstr_to_object_model(func->name);
+        if (om != NOT_IN_OBJECT_MODEL) {
+            validate_object_model_signature(parser, loc, om, func->sig);
+            parent_scope->cls->object_model_methods[om] = func;
+        }
+    }
+
     return func;
 }
 

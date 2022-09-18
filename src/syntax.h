@@ -3,6 +3,7 @@
 
 #include "arena.h"
 #include "generated.h"
+#include "object_model.h"
 #include "tokens.h"
 
 typedef struct Comprehension Comprehension;
@@ -218,18 +219,19 @@ typedef struct {
 
 typedef struct {
     char* name;
-    char* base;
-    Signature sig;
-    Block body;
-    LexicalScope* scope;
-} ClassStatement;
-
-typedef struct {
-    char* name;
     Signature sig;
     Block body;
     LexicalScope* scope;
 } FunctionStatement;
+
+typedef struct {
+    char* name;
+    char* base;
+    Signature sig;
+    Block body;
+    LexicalScope* scope;
+    FunctionStatement* object_model_methods[OBJECT_MODEL_COUNT];
+} ClassStatement;
 
 typedef struct {
     Expression* storage;
