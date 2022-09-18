@@ -10,6 +10,7 @@
 #include "diagnostics.h"
 #include "lexer_helpers.h"
 #include "not_python.h"
+#include "object_model.h"
 #include "syntax.h"
 #include "type_checker.h"
 
@@ -1762,6 +1763,43 @@ render_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
 }
 
 static void
+render_object_method_call(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    char* self_identifier,
+    FunctionStatement* fndef,
+    Arguments* args
+)
+{
+    // patch out self param
+    Signature sig = fndef->sig;
+    sig.params_count -= 1;
+    if (sig.params_count) {
+        sig.params++;
+        sig.types++;
+    }
+
+    // intermediate variables to store args into
+    GENERATE_UNIQUE_VAR_NAMES(compiler, sig.params_count, param_vars)
+    char* variable_names[sig.params_count];
+    for (size_t i = 0; i < sig.params_count; i++) variable_names[i] = param_vars[i];
+
+    render_callable_args_to_variables(
+        compiler, assignment->section, args, sig, fndef->name, variable_names, false
+    );
+
+    // write the call statement
+    set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
+    prepare_c_assignment_for_rendering(compiler, assignment);
+    write_many_to_section(assignment->section, fndef->name, "(", self_identifier, NULL);
+    for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
+        write_to_section(assignment->section, ", ");
+        write_to_section(assignment->section, param_vars[arg_i]);
+    }
+    write_to_section(assignment->section, ");\n");
+}
+
+static void
 render_object_creation(
     C_Compiler* compiler,
     C_Assignment* assignment,
@@ -1775,6 +1813,16 @@ render_object_creation(
     write_many_to_section(
         assignment->section, "np_alloc(sizeof(", clsdef->name, "));\n", NULL
     );
+
+    FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
+    if (init) {
+        C_Assignment init_assignment = {
+            .section = assignment->section, .type_info.type = PYTYPE_NONE};
+        render_object_method_call(
+            compiler, &init_assignment, assignment->variable_name, init, args
+        );
+        return;
+    }
 
     // var->param1
     // var->param2
@@ -2278,6 +2326,72 @@ render_dict_set_item(
     );
 }
 
+static ClassStatement*
+get_class_definition_by_name(C_Compiler* compiler, char* identifier)
+{
+    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
+    if (!sym) {
+        type_errorf(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "unrecognized symbol `%s`",
+            identifier
+        );
+    }
+    if (sym->kind != SYM_CLASS) {
+        type_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "expecting a class identifier"
+        );
+    }
+    return sym->cls;
+}
+
+static TypeInfo
+get_class_member_type_info(
+    C_Compiler* compiler, ClassStatement* clsdef, char* member_name
+)
+{
+    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
+        if (strcmp(member_name, clsdef->sig.params[i]) == 0) return clsdef->sig.types[i];
+    }
+    name_errorf(
+        compiler->file_index,
+        compiler->current_stmt_location,
+        "unknown member `%s` for type `%s`",
+        member_name,
+        clsdef->name
+    );
+    UNREACHABLE("get member type");
+}
+
+static void
+render_object_set_attr(
+    C_Compiler* compiler, C_Assignment object_assignment, AssignmentStatement* stmt
+)
+{
+    Operand last_operand =
+        stmt->storage->operands
+            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
+    ClassStatement* clsdef =
+        get_class_definition_by_name(compiler, object_assignment.type_info.class_name);
+
+    C_Assignment assignment = {
+        .section = object_assignment.section,
+        .type_info =
+            get_class_member_type_info(compiler, clsdef, last_operand.token.value),
+        .variable_name = sb_build(
+            &compiler->sb,
+            object_assignment.variable_name,
+            "->",
+            last_operand.token.value,
+            NULL
+        ),
+        .is_declared = false};
+    render_expression_assignment(compiler, &assignment, stmt->value);
+}
+
 static void
 compile_complex_assignment(
     C_Compiler* compiler, CompilerSection* section, Statement* stmt
@@ -2306,6 +2420,20 @@ compile_complex_assignment(
             default:
                 UNIMPLEMENTED("setitem not implemented for this data type");
         }
+    }
+    else if (last_op.op_type == OPERATOR_GET_ATTR) {
+        Expression first_part = *stmt->assignment->storage;
+        first_part.operations_count -= 1;
+        GENERATE_UNIQUE_VAR_NAME(compiler, first_part_variable);
+        C_Assignment first_part_assignment = {
+            .section = section,
+            .variable_name = first_part_variable,
+            .is_declared = false};
+        render_expression_assignment(compiler, &first_part_assignment, &first_part);
+        if (first_part_assignment.type_info.type != PYTYPE_OBJECT) {
+            UNIMPLEMENTED("setattr for this type not implemented");
+        }
+        render_object_set_attr(compiler, first_part_assignment, stmt->assignment);
     }
     else
         UNIMPLEMENTED("complex assignment compilation unimplemented");
