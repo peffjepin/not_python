@@ -53,7 +53,7 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
         *buffer++ = *outer++;
         remaining--;
     }
-    if (info.inner) {
+    if (info.type != PYTYPE_OBJECT && info.inner) {
         if (remaining > 1) {
             *buffer++ = '[';
             remaining--;
@@ -84,7 +84,7 @@ render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
 }
 
 const char*
-type_info_to_c_syntax(TypeInfo info)
+type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
 {
     switch (info.type) {
         case PYTYPE_UNTYPED:
@@ -108,8 +108,7 @@ type_info_to_c_syntax(TypeInfo info)
         case PYTYPE_DICT:
             return DATATYPE_DICT;
         case PYTYPE_OBJECT:
-            UNIMPLEMENTED("object to c syntax unimplemented");
-            break;
+            return sb_build(sb, info.class_name, "*", NULL);
         case PYTYPE_ITER:
             return DATATYPE_ITER;
         default: {
@@ -125,9 +124,9 @@ type_info_to_c_syntax(TypeInfo info)
 }
 
 void
-write_type_info_to_section(CompilerSection* section, TypeInfo info)
+write_type_info_to_section(CompilerSection* section, TypeInfo info, StringBuilder* sb)
 {
-    write_to_section(section, (char*)type_info_to_c_syntax(info));
+    write_to_section(section, (char*)type_info_to_c_syntax(sb, info));
     write_to_section(section, " ");
 }
 

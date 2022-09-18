@@ -325,9 +325,10 @@ typedef struct {
     IndentationStack indent_stack;
     LexicalScopeStack scope_stack;
 
-    Variable* current_class_members;
+    AnnotationStatement* current_class_members;
     size_t current_class_members_capacity;
     size_t current_class_members_count;
+    size_t current_class_members_defaults_count;
     size_t current_class_members_bytes;  // TODO: arena should track this
 } Parser;
 
@@ -1435,7 +1436,7 @@ init_class_statement(Parser* parser, char* name)
     parser->current_class_members =
         arena_dynamic_alloc(parser->arena, &parser->current_class_members_bytes);
     parser->current_class_members_capacity =
-        parser->current_class_members_bytes / sizeof(Variable);
+        parser->current_class_members_bytes / sizeof(AnnotationStatement);
     Symbol sym = {.kind = SYM_CLASS, .cls = cls};
     symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
     scope_stack_push(&parser->scope_stack, cls->scope);
@@ -1443,7 +1444,7 @@ init_class_statement(Parser* parser, char* name)
 }
 
 static void
-add_cls_member(Parser* parser, Variable* variable)
+add_class_member(Parser* parser, AnnotationStatement* member, Location loc)
 {
     if (parser->current_class_members_count == parser->current_class_members_capacity) {
         parser->current_class_members = arena_dynamic_grow(
@@ -1452,24 +1453,53 @@ add_cls_member(Parser* parser, Variable* variable)
             &parser->current_class_members_bytes
         );
         parser->current_class_members_capacity =
-            parser->current_class_members_bytes / sizeof(Variable);
+            parser->current_class_members_bytes / sizeof(AnnotationStatement);
     }
-    parser->current_class_members[parser->current_class_members_count++] = *variable;
+    if (!member->initial && parser->current_class_members_defaults_count > 0) {
+        syntax_error(
+            *parser->scanner->index,
+            loc,
+            0,
+            "class members without default values must be declared before all members "
+            "with default values"
+        );
+    }
+    if (member->initial) parser->current_class_members_defaults_count += 1;
+    parser->current_class_members[parser->current_class_members_count++] = *member;
 }
 
 static void
 finalize_class_statement(Parser* parser, ClassStatement* cls)
 {
-    cls->members = arena_dynamic_finalize(
-        parser->arena,
-        parser->current_class_members,
-        sizeof(Variable) * parser->current_class_members_count
+    cls->sig.params_count = parser->current_class_members_count;
+    cls->sig.params =
+        arena_alloc(parser->arena, sizeof(char*) * parser->current_class_members_count);
+    cls->sig.types = arena_alloc(
+        parser->arena, sizeof(TypeInfo) * parser->current_class_members_count
     );
-    cls->members_count = parser->current_class_members_count;
+    cls->sig.defaults = arena_alloc(
+        parser->arena, sizeof(Expression*) * parser->current_class_members_defaults_count
+    );
+    cls->sig.return_type.type = PYTYPE_OBJECT;
+    cls->sig.return_type.class_name = cls->name;
+
+    size_t defaults = 0;
+    for (size_t i = 0; i < parser->current_class_members_count; i++) {
+        AnnotationStatement annotation = parser->current_class_members[i];
+        cls->sig.params[i] = annotation.identifier;
+        cls->sig.types[i] = annotation.type;
+        if (annotation.initial)
+            cls->sig.defaults[cls->sig.defaults_count++] = annotation.initial;
+    }
+
+    arena_dynamic_free(
+        parser->arena, parser->current_class_members, parser->current_class_members_bytes
+    );
     parser->current_class_members_capacity = 0;
     parser->current_class_members_count = 0;
     parser->current_class_members_bytes = 0;
     parser->current_class_members = NULL;
+
     LexicalScope* scope = scope_stack_pop(&parser->scope_stack);
     symbol_hm_finalize(&scope->hm);
 }
@@ -1521,7 +1551,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
 }
 
 static AnnotationStatement*
-parse_annotation_statement(Parser* parser, char* identifier)
+parse_annotation_statement(Parser* parser, Location loc, char* identifier)
 {
     AnnotationStatement* annotation =
         arena_alloc(parser->arena, sizeof(AnnotationStatement));
@@ -1541,12 +1571,16 @@ parse_annotation_statement(Parser* parser, char* identifier)
     }
 
     LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
-    Symbol sym = {
-        .kind = SYM_VARIABLE, .variable = arena_alloc(parser->arena, sizeof(Variable))};
-    sym.variable->identifier = identifier;
-    sym.variable->type = annotation->type;
-    if (scope->kind == SCOPE_CLASS) add_cls_member(parser, sym.variable);
-    symbol_hm_put(&scope->hm, sym);
+    if (scope->kind == SCOPE_CLASS)
+        add_class_member(parser, annotation, loc);
+    else {
+        Symbol sym = {
+            .kind = SYM_VARIABLE,
+            .variable = arena_alloc(parser->arena, sizeof(Variable))};
+        sym.variable->identifier = identifier;
+        sym.variable->type = annotation->type;
+        symbol_hm_put(&scope->hm, sym);
+    }
     return annotation;
 }
 
@@ -1648,8 +1682,9 @@ parse_statement(Parser* parser)
                 "annotations left expresson should just be an identifier"
             );
             stmt->kind = STMT_ANNOTATION;
-            stmt->annotation =
-                parse_annotation_statement(parser, expr->operands[0].token.value);
+            stmt->annotation = parse_annotation_statement(
+                parser, stmt->loc, expr->operands[0].token.value
+            );
             break;
         default:
             stmt->kind = STMT_EXPR;

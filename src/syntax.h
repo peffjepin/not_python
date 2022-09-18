@@ -208,15 +208,6 @@ typedef struct {
 } WithStatement;
 
 typedef struct {
-    char* name;
-    char* base;
-    Block body;
-    size_t members_count;
-    Variable* members;
-    LexicalScope* scope;
-} ClassStatement;
-
-typedef struct {
     size_t params_count;
     char** params;
     TypeInfo* types;
@@ -224,6 +215,14 @@ typedef struct {
     Expression** defaults;
     TypeInfo return_type;
 } Signature;
+
+typedef struct {
+    char* name;
+    char* base;
+    Signature sig;
+    Block body;
+    LexicalScope* scope;
+} ClassStatement;
 
 typedef struct {
     char* name;
