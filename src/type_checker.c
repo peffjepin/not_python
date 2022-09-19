@@ -509,13 +509,71 @@ resolve_tuple_ops(TypeInfo tuple, TypeInfo other, Operator op)
     UNIMPLEMENTED("tuple operation type resolution unimplemented");
 }
 
-static TypeInfo
-resolve_object_ops(TypeInfo object, TypeInfo other, Operator op)
+static const ObjectModel OP_TO_OM_TABLE[OPERATORS_MAX] = {
+    [OPERATOR_PLUS] = OBJECT_MODEL_ADD,
+    [OPERATOR_MINUS] = OBJECT_MODEL_SUB,
+    [OPERATOR_MULT] = OBJECT_MODEL_MUL,
+    [OPERATOR_DIV] = OBJECT_MODEL_TRUEDIV,
+    [OPERATOR_MOD] = OBJECT_MODEL_MOD,
+    [OPERATOR_POW] = OBJECT_MODEL_POW,
+    [OPERATOR_FLOORDIV] = OBJECT_MODEL_FLOORDIV,
+    [OPERATOR_EQUAL] = OBJECT_MODEL_EQ,
+    [OPERATOR_NOT_EQUAL] = OBJECT_MODEL_NE,
+    [OPERATOR_GREATER] = OBJECT_MODEL_GT,
+    [OPERATOR_LESS] = OBJECT_MODEL_LT,
+    [OPERATOR_GREATER_EQUAL] = OBJECT_MODEL_GE,
+    [OPERATOR_LESS_EQUAL] = OBJECT_MODEL_LE,
+    [OPERATOR_BITWISE_AND] = OBJECT_MODEL_AND,
+    [OPERATOR_BITWISE_OR] = OBJECT_MODEL_OR,
+    [OPERATOR_BITWISE_XOR] = OBJECT_MODEL_XOR,
+    [OPERATOR_LSHIFT] = OBJECT_MODEL_LSHIFT,
+    [OPERATOR_RSHIFT] = OBJECT_MODEL_RSHIFT,
+    [OPERATOR_CALL] = OBJECT_MODEL_CALL,
+    [OPERATOR_GET_ITEM] = OBJECT_MODEL_GETITEM,
+    [OPERATOR_NEGATIVE] = OBJECT_MODEL_NEG,
+    [OPERATOR_BITWISE_NOT] = OBJECT_MODEL_INVERT,
+};
+
+static const ObjectModel OP_TO_ROM_TABLE[OPERATORS_MAX] = {
+    [OPERATOR_PLUS] = OBJECT_MODEL_RADD,
+    [OPERATOR_MINUS] = OBJECT_MODEL_RSUB,
+    [OPERATOR_MULT] = OBJECT_MODEL_RMUL,
+    [OPERATOR_DIV] = OBJECT_MODEL_RTRUEDIV,
+    [OPERATOR_MOD] = OBJECT_MODEL_RMOD,
+    [OPERATOR_POW] = OBJECT_MODEL_RPOW,
+    [OPERATOR_FLOORDIV] = OBJECT_MODEL_RFLOORDIV,
+    [OPERATOR_BITWISE_AND] = OBJECT_MODEL_RAND,
+    [OPERATOR_BITWISE_OR] = OBJECT_MODEL_ROR,
+    [OPERATOR_BITWISE_XOR] = OBJECT_MODEL_RXOR,
+    [OPERATOR_LSHIFT] = OBJECT_MODEL_RLSHIFT,
+    [OPERATOR_RSHIFT] = OBJECT_MODEL_RRSHIFT,
+};
+
+FunctionStatement*
+find_object_op_function(
+    TypeInfo left, TypeInfo right, Operator op, bool* is_rop, bool* is_unary
+)
 {
-    (void)object;
-    (void)other;
-    (void)op;
-    UNIMPLEMENTED("object operation type resolution unimplemented");
+    *is_unary = op == OPERATOR_NEGATIVE || op == OPERATOR_BITWISE_NOT;
+    *is_rop = false;
+
+    ObjectModel om = OP_TO_OM_TABLE[op];
+    if (om != NOT_IN_OBJECT_MODEL && left.type == PYTYPE_OBJECT) {
+        FunctionStatement* fndef = left.cls->object_model_methods[om];
+        if (fndef && *is_unary) return fndef;
+        if (fndef && compare_types(fndef->sig.types[1], right)) return fndef;
+    }
+
+    if (*is_unary) return NULL;
+
+    *is_rop = true;
+    om = OP_TO_ROM_TABLE[op];
+    if (om != NOT_IN_OBJECT_MODEL && right.type == PYTYPE_OBJECT) {
+        FunctionStatement* fndef = right.cls->object_model_methods[om];
+        if (fndef && compare_types(fndef->sig.types[1], left)) return fndef;
+    }
+
+    return NULL;
 }
 
 TypeInfo
@@ -528,6 +586,8 @@ resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
         !TYPE_USES_SPECIAL_RESOLUTION_RULES[right.type]) {
         return OPERATION_TYPE_RESOLUTION_TABLE[op][left.type][right.type];
     }
+    if (left.type == PYTYPE_OBJECT || right.type == PYTYPE_OBJECT)
+        assert(0 && "object type resolution should not use this function");
     else {
         switch (left.type) {
             case PYTYPE_LIST:
@@ -536,8 +596,6 @@ resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
                 return resolve_dict_ops(left, right, op);
             case PYTYPE_TUPLE:
                 return resolve_tuple_ops(left, right, op);
-            case PYTYPE_OBJECT:
-                return resolve_object_ops(left, right, op);
             default:
                 break;
         }
@@ -548,8 +606,6 @@ resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
                 return resolve_dict_ops(right, left, op);
             case PYTYPE_TUPLE:
                 return resolve_tuple_ops(right, left, op);
-            case PYTYPE_OBJECT:
-                return resolve_object_ops(right, left, op);
             default:
                 UNREACHABLE();
         }

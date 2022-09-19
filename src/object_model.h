@@ -2,6 +2,7 @@
 #define OBJECT_MODEL_H
 
 typedef enum {
+    NOT_IN_OBJECT_MODEL,
     OBJECT_MODEL_INIT,
     OBJECT_MODEL_STR,
     OBJECT_MODEL_REPR,
@@ -69,7 +70,6 @@ typedef enum {
     OBJECT_MODEL_ENTER,
     OBJECT_MODEL_EXIT,
     OBJECT_MODEL_COUNT,
-    NOT_IN_OBJECT_MODEL,
 } ObjectModel;
 
 ObjectModel cstr_to_object_model(char* cstr);

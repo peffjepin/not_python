@@ -1630,6 +1630,71 @@ require_math_lib(C_Compiler* compiler)
 }
 
 static void
+render_object_operation(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    Operator op_type,
+    char** operand_reprs,
+    TypeInfo* types
+)
+{
+    bool is_rop;
+    bool is_unary;
+
+    FunctionStatement* fndef =
+        find_object_op_function(types[0], types[1], op_type, &is_rop, &is_unary);
+
+    if (!fndef) {
+        static const size_t buflen = 1024;
+        char left[buflen];
+        char right[buflen];
+        render_type_info_human_readable(types[0], left, buflen);
+        render_type_info_human_readable(types[1], right, buflen);
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "unsupported operand types for `%s`: `%s` and `%s`",
+            op_to_cstr(op_type),
+            left,
+            right
+        );
+    }
+
+    set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
+    prepare_c_assignment_for_rendering(compiler, assignment);
+
+    if (is_unary) {
+        write_many_to_section(
+            assignment->section, fndef->ns_ident, "(", operand_reprs[0], ");\n", NULL
+        );
+    }
+    else if (is_rop) {
+        write_many_to_section(
+            assignment->section,
+            fndef->ns_ident,
+            "(",
+            operand_reprs[1],
+            ", ",
+            operand_reprs[0],
+            ");\n",
+            NULL
+        );
+    }
+    else {
+        write_many_to_section(
+            assignment->section,
+            fndef->ns_ident,
+            "(",
+            operand_reprs[0],
+            ", ",
+            operand_reprs[1],
+            ");\n",
+            NULL
+        );
+    }
+}
+
+static void
 render_operation(
     C_Compiler* compiler,
     C_Assignment* assignment,
@@ -1638,6 +1703,11 @@ render_operation(
     TypeInfo* types
 )
 {
+    if (types[0].type == PYTYPE_OBJECT || types[1].type == PYTYPE_OBJECT) {
+        render_object_operation(compiler, assignment, op_type, operand_reprs, types);
+        return;
+    }
+
     TypeInfo type_info = resolve_operation_type(types[0], types[1], op_type);
     if (type_info.type == PYTYPE_UNTYPED) {
         static const size_t buflen = 1024;

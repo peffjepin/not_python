@@ -1,0 +1,12 @@
+class A:
+    value: int
+
+    def __add__(self, other: int) -> int:
+        return self.value + other
+
+    def __radd__(self, other: int) -> int:
+        return self.value + other
+
+
+print(A(5) + 10)
+print(10 + A(5))
