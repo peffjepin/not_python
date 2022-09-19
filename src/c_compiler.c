@@ -210,8 +210,17 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         // TODO: should consider a way to avoid this lookup because it happens often
         LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
         Symbol* sym = symbol_hm_get(&scope->hm, operand.token.value);
-        if (sym->kind == SYM_SEMI_SCOPED) return sym->semi_scoped->current_id;
-        return operand.token.value;
+        switch (sym->kind) {
+            case SYM_SEMI_SCOPED:
+                return sym->semi_scoped->current_id;
+            case SYM_VARIABLE:
+                return sym->variable->ns_ident;
+            case SYM_FUNCTION:
+                return sym->func->ns_ident;
+            case SYM_CLASS:
+                return sym->cls->ns_ident;
+        }
+        UNREACHABLE("unexpected symbol kind")
     }
     else if (operand.token.type == TOK_NUMBER) {
         return operand.token.value;
@@ -2453,7 +2462,7 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
-        variable_name = identifier;
+        variable_name = sym->variable->ns_ident;
         declared = (top_level) ? true : sym->variable->declared;
     }
     else {
@@ -2507,7 +2516,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
                                             ? &compiler->variable_declarations
                                             : section;
         declare_variable(
-            compiler, decl_section, stmt->annotation->type, stmt->annotation->identifier
+            compiler, decl_section, stmt->annotation->type, sym->variable->ns_ident
         );
     }
 
@@ -2516,7 +2525,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
             .loc = &stmt->loc,
             .section = section,
             .type_info = stmt->annotation->type,
-            .variable_name = stmt->annotation->identifier,
+            .variable_name = sym->variable->ns_ident,
             .is_declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
     }
@@ -2555,7 +2564,7 @@ init_semi_scoped_variable(
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
     Symbol* sym = symbol_hm_get(&scope->hm, identifier);
-    if (sym->kind == SYM_VARIABLE) return sym->variable->identifier;
+    if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident;
     if (!sym->semi_scoped->current_id)
         sym->semi_scoped->current_id = arena_alloc(compiler->arena, UNIQUE_VAR_LENGTH);
     WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id);

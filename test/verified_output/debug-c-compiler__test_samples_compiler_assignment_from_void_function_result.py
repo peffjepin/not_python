@@ -6,7 +6,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-void* x;
+void* assignment_from_void_function_result_x;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 void void_fn();
@@ -17,7 +17,7 @@ void void_fn() {
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-x = void_fn();
+assignment_from_void_function_result_x = void_fn();
 }
 
 // MAIN FUNCTION COMPILER SECTION

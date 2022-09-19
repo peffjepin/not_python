@@ -6,9 +6,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYLIST l;
-PYINT v1;
-PYINT v2;
+PYLIST list_pop_l;
+PYINT list_pop_v1;
+PYINT list_pop_v2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -17,17 +17,17 @@ PYINT v2;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 PYINT NP_var0 = 1;
-l = LIST_INIT(PYINT);
-LIST_APPEND(l, PYINT, NP_var0);
+list_pop_l = LIST_INIT(PYINT);
+LIST_APPEND(list_pop_l, PYINT, NP_var0);
 NP_var0 = 2;
-LIST_APPEND(l, PYINT, NP_var0);
+LIST_APPEND(list_pop_l, PYINT, NP_var0);
 NP_var0 = 3;
-LIST_APPEND(l, PYINT, NP_var0);
-PYLIST NP_var2 = l;
-LIST_POP(NP_var2, PYINT, -1, v1);
-PYLIST NP_var5 = l;
+LIST_APPEND(list_pop_l, PYINT, NP_var0);
+PYLIST NP_var2 = list_pop_l;
+LIST_POP(NP_var2, PYINT, -1, list_pop_v1);
+PYLIST NP_var5 = list_pop_l;
 PYINT NP_var6 = 0;
-LIST_POP(NP_var5, PYINT, NP_var6, v2);
+LIST_POP(NP_var5, PYINT, NP_var6, list_pop_v2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

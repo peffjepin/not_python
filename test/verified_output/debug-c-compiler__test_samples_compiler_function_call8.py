@@ -6,7 +6,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYFLOAT z;
+PYFLOAT function_call8_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 PYFLOAT my_function(PYINT x, PYFLOAT y);
@@ -21,7 +21,7 @@ return NP_var0;
 static void init_module(void) {
 PYFLOAT NP_var2 = 2.0;
 PYINT NP_var1 = 1;
-z = my_function(NP_var1, NP_var2);
+function_call8_z = my_function(NP_var1, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

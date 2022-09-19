@@ -8,7 +8,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYDICT d;
+PYDICT dict_items_d;
 PYINT NP_var6;
 PYSTRING NP_var7;
 
@@ -20,15 +20,15 @@ PYSTRING NP_var7;
 static void init_module(void) {
 PYINT NP_var0 = 1;
 PYSTRING NP_var1 = NOT_PYTHON_STRING_CONSTANTS[0];
-d = DICT_INIT(PYINT, PYSTRING, void_int_eq);
-dict_set_item(d, &NP_var0, &NP_var1);
+dict_items_d = DICT_INIT(PYINT, PYSTRING, void_int_eq);
+dict_set_item(dict_items_d, &NP_var0, &NP_var1);
 NP_var0 = 2;
 NP_var1 = NOT_PYTHON_STRING_CONSTANTS[1];
-dict_set_item(d, &NP_var0, &NP_var1);
+dict_set_item(dict_items_d, &NP_var0, &NP_var1);
 NP_var0 = 3;
 NP_var1 = NOT_PYTHON_STRING_CONSTANTS[2];
-dict_set_item(d, &NP_var0, &NP_var1);
-PYDICT NP_var4 = d;
+dict_set_item(dict_items_d, &NP_var0, &NP_var1);
+PYDICT NP_var4 = dict_items_d;
 PYITER NP_var2 = dict_iter_items(NP_var4);
 DictItem NP_var5;
 void* NP_var8 = NULL;

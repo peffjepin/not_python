@@ -7,7 +7,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 typedef struct {PYINT x, PYINT y} A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-A* a;
+A* object_initialization6_a;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 void __init__(A* self);
@@ -22,8 +22,8 @@ PYINT NP_var1->y = 1;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-a = np_alloc(sizeof(A));
-__init__(a);
+object_initialization6_a = np_alloc(sizeof(A));
+__init__(object_initialization6_a);
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -6,9 +6,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYFLOAT x;
-PYFLOAT y;
-PYFLOAT z;
+PYFLOAT simple_expression2_x;
+PYFLOAT simple_expression2_y;
+PYFLOAT simple_expression2_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -16,10 +16,10 @@ PYFLOAT z;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-x = 1.0;
-y = 2.0;
-PYFLOAT NP_var0 = x+y;
-z = NP_var0+3.0;
+simple_expression2_x = 1.0;
+simple_expression2_y = 2.0;
+PYFLOAT NP_var0 = simple_expression2_x+simple_expression2_y;
+simple_expression2_z = NP_var0+3.0;
 }
 
 // MAIN FUNCTION COMPILER SECTION

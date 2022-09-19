@@ -6,9 +6,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT x;
-PYINT y;
-PYINT z;
+PYINT variables_x;
+PYINT variables_y;
+PYINT variables_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -16,9 +16,9 @@ PYINT z;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-x = 1;
-y = 2;
-z = 3;
+variables_x = 1;
+variables_y = 2;
+variables_z = 3;
 }
 
 // MAIN FUNCTION COMPILER SECTION

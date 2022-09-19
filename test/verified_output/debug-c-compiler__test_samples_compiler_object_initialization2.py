@@ -7,9 +7,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 typedef struct {PYINT a, PYINT b} A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-A* a1;
-A* a2;
-A* a3;
+A* object_initialization2_a1;
+A* object_initialization2_a2;
+A* object_initialization2_a3;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -17,15 +17,15 @@ A* a3;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-a1 = np_alloc(sizeof(A));
-a1->a = 1;
-a1->b = 1;
-a2 = np_alloc(sizeof(A));
-a2->a = 2;
-a2->b = 1;
-a3 = np_alloc(sizeof(A));
-a3->a = 3;
-a3->b = 3;
+object_initialization2_a1 = np_alloc(sizeof(A));
+object_initialization2_a1->a = 1;
+object_initialization2_a1->b = 1;
+object_initialization2_a2 = np_alloc(sizeof(A));
+object_initialization2_a2->a = 2;
+object_initialization2_a2->b = 1;
+object_initialization2_a3 = np_alloc(sizeof(A));
+object_initialization2_a3->a = 3;
+object_initialization2_a3->b = 3;
 }
 
 // MAIN FUNCTION COMPILER SECTION

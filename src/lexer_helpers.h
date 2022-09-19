@@ -61,6 +61,8 @@ VALUE_VECTOR_DECLARATION(ElifStatement, elif)
 VALUE_VECTOR_DECLARATION(ExceptStatement, except)
 VALUE_VECTOR_DECLARATION(TypeInfo, typing)
 
+char* file_namespace(Arena* arena, const char* filepath);
+
 #define TOKEN_QUEUE_CAPACITY 8
 
 const char* token_type_to_cstr(TokenType type);

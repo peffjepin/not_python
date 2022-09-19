@@ -6,7 +6,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT a;
+PYINT function_call7_a;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 PYINT my_function(PYINT x, PYINT y, PYINT z, PYINT w);
@@ -26,7 +26,7 @@ PYINT NP_var4 = 2;
 PYINT NP_var7 = 5*4;
 PYINT NP_var6 = NP_var7+1;
 PYINT NP_var5 = 3;
-a = my_function(NP_var3, NP_var4, NP_var5, NP_var6);
+function_call7_a = my_function(NP_var3, NP_var4, NP_var5, NP_var6);
 }
 
 // MAIN FUNCTION COMPILER SECTION

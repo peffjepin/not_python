@@ -6,9 +6,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT x;
-PYFLOAT y;
-PYFLOAT z;
+PYINT untyped_top_level_assignment_x;
+PYFLOAT untyped_top_level_assignment_y;
+PYFLOAT untyped_top_level_assignment_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -16,9 +16,9 @@ PYFLOAT z;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-x = 1;
-y = 2.0;
-z = y;
+untyped_top_level_assignment_x = 1;
+untyped_top_level_assignment_y = 2.0;
+untyped_top_level_assignment_z = untyped_top_level_assignment_y;
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -6,7 +6,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYDICT d;
+PYDICT dict_init_d;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -16,8 +16,8 @@ PYDICT d;
 static void init_module(void) {
 PYINT NP_var0 = 1;
 PYINT NP_var1 = 2;
-d = DICT_INIT(PYINT, PYINT, void_int_eq);
-dict_set_item(d, &NP_var0, &NP_var1);
+dict_init_d = DICT_INIT(PYINT, PYINT, void_int_eq);
+dict_set_item(dict_init_d, &NP_var0, &NP_var1);
 }
 
 // MAIN FUNCTION COMPILER SECTION

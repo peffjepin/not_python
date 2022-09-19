@@ -219,6 +219,7 @@ typedef struct {
 
 typedef struct {
     char* name;
+    char* ns_ident;
     Signature sig;
     Block body;
     LexicalScope* scope;
@@ -227,6 +228,7 @@ typedef struct {
 typedef struct {
     char* name;
     char* base;
+    char* ns_ident;
     Signature sig;
     Block body;
     LexicalScope* scope;
@@ -299,6 +301,7 @@ struct Statement {
 
 struct Variable {
     char* identifier;
+    char* ns_ident;
     TypeInfo type;
     bool declared;
 };

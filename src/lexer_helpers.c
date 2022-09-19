@@ -85,6 +85,23 @@ out_of_memory(void)
     exit(1);
 }
 
+char*
+file_namespace(Arena* arena, const char* filepath)
+{
+    // TODO: portability / make more robust
+    size_t length = strlen(filepath);
+    size_t last_dot = length;
+    size_t last_slash = 0;
+    for (size_t i = 0; i < length; i++) {
+        if (filepath[i] == '.') last_dot = i;
+        if (filepath[i] == '/') last_slash = i;
+    }
+    char* rtval = arena_alloc(arena, 1 + last_dot - last_slash);
+    memcpy(rtval, filepath + last_slash + 1, last_dot - last_slash - 1);
+    rtval[last_dot - last_slash - 1] = '_';
+    return rtval;
+}
+
 #define TOKEN_MAX 20
 
 static_assert(TOKEN_MAX == 20, "new token needs to be added to TOKEN_TYPE_TO_CSTR_TABLE");

@@ -7,9 +7,9 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYSTRING a;
-PYSTRING b;
-PYSTRING c;
+PYSTRING string_addition_a;
+PYSTRING string_addition_b;
+PYSTRING string_addition_c;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -17,9 +17,9 @@ PYSTRING c;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-a = NOT_PYTHON_STRING_CONSTANTS[0];
-b = NOT_PYTHON_STRING_CONSTANTS[1];
-c = str_add(a, b);
+string_addition_a = NOT_PYTHON_STRING_CONSTANTS[0];
+string_addition_b = NOT_PYTHON_STRING_CONSTANTS[1];
+string_addition_c = str_add(string_addition_a, string_addition_b);
 }
 
 // MAIN FUNCTION COMPILER SECTION

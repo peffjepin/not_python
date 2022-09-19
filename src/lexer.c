@@ -327,6 +327,9 @@ typedef struct {
     IndentationStack indent_stack;
     LexicalScopeStack scope_stack;
 
+    char* file_namespace;
+    size_t file_namespace_length;
+
     AnnotationStatement* current_class_members;
     size_t current_class_members_capacity;
     size_t current_class_members_count;
@@ -1900,6 +1903,35 @@ validate_object_model_signature(
     }
 }
 
+static void
+namespace_method(Parser* parser, FunctionStatement* fndef, ClassStatement* clsdef)
+{
+    size_t fn_name_len = strlen(fndef->name);
+    size_t cls_name_len = strlen(clsdef->name);
+    fndef->ns_ident = arena_alloc(
+        parser->arena, fn_name_len + parser->file_namespace_length + cls_name_len + 2
+    );
+    char* write = fndef->ns_ident;
+    memcpy(write, parser->file_namespace, parser->file_namespace_length);
+    write += parser->file_namespace_length;
+    memcpy(write, clsdef->name, cls_name_len);
+    write += cls_name_len;
+    *write++ = '_';
+    memcpy(write, fndef->name, fn_name_len);
+}
+
+static void
+namespace_function(Parser* parser, FunctionStatement* fndef)
+{
+    size_t fn_name_len = strlen(fndef->name);
+    fndef->ns_ident =
+        arena_alloc(parser->arena, fn_name_len + parser->file_namespace_length + 1);
+    char* write = fndef->ns_ident;
+    memcpy(write, parser->file_namespace, parser->file_namespace_length);
+    write += parser->file_namespace_length;
+    memcpy(write, fndef->name, fn_name_len);
+}
+
 static FunctionStatement*
 parse_function_statement(Parser* parser, Location loc)
 {
@@ -1983,6 +2015,7 @@ parse_function_statement(Parser* parser, Location loc)
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->identifier = sig.params[i];
+        local_var->ns_ident = sig.params[i];  // function locals don't need name mangling
         local_var->type = sig.types[i];
         local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
@@ -1996,21 +2029,32 @@ parse_function_statement(Parser* parser, Location loc)
     scope_stack_pop(&parser->scope_stack);
     symbol_hm_finalize(&fn_scope->hm);
 
-    // add function to parents lexical scope
     Symbol sym = {.kind = SYM_FUNCTION, .func = func};
-    symbol_hm_put(&parent_scope->hm, sym);
-
-    // if function is part of the python object model validate it's signature and
-    // add it to the classes object model table
     if (parent_scope->kind == SCOPE_CLASS) {
+        namespace_method(parser, func, parent_scope->cls);
+        // if function is part of the python object model validate it's signature and
+        // add it to the classes object model table
         ObjectModel om = cstr_to_object_model(func->name);
         if (om != NOT_IN_OBJECT_MODEL) {
             validate_object_model_signature(parser, loc, om, func->sig);
             parent_scope->cls->object_model_methods[om] = func;
         }
     }
+    else
+        namespace_function(parser, func);
 
+    symbol_hm_put(&parent_scope->hm, sym);
     return func;
+}
+
+static void
+namespace_class(Parser* parser, ClassStatement* clsdef)
+{
+    size_t cls_name_len = strlen(clsdef->name);
+    clsdef->ns_ident =
+        arena_alloc(parser->arena, 1 + cls_name_len + parser->file_namespace_length);
+    memcpy(clsdef->ns_ident, parser->file_namespace, parser->file_namespace_length);
+    memcpy(clsdef->ns_ident + parser->file_namespace_length, clsdef->name, cls_name_len);
 }
 
 static ClassStatement*
@@ -2023,6 +2067,7 @@ init_class_statement(Parser* parser, char* name)
     scope->cls = cls;
     cls->scope = scope;
     cls->name = name;
+    namespace_class(parser, cls);
     parser->current_class_members =
         arena_dynamic_alloc(parser->arena, &parser->current_class_members_bytes);
     parser->current_class_members_capacity =
@@ -2120,6 +2165,20 @@ parse_class_statement(Parser* parser, unsigned int indent)
     return cls;
 }
 
+static void
+namespace_variable(Parser* parser, Variable* variable)
+{
+    size_t cls_name_len = strlen(variable->identifier);
+    variable->ns_ident =
+        arena_alloc(parser->arena, 1 + cls_name_len + parser->file_namespace_length);
+    memcpy(variable->ns_ident, parser->file_namespace, parser->file_namespace_length);
+    memcpy(
+        variable->ns_ident + parser->file_namespace_length,
+        variable->identifier,
+        cls_name_len
+    );
+}
+
 static AssignmentStatement*
 parse_assignment_statement(Parser* parser, Expression* assign_to)
 {
@@ -2133,6 +2192,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
         var->identifier = assign_to->operands[0].token.value;
         var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
+        namespace_variable(parser, var);
         Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
         symbol_hm_put(&scope->hm, sym);
     }
@@ -2168,6 +2228,7 @@ parse_annotation_statement(Parser* parser, Location loc, char* identifier)
             .variable = arena_alloc(parser->arena, sizeof(Variable))};
         sym.variable->identifier = identifier;
         sym.variable->type = annotation->type;
+        namespace_variable(parser, sym.variable);
         symbol_hm_put(&scope->hm, sym);
     }
     return annotation;
@@ -2290,9 +2351,13 @@ lex_file(const char* filepath)
     FILE* file = fopen(filepath, "r");
     if (!file) errorf("failed to open (%s) for reading: %s", filepath, strerror(errno));
     Arena* arena = arena_init();
+    char* ns = file_namespace(arena, filepath);
+    size_t ns_len = strlen(ns);
     Lexer lexer = {
         .arena = arena,
         .top_level = scope_init(arena),
+        .file_namespace = ns,
+        .file_namespace_length = ns_len,
         .index = create_file_index(arena, filepath)};
     Location start_location = {.line = 1, .filepath = filepath};
     TokenQueue tq = {0};
@@ -2302,7 +2367,12 @@ lex_file(const char* filepath)
         .srcfile = file,
         .index = &lexer.index,
         .tq = &tq};
-    Parser parser = {.arena = arena, .scanner = &scanner, .tq = &tq};
+    Parser parser = {
+        .arena = arena,
+        .scanner = &scanner,
+        .tq = &tq,
+        .file_namespace = ns,
+        .file_namespace_length = ns_len};
     scope_stack_push(&parser.scope_stack, lexer.top_level);
 
     size_t statements_capacity = LEXER_STATEMENTS_CHUNK_SIZE;
