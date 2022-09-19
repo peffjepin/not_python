@@ -9,15 +9,15 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 void* assignment_from_void_function_result_x;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void void_fn();
+void assignment_from_void_function_result_void_fn();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void void_fn() {
+void assignment_from_void_function_result_void_fn() {
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-assignment_from_void_function_result_x = void_fn();
+assignment_from_void_function_result_x = assignment_from_void_function_result_void_fn();
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -9,10 +9,10 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 PYINT function_call4_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYINT my_function(PYINT x, PYINT y);
+PYINT function_call4_my_function(PYINT x, PYINT y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYINT my_function(PYINT x, PYINT y) {
+PYINT function_call4_my_function(PYINT x, PYINT y) {
 PYINT NP_var0 = x+y;
 return NP_var0;
 }
@@ -23,7 +23,7 @@ PYINT NP_var3 = 1+2;
 PYINT NP_var1 = NP_var3+3;
 PYINT NP_var4 = 4*5;
 PYINT NP_var2 = NP_var4*6;
-function_call4_z = my_function(NP_var1, NP_var2);
+function_call4_z = function_call4_my_function(NP_var1, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

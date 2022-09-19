@@ -9,10 +9,10 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 PYFLOAT function_call6_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYFLOAT my_function(PYINT x, PYFLOAT y);
+PYFLOAT function_call6_my_function(PYINT x, PYFLOAT y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYFLOAT my_function(PYINT x, PYFLOAT y) {
+PYFLOAT function_call6_my_function(PYINT x, PYFLOAT y) {
 PYFLOAT NP_var0 = (PYFLOAT)x/y;
 return NP_var0;
 }
@@ -21,7 +21,7 @@ return NP_var0;
 static void init_module(void) {
 PYINT NP_var1 = 1;
 PYFLOAT NP_var2 = 2.0;
-function_call6_z = my_function(NP_var1, NP_var2);
+function_call6_z = function_call6_my_function(NP_var1, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -84,7 +84,7 @@ render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
 }
 
 const char*
-type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
+type_info_to_c_syntax(StringBuilder* sb, LexicalScope* top_level, TypeInfo info)
 {
     switch (info.type) {
         case PYTYPE_UNTYPED:
@@ -107,8 +107,10 @@ type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
             break;
         case PYTYPE_DICT:
             return DATATYPE_DICT;
-        case PYTYPE_OBJECT:
-            return sb_build(sb, info.class_name, "*", NULL);
+        case PYTYPE_OBJECT: {
+            Symbol* sym = symbol_hm_get(&top_level->hm, info.class_name);
+            return sb_build(sb, sym->cls->ns_ident, "*", NULL);
+        }
         case PYTYPE_ITER:
             return DATATYPE_ITER;
         default: {
@@ -124,9 +126,11 @@ type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
 }
 
 void
-write_type_info_to_section(CompilerSection* section, TypeInfo info, StringBuilder* sb)
+write_type_info_to_section(
+    CompilerSection* section, StringBuilder* sb, LexicalScope* top_level, TypeInfo info
+)
 {
-    write_to_section(section, (char*)type_info_to_c_syntax(sb, info));
+    write_to_section(section, (char*)type_info_to_c_syntax(sb, top_level, info));
     write_to_section(section, " ");
 }
 

@@ -4,26 +4,26 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PYINT x, PYINT y} A;
+typedef struct {PYINT x, PYINT y} object_initialization6_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-A* object_initialization6_a;
+object_initialization6_A* object_initialization6_a;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void __init__(A* self);
+void object_initialization6_A___init__(object_initialization6_A* self);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void __init__(A* self) {
-A* NP_var0 = self;
+void object_initialization6_A___init__(object_initialization6_A* self) {
+object_initialization6_A* NP_var0 = self;
 PYINT NP_var0->x = 1;
-A* NP_var1 = self;
+object_initialization6_A* NP_var1 = self;
 PYINT NP_var1->y = 1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-object_initialization6_a = np_alloc(sizeof(A));
-__init__(object_initialization6_a);
+object_initialization6_a = np_alloc(sizeof(object_initialization6_A));
+object_initialization6_A___init__(object_initialization6_a);
 }
 
 // MAIN FUNCTION COMPILER SECTION

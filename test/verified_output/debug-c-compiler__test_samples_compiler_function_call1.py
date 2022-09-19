@@ -9,17 +9,17 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 PYINT function_call1_x;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYINT my_func();
+PYINT function_call1_my_func();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYINT my_func() {
+PYINT function_call1_my_func() {
 PYINT NP_var0 = 1;
 return NP_var0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-function_call1_x = my_func();
+function_call1_x = function_call1_my_func();
 }
 
 // MAIN FUNCTION COMPILER SECTION

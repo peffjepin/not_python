@@ -192,7 +192,10 @@ prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignmen
         if (!assignment->is_declared) {
             if (assignment->type_info.type == PYTYPE_UNTYPED) UNTYPED_ERROR();
             write_type_info_to_section(
-                assignment->section, assignment->type_info, &compiler->sb
+                assignment->section,
+                &compiler->sb,
+                compiler->top_level_scope,
+                assignment->type_info
             );
             assignment->is_declared = true;
         }
@@ -268,7 +271,9 @@ render_empty_enclosure(
                 enclosure_assignment->section,
                 "LIST_INIT(",
                 type_info_to_c_syntax(
-                    &compiler->sb, enclosure_assignment->type_info.inner->types[0]
+                    &compiler->sb,
+                    compiler->top_level_scope,
+                    enclosure_assignment->type_info.inner->types[0]
                 ),
                 ");\n",
                 NULL
@@ -280,10 +285,12 @@ render_empty_enclosure(
             write_many_to_section(
                 enclosure_assignment->section,
                 "DICT_INIT(",
-                type_info_to_c_syntax(&compiler->sb, key_type),
+                type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, key_type),
                 ", ",
                 type_info_to_c_syntax(
-                    &compiler->sb, enclosure_assignment->type_info.inner->types[1]
+                    &compiler->sb,
+                    compiler->top_level_scope,
+                    enclosure_assignment->type_info.inner->types[1]
                 ),
                 ", ",
                 voidptr_cmp_for_type_info(key_type),
@@ -330,7 +337,9 @@ render_list_literal(
             "LIST_APPEND(",
             enclosure_assignment->variable_name,
             ", ",
-            type_info_to_c_syntax(&compiler->sb, expression_assignment.type_info),
+            type_info_to_c_syntax(
+                &compiler->sb, compiler->top_level_scope, expression_assignment.type_info
+            ),
             ", ",
             expression_assignment.variable_name,
             ");\n",
@@ -625,7 +634,7 @@ render_function_call(
     // write the call statement
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_to_section(assignment->section, fndef->name);
+    write_to_section(assignment->section, fndef->ns_ident);
     write_to_section(assignment->section, "(");
     for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
         if (arg_i > 0) write_to_section(assignment->section, ", ");
@@ -725,7 +734,9 @@ render_list_append(
         "LIST_APPEND(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         list_item_var,
         ");\n",
@@ -795,7 +806,9 @@ render_list_count(
     TypeInfo return_type = {.type = PYTYPE_INT};
     set_assignment_type_info(compiler, assignment, return_type);
     if (!assignment->is_declared) {
-        write_type_info_to_section(assignment->section, return_type, &compiler->sb);
+        write_type_info_to_section(
+            assignment->section, &compiler->sb, compiler->top_level_scope, return_type
+        );
         write_to_section(assignment->section, assignment->variable_name);
         write_to_section(assignment->section, ";\n");
     }
@@ -805,7 +818,9 @@ render_list_count(
         "LIST_COUNT(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         cmp_func,
         ", ",
@@ -884,7 +899,7 @@ render_list_index(
     if (!assignment->is_declared) {
         write_many_to_section(
             assignment->section,
-            type_info_to_c_syntax(&compiler->sb, return_type),
+            type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, return_type),
             " ",
             assignment->variable_name,
             ";\n",
@@ -897,7 +912,9 @@ render_list_index(
         "LIST_INDEX(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         cmp,
         ", ",
@@ -944,7 +961,9 @@ render_list_insert(
         "LIST_INSERT(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         index_variable,
         ", ",
@@ -995,7 +1014,9 @@ render_list_pop(
     if (!assignment->is_declared) {
         write_many_to_section(
             assignment->section,
-            type_info_to_c_syntax(&compiler->sb, list_content_type),
+            type_info_to_c_syntax(
+                &compiler->sb, compiler->top_level_scope, list_content_type
+            ),
             " ",
             assignment->variable_name,
             ";\n",
@@ -1008,7 +1029,9 @@ render_list_pop(
         "LIST_POP(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         index_variable,
         ", ",
@@ -1047,7 +1070,9 @@ render_list_remove(
         "LIST_REMOVE(",
         list_assignment->variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, list_content_type
+        ),
         ", ",
         cmp,
         ", ",
@@ -1356,7 +1381,7 @@ render_dict_pop(
     write_many_to_section(
         assignment->section,
         "*(",
-        type_info_to_c_syntax(&compiler->sb, return_type),
+        type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, return_type),
         "*)dict_pop_val(",
         dict_assignment->variable_name,
         ", &",
@@ -1685,8 +1710,9 @@ render_operation(
             if (types[0].type == PYTYPE_LIST) {
                 if (types[1].type == PYTYPE_SLICE)
                     UNIMPLEMENTED("list slicing unimplemented");
-                const char* dest_type_c_syntax =
-                    type_info_to_c_syntax(&compiler->sb, types[0].inner->types[0]);
+                const char* dest_type_c_syntax = type_info_to_c_syntax(
+                    &compiler->sb, compiler->top_level_scope, types[0].inner->types[0]
+                );
                 if (!assignment->is_declared)
                     write_many_to_section(
                         assignment->section,
@@ -1716,7 +1742,9 @@ render_operation(
                 write_many_to_section(
                     assignment->section,
                     "*(",
-                    type_info_to_c_syntax(&compiler->sb, types[0].inner->types[1]),
+                    type_info_to_c_syntax(
+                        &compiler->sb, compiler->top_level_scope, types[0].inner->types[1]
+                    ),
                     "*)",
                     "dict_get_val(",
                     operand_reprs[0],
@@ -1800,7 +1828,9 @@ render_object_method_call(
     // write the call statement
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_many_to_section(assignment->section, fndef->name, "(", self_identifier, NULL);
+    write_many_to_section(
+        assignment->section, fndef->ns_ident, "(", self_identifier, NULL
+    );
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
         write_to_section(assignment->section, ", ");
         write_to_section(assignment->section, param_vars[arg_i]);
@@ -1820,7 +1850,7 @@ render_object_creation(
     set_assignment_type_info(compiler, assignment, clsdef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
-        assignment->section, "np_alloc(sizeof(", clsdef->name, "));\n", NULL
+        assignment->section, "np_alloc(sizeof(", clsdef->ns_ident, "));\n", NULL
     );
 
     FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
@@ -2156,13 +2186,17 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         if (type_info.type == PYTYPE_NONE)
             write_to_section(sections[i], "void ");
         else
-            write_type_info_to_section(sections[i], type_info, &compiler->sb);
+            write_type_info_to_section(
+                sections[i], &compiler->sb, compiler->top_level_scope, type_info
+            );
 
-        write_to_section(sections[i], func->name);
+        write_to_section(sections[i], func->ns_ident);
         write_to_section(sections[i], "(");
         for (size_t j = 0; j < func->sig.params_count; j++) {
             if (j > 0) write_to_section(sections[i], ", ");
-            write_type_info_to_section(sections[i], func->sig.types[j], &compiler->sb);
+            write_type_info_to_section(
+                sections[i], &compiler->sb, compiler->top_level_scope, func->sig.types[j]
+            );
             write_to_section(sections[i], func->sig.params[j]);
         }
     }
@@ -2183,14 +2217,6 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
 }
 
 static void
-compile_method(C_Compiler* compiler, ClassStatement* cls, FunctionStatement* func)
-{
-    // TODO: compile function with extra name mangling from the class
-    (void)cls;
-    compile_function(compiler, func);
-}
-
-static void
 compile_class(C_Compiler* compiler, ClassStatement* cls)
 {
     if (cls->sig.params_count == 0) {
@@ -2201,29 +2227,40 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
         );
     }
     write_to_section(&compiler->struct_declarations, "typedef struct {");
-    // TODO: name mangling
     for (size_t i = 0; i < cls->sig.params_count; i++) {
         if (i > 0) write_to_section(&compiler->struct_declarations, ", ");
         write_type_info_to_section(
-            &compiler->struct_declarations, cls->sig.types[i], &compiler->sb
+            &compiler->struct_declarations,
+            &compiler->sb,
+            compiler->top_level_scope,
+            cls->sig.types[i]
         );
         write_to_section(&compiler->struct_declarations, cls->sig.params[i]);
     }
 
-    for (size_t i = 0; i < cls->scope->hm.elements_count; i++) {
-        Symbol sym = cls->scope->hm.elements[i];
-        switch (sym.kind) {
-            case SYM_FUNCTION:
-                compile_method(compiler, cls, sym.func);
+    for (size_t i = 0; i < cls->body.stmts_count; i++) {
+        Statement* stmt = cls->body.stmts[i];
+        switch (stmt->kind) {
+            case STMT_FUNCTION:
+                compile_function(compiler, stmt->func);
+            case STMT_ANNOTATION:
                 break;
-            case SYM_VARIABLE:
-                // TODO: incomplete -- type objects don't currently exist
+            case NULL_STMT:
+                break;
+            case STMT_EOF:
                 break;
             default:
-                UNREACHABLE("compile classcompile classdefault case unreachable")
+                unimplemented_error(
+                    compiler->file_index,
+                    stmt->loc,
+                    "only function definitions and annotations are currently implemented "
+                    "within the body of a class"
+                );
         }
     }
-    write_many_to_section(&compiler->struct_declarations, "} ", cls->name, ";\n", NULL);
+    write_many_to_section(
+        &compiler->struct_declarations, "} ", cls->ns_ident, ";\n", NULL
+    );
 }
 
 static void
@@ -2232,7 +2269,12 @@ declare_variable(
 )
 {
     write_many_to_section(
-        section, type_info_to_c_syntax(&compiler->sb, type), " ", identifier, ";\n", NULL
+        section,
+        type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, type),
+        " ",
+        identifier,
+        ";\n",
+        NULL
     );
 }
 
@@ -2276,7 +2318,11 @@ render_list_set_item(
         "LIST_SET_ITEM(",
         list_assignment.variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_assignment.type_info.inner->types[0]),
+        type_info_to_c_syntax(
+            &compiler->sb,
+            compiler->top_level_scope,
+            list_assignment.type_info.inner->types[0]
+        ),
         ", ",
         index_var,
         ", ",
@@ -2573,7 +2619,7 @@ init_semi_scoped_variable(
     write_many_to_section(
         (section == &compiler->init_module_function) ? &compiler->variable_declarations
                                                      : section,
-        type_info_to_c_syntax(&compiler->sb, type_info),
+        type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, type_info),
         " ",
         sym->semi_scoped->current_id,
         ";\n",
@@ -2614,7 +2660,9 @@ render_list_for_each_head(
         "LIST_FOR_EACH(",
         iterable.variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, iterable.type_info.inner->types[0]),
+        type_info_to_c_syntax(
+            &compiler->sb, compiler->top_level_scope, iterable.type_info.inner->types[0]
+        ),
         ", ",
         it_ident,
         ", ",
@@ -2648,7 +2696,7 @@ render_dict_for_each_head(
         "DICT_ITER_KEYS(",
         iterable.variable_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, it_type),
+        type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope, it_type),
         ", ",
         it_ident,
         ", ",
@@ -2731,8 +2779,8 @@ render_dict_items_iterator_for_loop_head(
         "while ((",
         voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
         item_struct_variable," = (",voidptr_variable, ") ? *(DictItem*)",voidptr_variable," : ",item_struct_variable, ",\n",
-        key_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb, key_type),"*)(",item_struct_variable,".key) : ",key_variable,",\n",
-        val_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb, val_type),"*)(",item_struct_variable,".val) : ",val_variable,",\n",
+        key_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb,compiler->top_level_scope, key_type),"*)(",item_struct_variable,".key) : ",key_variable,",\n",
+        val_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb,compiler->top_level_scope, val_type),"*)(",item_struct_variable,".val) : ",val_variable,",\n",
         voidptr_variable,
         "))",
         NULL
@@ -2784,7 +2832,7 @@ render_iterator_for_loop_head(
         section,
         "while ((",
         voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
-        it_ident," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb, it_type),"*)(",voidptr_variable,") : ",it_ident,",\n",
+        it_ident," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb, compiler->top_level_scope,it_type),"*)(",voidptr_variable,") : ",it_ident,",\n",
         voidptr_variable,
         "))",
         NULL
