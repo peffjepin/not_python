@@ -2131,6 +2131,7 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
     );
     parser->current_class_members_capacity = 0;
     parser->current_class_members_count = 0;
+    parser->current_class_members_defaults_count = 0;
     parser->current_class_members_bytes = 0;
     parser->current_class_members = NULL;
 

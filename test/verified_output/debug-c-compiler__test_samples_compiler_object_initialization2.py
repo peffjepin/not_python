@@ -4,7 +4,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PYINT a, PYINT b} object_initialization2_A;
+typedef struct {PYINT a;PYINT b;} object_initialization2_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 object_initialization2_A* object_initialization2_a1;

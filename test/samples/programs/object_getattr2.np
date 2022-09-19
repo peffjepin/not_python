@@ -1,0 +1,12 @@
+class A:
+    val: int = 3
+    msg: str = "hello"
+
+
+class B:
+    a: A
+
+
+b = B(A())
+
+print(b.a.val, b.a.msg)

@@ -1920,6 +1920,47 @@ render_call_operation(
     }
 }
 
+static TypeInfo
+get_class_member_type_info(
+    C_Compiler* compiler, ClassStatement* clsdef, char* member_name
+)
+{
+    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
+        if (strcmp(member_name, clsdef->sig.params[i]) == 0) return clsdef->sig.types[i];
+    }
+    name_errorf(
+        compiler->file_index,
+        compiler->current_stmt_location,
+        "unknown member `%s` for type `%s`",
+        member_name,
+        clsdef->name
+    );
+    UNREACHABLE("get member type");
+}
+
+static void
+render_getattr_operation(
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    char* left_repr,
+    TypeInfo left_type,
+    char* attr
+)
+{
+    if (left_type.type != PYTYPE_OBJECT) {
+        type_error(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "getattr operation is currently only implemented for `object` types"
+        );
+    }
+    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, left_type.class_name);
+    TypeInfo attr_type = get_class_member_type_info(compiler, sym->cls, attr);
+    set_assignment_type_info(compiler, assignment, attr_type);
+    prepare_c_assignment_for_rendering(compiler, assignment);
+    write_many_to_section(assignment->section, left_repr, "->", attr, ";\n", NULL);
+}
+
 static void
 render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Expression* expr)
 {
@@ -1934,6 +1975,20 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
 
         if (operation.op_type == OPERATOR_CALL) {
             render_call_operation(compiler, assignment, expr, operation);
+            return;
+        }
+        if (operation.op_type == OPERATOR_GET_ATTR) {
+            char* left_repr =
+                simple_operand_repr(compiler, expr->operands[operation.left]);
+            TypeInfo left_type =
+                resolve_operand_type(&compiler->tc, expr->operands[operation.left]);
+            render_getattr_operation(
+                compiler,
+                assignment,
+                left_repr,
+                left_type,
+                expr->operands[operation.right].token.value
+            );
             return;
         }
 
@@ -2125,8 +2180,23 @@ render_expression_assignment(
                 );
                 continue;
             }
+            else if (left_assignment.type_info.type == PYTYPE_OBJECT) {
+                render_getattr_operation(
+                    compiler,
+                    this_assignment,
+                    left_assignment.variable_name,
+                    left_assignment.type_info,
+                    expr->operands[operation.right].token.value
+                );
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, operation
+                );
+                continue;
+            }
             else {
-                UNIMPLEMENTED("getattr only currently implemented on lists and dicts");
+                UNIMPLEMENTED(
+                    "getattr only currently implemented on lists dicts and objects"
+                );
             }
         }
 
@@ -2228,7 +2298,6 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
     }
     write_to_section(&compiler->struct_declarations, "typedef struct {");
     for (size_t i = 0; i < cls->sig.params_count; i++) {
-        if (i > 0) write_to_section(&compiler->struct_declarations, ", ");
         write_type_info_to_section(
             &compiler->struct_declarations,
             &compiler->sb,
@@ -2236,6 +2305,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
             cls->sig.types[i]
         );
         write_to_section(&compiler->struct_declarations, cls->sig.params[i]);
+        write_to_section(&compiler->struct_declarations, ";");
     }
 
     for (size_t i = 0; i < cls->body.stmts_count; i++) {
@@ -2401,24 +2471,6 @@ get_class_definition_by_name(C_Compiler* compiler, char* identifier)
         );
     }
     return sym->cls;
-}
-
-static TypeInfo
-get_class_member_type_info(
-    C_Compiler* compiler, ClassStatement* clsdef, char* member_name
-)
-{
-    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        if (strcmp(member_name, clsdef->sig.params[i]) == 0) return clsdef->sig.types[i];
-    }
-    name_errorf(
-        compiler->file_index,
-        compiler->current_stmt_location,
-        "unknown member `%s` for type `%s`",
-        member_name,
-        clsdef->name
-    );
-    UNREACHABLE("get member type");
 }
 
 static void

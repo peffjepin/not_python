@@ -349,6 +349,8 @@ cstr_to_python_type(char* cstr)
         case 's':
             if (strcmp(cstr, "str") == 0) return PYTYPE_STRING;
             return PYTYPE_OBJECT;
+        default:
+            return PYTYPE_OBJECT;
     }
     UNREACHABLE("cstr_to_python_type");
 }
