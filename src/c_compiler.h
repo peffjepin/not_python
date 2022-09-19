@@ -5,6 +5,12 @@
 
 #include "lexer.h"
 
-void compile_to_c(FILE* outfile, Lexer* lexer);
+typedef enum { LIB_MATH, LIB_COUNT } Libraries;
+
+typedef struct {
+    bool libs[LIB_COUNT];
+} Requirements;
+
+Requirements compile_to_c(FILE* outfile, Lexer* lexer);
 
 #endif

@@ -19,6 +19,7 @@
 
 typedef struct {
     Arena* arena;
+    Requirements reqs;
     LexicalScope* top_level_scope;
     LexicalScopeStack scope_stack;
     StringHashmap str_hm;
@@ -1563,6 +1564,14 @@ render_builtin(
 }
 
 static void
+require_math_lib(C_Compiler* compiler)
+{
+    if (compiler->reqs.libs[LIB_MATH]) return;
+    compiler->reqs.libs[LIB_MATH] = true;
+    write_to_section(&compiler->forward, "#include <math.h>\n");
+}
+
+static void
 render_operation(
     C_Compiler* compiler,
     C_Assignment* assignment,
@@ -1628,6 +1637,60 @@ render_operation(
                 (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
                 operand_reprs[1],
                 ";\n",
+                NULL
+            );
+            return;
+        case OPERATOR_FLOORDIV:
+            prepare_c_assignment_for_rendering(compiler, assignment);
+            write_many_to_section(
+                assignment->section,
+                "(PYINT)(",
+                (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                operand_reprs[0],
+                "/",
+                (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                operand_reprs[1],
+                ");\n",
+                NULL
+            );
+            return;
+        case OPERATOR_MOD:
+            prepare_c_assignment_for_rendering(compiler, assignment);
+            if (assignment->type_info.type == PYTYPE_FLOAT) {
+                require_math_lib(compiler);
+                write_many_to_section(
+                    assignment->section,
+                    "fmod(",
+                    operand_reprs[0],
+                    ", ",
+                    operand_reprs[1],
+                    ");\n",
+                    NULL
+                );
+            }
+            else {
+                write_many_to_section(
+                    assignment->section,
+                    operand_reprs[0],
+                    (char*)op_to_cstr(op_type),
+                    operand_reprs[1],
+                    ";\n",
+                    NULL
+                );
+            }
+            return;
+
+        case OPERATOR_POW:
+            require_math_lib(compiler);
+            prepare_c_assignment_for_rendering(compiler, assignment);
+            write_many_to_section(
+                assignment->section,
+                (assignment->type_info.type == PYTYPE_INT) ? "(PYINT)" : "",
+                "pow(",
+                operand_reprs[0],
+                ", ",
+                operand_reprs[1],
+                ");\n",
                 NULL
             );
             return;
@@ -3100,7 +3163,7 @@ compiler_init(Lexer* lexer)
     return compiler;
 }
 
-void
+Requirements
 compile_to_c(FILE* outfile, Lexer* lexer)
 {
     C_Compiler compiler = compiler_init(lexer);
@@ -3118,4 +3181,5 @@ compile_to_c(FILE* outfile, Lexer* lexer)
     section_free(&compiler.function_definitions);
     section_free(&compiler.init_module_function);
     section_free(&compiler.main_function);
+    return compiler.reqs;
 }
