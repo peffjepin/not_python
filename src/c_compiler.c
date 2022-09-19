@@ -1855,6 +1855,24 @@ render_object_creation(
 
     FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
     if (init) {
+        for (size_t i = 0; i < clsdef->sig.defaults_count; i++) {
+            C_Assignment default_assignment = {
+                .section = assignment->section,
+                .type_info = clsdef->sig.types[clsdef->sig.params_count - 1 - i],
+                .variable_name = sb_build(
+                    &compiler->sb,
+                    assignment->variable_name,
+                    "->",
+                    clsdef->sig.params[clsdef->sig.params_count - 1 - i],
+                    NULL
+                ),
+                .is_declared = true};
+            render_expression_assignment(
+                compiler,
+                &default_assignment,
+                clsdef->sig.defaults[clsdef->sig.defaults_count - 1 - i]
+            );
+        }
         C_Assignment init_assignment = {
             .section = assignment->section, .type_info.type = PYTYPE_NONE};
         render_object_method_call(
@@ -2495,7 +2513,7 @@ render_object_set_attr(
             last_operand.token.value,
             NULL
         ),
-        .is_declared = false};
+        .is_declared = true};
     render_expression_assignment(compiler, &assignment, stmt->value);
 }
 

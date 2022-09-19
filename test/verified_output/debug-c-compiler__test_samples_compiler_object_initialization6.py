@@ -15,9 +15,9 @@ void object_initialization6_A___init__(object_initialization6_A* self);
 // FUNCTION DEFINITIONS COMPILER SECTION
 void object_initialization6_A___init__(object_initialization6_A* self) {
 object_initialization6_A* NP_var0 = self;
-PYINT NP_var0->x = 1;
+NP_var0->x = 1;
 object_initialization6_A* NP_var1 = self;
-PYINT NP_var1->y = 1;
+NP_var1->y = 1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

@@ -1,0 +1,6 @@
+class A:
+    x: int
+
+a = A(1)
+a.x = 2
+print(a.x)
