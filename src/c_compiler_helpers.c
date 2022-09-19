@@ -134,6 +134,49 @@ write_type_info_to_section(
     write_to_section(section, " ");
 }
 
+char*
+create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef)
+{
+    // if the fmt string overflows 1024 it will just be cut short.
+    char fmtbuf[1024];
+    size_t remaining = 1023;
+    char* write = fmtbuf;
+    char* clsname = clsdef->name;
+    while (remaining && *clsname != '\0') {
+        *write++ = *clsname++;
+        remaining--;
+    }
+    if (remaining) {
+        *write++ = '(';
+        remaining--;
+    }
+    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
+        if (remaining > 1 && i > 0) {
+            *write++ = ',';
+            *write++ = ' ';
+            remaining -= 2;
+        }
+        char* param = clsdef->sig.params[i];
+        while (remaining && *param != '\0') {
+            *write++ = *param++;
+            remaining--;
+        }
+        if (remaining > 2) {
+            *write++ = '=';
+            *write++ = '%';
+            *write++ = 's';
+            remaining -= 3;
+        }
+    }
+    if (remaining) {
+        *write++ = ')';
+        remaining--;
+    }
+    char* final = arena_alloc(arena, 1024 - remaining);
+    memcpy(final, fmtbuf, 1023 - remaining);
+    return final;
+}
+
 static void
 out_of_memory(void)
 {

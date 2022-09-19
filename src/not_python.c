@@ -121,6 +121,34 @@ str_add(PYSTRING str1, PYSTRING str2)
 }
 
 PYSTRING
+str_fmt(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    size_t required_length = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+
+    PYSTRING str = {.data = np_alloc(required_length + 1), .length = required_length};
+
+    va_start(args, fmt);
+    vsnprintf(str.data, required_length + 1, fmt, args);
+    va_end(args);
+
+    return str;
+}
+
+char*
+np_str_to_cstr(PYSTRING str)
+{
+    if (str.data[str.offset + str.length] == '\0') {
+        return str.data + str.offset;
+    }
+    char* cstr = np_alloc(str.length + 1);
+    memcpy(cstr, str.data + str.offset, str.length);
+    return cstr;
+}
+
+PYSTRING
 np_int_to_str(PYINT num)
 {
     size_t required_length = snprintf(NULL, 0, "%lli", num);

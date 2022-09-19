@@ -37,6 +37,7 @@ PYBOOL void_bool_eq(void* bool1, void* bool2);
 PYBOOL void_str_eq(void* str1, void* str2);
 
 PYSTRING str_add(PYSTRING str1, PYSTRING str2);
+PYSTRING str_fmt(const char* fmt, ...);
 PYBOOL str_eq(PYSTRING str1, PYSTRING str2);
 PYBOOL str_gt(PYSTRING str1, PYSTRING str2);
 PYBOOL str_gte(PYSTRING str1, PYSTRING str2);
@@ -46,6 +47,7 @@ PYBOOL str_lte(PYSTRING str1, PYSTRING str2);
 PYSTRING np_int_to_str(PYINT num);
 PYSTRING np_float_to_str(PYFLOAT num);
 PYSTRING np_bool_to_str(PYBOOL value);
+char* np_str_to_cstr(PYSTRING str);
 
 int pyint_sort_fn(const void*, const void*);
 int pyfloat_sort_fn(const void*, const void*);

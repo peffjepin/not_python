@@ -186,6 +186,10 @@ static void render_expression_assignment(
     C_Compiler* compiler, C_Assignment* assignment, Expression* expr
 );
 
+static void convert_assignment_to_string(
+    C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
+);
+
 static void
 prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignment)
 {
@@ -549,66 +553,6 @@ render_callable_args_to_variables(
 }
 
 static void
-write_variable_to_section_as_type(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    PythonType target_type,
-    char* varname,
-    PythonType vartype
-)
-{
-    if (target_type == vartype) {
-        write_to_section(section, varname);
-        return;
-    }
-    switch (target_type) {
-        case PYTYPE_STRING:
-            switch (vartype) {
-                case PYTYPE_INT:
-                    write_many_to_section(section, "np_int_to_str(", varname, ")", NULL);
-                    break;
-                case PYTYPE_FLOAT:
-                    write_many_to_section(
-                        section, "np_float_to_str(", varname, ")", NULL
-                    );
-                    break;
-                case PYTYPE_BOOL:
-                    write_many_to_section(section, "np_bool_to_str(", varname, ")", NULL);
-                    break;
-                default: {
-                    static const size_t buflen = 1024;
-                    char from_type[buflen];
-                    TypeInfo info = {.type = vartype};
-                    render_type_info_human_readable(info, from_type, buflen);
-                    unimplemented_errorf(
-                        compiler->file_index,
-                        compiler->current_stmt_location,
-                        "type conversion from `%s` to `str` not currently implemented",
-                        from_type
-                    );
-                }
-            }
-            break;
-        default: {
-            static const size_t buflen = 1024;
-            char from_type[buflen];
-            char to_type[buflen];
-            TypeInfo info_from = {.type = vartype};
-            TypeInfo info_to = {.type = target_type};
-            render_type_info_human_readable(info_from, from_type, buflen);
-            render_type_info_human_readable(info_to, to_type, buflen);
-            unimplemented_errorf(
-                compiler->file_index,
-                compiler->current_stmt_location,
-                "type conversion from `%s` to `%s` not currently implemented",
-                from_type,
-                to_type
-            );
-        }
-    }
-}
-
-static void
 render_function_call(
     C_Compiler* compiler,
     C_Assignment* assignment,
@@ -645,6 +589,134 @@ render_function_call(
 }
 
 static void
+render_default_object_string_represntation(
+    C_Compiler* compiler,
+    ClassStatement* clsdef,
+    C_Assignment object_assignment,
+    C_Assignment* destination
+)
+{
+    // create a python string that looks like:
+    //  ClassName(param1=param1_value, param2=param2_value...)
+    if (!clsdef->fmtstr)
+        // default fmt string expects all params to be first convereted into cstr
+        clsdef->fmtstr = create_default_object_fmt_str(compiler->arena, clsdef);
+
+    GENERATE_UNIQUE_VAR_NAMES(compiler, clsdef->sig.params_count, members_as_str);
+    C_Assignment as_str_assignments[clsdef->sig.params_count];
+    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
+        C_Assignment fake_member_assignment = {
+            .section = object_assignment.section,
+            .type_info = clsdef->sig.types[i],
+            .variable_name = sb_build(
+                &compiler->sb,
+                object_assignment.variable_name,
+                "->",
+                clsdef->sig.params[i],
+                NULL
+            )};
+        C_Assignment* to_string = as_str_assignments + i;
+        to_string->section = object_assignment.section;
+        to_string->type_info.type = PYTYPE_STRING;
+        to_string->is_declared = false;
+        to_string->variable_name = members_as_str[i];
+        convert_assignment_to_string(compiler, fake_member_assignment, to_string);
+    }
+
+    prepare_c_assignment_for_rendering(compiler, destination);
+    write_many_to_section(destination->section, "str_fmt(\"", clsdef->fmtstr, "\"", NULL);
+    for (size_t i = 0; i < clsdef->sig.params_count; i++)
+        write_many_to_section(
+            destination->section, ", np_str_to_cstr(", members_as_str[i], ")", NULL
+        );
+    write_to_section(destination->section, ");\n");
+}
+
+static void
+convert_object_to_str(
+    C_Compiler* compiler, C_Assignment object_assignment, C_Assignment* destination
+)
+{
+    Symbol* sym = symbol_hm_get(
+        &compiler->top_level_scope->hm, object_assignment.type_info.class_name
+    );
+    FunctionStatement* user_defined_str =
+        sym->cls->object_model_methods[OBJECT_MODEL_STR];
+    if (user_defined_str) {
+        prepare_c_assignment_for_rendering(compiler, destination);
+        write_many_to_section(
+            destination->section,
+            user_defined_str->ns_ident,
+            "(",
+            object_assignment.variable_name,
+            ")",
+            NULL
+        );
+    }
+    else
+        render_default_object_string_represntation(
+            compiler, sym->cls, object_assignment, destination
+        );
+}
+
+static void
+convert_assignment_to_string(
+    C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
+)
+{
+    if (assignment_to_convert.type_info.type == PYTYPE_STRING) return;
+
+    switch (assignment_to_convert.type_info.type) {
+        case PYTYPE_INT:
+            prepare_c_assignment_for_rendering(compiler, destination);
+            write_many_to_section(
+                destination->section,
+                "np_int_to_str(",
+                assignment_to_convert.variable_name,
+                ");\n",
+                NULL
+            );
+            return;
+        case PYTYPE_FLOAT:
+            prepare_c_assignment_for_rendering(compiler, destination);
+            write_many_to_section(
+                destination->section,
+                "np_float_to_str(",
+                assignment_to_convert.variable_name,
+                ");\n",
+                NULL
+            );
+            return;
+        case PYTYPE_BOOL:
+            prepare_c_assignment_for_rendering(compiler, destination);
+            write_many_to_section(
+                destination->section,
+                "np_bool_to_str(",
+                assignment_to_convert.variable_name,
+                ");\n",
+                NULL
+            );
+            return;
+        case PYTYPE_OBJECT:
+            convert_object_to_str(compiler, assignment_to_convert, destination);
+            break;
+        default: {
+            static const size_t buflen = 1024;
+            char from_type[buflen];
+            render_type_info_human_readable(
+                assignment_to_convert.type_info, from_type, buflen
+            );
+            unimplemented_errorf(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "type conversion from `%s` to `str` not currently implemented",
+                from_type
+            );
+        }
+    }
+}
+
+static void
 render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* args)
 {
     if (args->values_count != args->n_positional) {
@@ -654,28 +726,44 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
             "print keyword arguments not currently implemented"
         );
     }
+
     size_t args_count = (args->values_count == 0) ? 1 : args->values_count;
-    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
-    TypeInfo var_types[args_count];
+    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, initial_resolution_vars)
+    C_Assignment initial_assignments[args_count];
+
     if (args->values_count == 0) {
-        TypeInfo default_type_info = {.type = PYTYPE_STRING};
-        var_types[0] = default_type_info;
-        C_Assignment assignment = {
-            .section = section,
-            .type_info = default_type_info,
-            .variable_name = string_vars[0],
-            .is_declared = false};
-        prepare_c_assignment_for_rendering(compiler, &assignment);
-        write_to_section(assignment.section, "{.data=\"\", .length=0};\n");
+        initial_assignments[0].section = section;
+        initial_assignments[0].type_info.type = PYTYPE_STRING;
+        initial_assignments[0].variable_name = initial_resolution_vars[0];
+        initial_assignments[0].is_declared = false;
+        prepare_c_assignment_for_rendering(compiler, initial_assignments);
+        write_to_section(section, "{.data=\"\", .length=0};\n");
     }
     else {
         for (size_t i = 0; i < args->values_count; i++) {
-            C_Assignment assignment = {
-                .section = section,
-                .variable_name = string_vars[i],
-                .is_declared = false};
-            render_expression_assignment(compiler, &assignment, args->values[i]);
-            var_types[i] = assignment.type_info;
+            initial_assignments[i].section = section;
+            initial_assignments[i].type_info.type = PYTYPE_UNTYPED;
+            initial_assignments[i].variable_name = initial_resolution_vars[i];
+            initial_assignments[i].is_declared = false;
+            render_expression_assignment(
+                compiler, initial_assignments + i, args->values[i]
+            );
+        }
+    }
+
+    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
+    C_Assignment converted_assignments[args_count];
+    for (size_t i = 0; i < args_count; i++) {
+        if (initial_assignments[i].type_info.type == PYTYPE_STRING)
+            converted_assignments[i] = initial_assignments[i];
+        else {
+            converted_assignments[i].type_info.type = PYTYPE_STRING;
+            converted_assignments[i].variable_name = string_vars[i];
+            converted_assignments[i].is_declared = false;
+            converted_assignments[i].section = section;
+            convert_assignment_to_string(
+                compiler, initial_assignments[i], converted_assignments + i
+            );
         }
     }
 
@@ -686,9 +774,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     write_to_section(section, ", ");
     for (size_t i = 0; i < args_count; i++) {
         if (i > 0) write_to_section(section, ", ");
-        write_variable_to_section_as_type(
-            compiler, section, PYTYPE_STRING, string_vars[i], var_types[i].type
-        );
+        write_to_section(section, converted_assignments[i].variable_name);
     }
     write_to_section(section, ");\n");
 }
@@ -2404,7 +2490,8 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
                 unimplemented_error(
                     compiler->file_index,
                     stmt->loc,
-                    "only function definitions and annotations are currently implemented "
+                    "only function definitions and annotations are currently "
+                    "implemented "
                     "within the body of a class"
                 );
         }

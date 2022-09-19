@@ -21,6 +21,8 @@
 #define DATATYPE_DICT "PYDICT"
 #define DATATYPE_ITER "PYITER"
 
+char* create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
+
 typedef struct {
     size_t capacity;
     size_t count;

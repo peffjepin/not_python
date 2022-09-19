@@ -26,7 +26,8 @@ PYLIST NP_var1 = list_for_each_my_list;
 LIST_FOR_EACH(NP_var1, PYINT, NP_var2, NP_var3)
 {
 PYINT NP_var4 = NP_var2;
-builtin_print(1, np_int_to_str(NP_var4));
+PYSTRING NP_var5 = np_int_to_str(NP_var4);
+builtin_print(1, NP_var5);
 }
 }
 

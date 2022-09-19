@@ -39,7 +39,8 @@ NP_var7 = (NP_var8) ? *(PYSTRING*)(NP_var5.val) : NP_var7,
 NP_var8)){
 PYINT NP_var9 = NP_var6;
 PYSTRING NP_var10 = NP_var7;
-builtin_print(2, np_int_to_str(NP_var9), NP_var10);
+PYSTRING NP_var11 = np_int_to_str(NP_var9);
+builtin_print(2, NP_var11, NP_var10);
 }
 }
 

@@ -229,6 +229,7 @@ typedef struct {
     char* name;
     char* base;
     char* ns_ident;
+    char* fmtstr;
     Signature sig;
     Block body;
     LexicalScope* scope;
