@@ -362,7 +362,7 @@ render_type_info(TypeInfo info)
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);
             break;
         case PYTYPE_OBJECT:
-            str_concat_cstr(&str, info.class_name);
+            str_concat_cstr(&str, info.cls->name);
             break;
         default:
             str_concat_cstr(&str, "UnrecognizedTypeInfo");

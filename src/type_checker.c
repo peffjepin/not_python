@@ -57,7 +57,7 @@ compare_types(TypeInfo type1, TypeInfo type2)
         case PYTYPE_DICT:
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
         case PYTYPE_OBJECT:
-            return outer_equal && (strcmp(type1.class_name, type2.class_name) == 0);
+            return outer_equal && (strcmp(type1.cls->name, type2.cls->name) == 0);
         default:
             return outer_equal;
     }

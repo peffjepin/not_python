@@ -60,11 +60,9 @@ void sb_free(StringBuilder* sb);
 char* sb_build(StringBuilder* sb, ...);
 
 void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
-const char* type_info_to_c_syntax(
-    StringBuilder* sb, LexicalScope* top_level, TypeInfo info
-);
+const char* type_info_to_c_syntax(StringBuilder* sb, TypeInfo info);
 void write_type_info_to_section(
-    CompilerSection* section, StringBuilder* sb, LexicalScope* top_level, TypeInfo info
+    CompilerSection* section, StringBuilder* sb, TypeInfo info
 );
 
 #endif

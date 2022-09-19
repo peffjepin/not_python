@@ -27,7 +27,7 @@ type_info_human_readable(TypeInfo info)
         case PYTYPE_DICT:
             return "Dict";
         case PYTYPE_OBJECT:
-            return info.class_name;
+            return info.cls->name;
         case PYTYPE_BOOL:
             return "bool";
         case PYTYPE_SLICE:
@@ -84,7 +84,7 @@ render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
 }
 
 const char*
-type_info_to_c_syntax(StringBuilder* sb, LexicalScope* top_level, TypeInfo info)
+type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
 {
     switch (info.type) {
         case PYTYPE_UNTYPED:
@@ -108,8 +108,7 @@ type_info_to_c_syntax(StringBuilder* sb, LexicalScope* top_level, TypeInfo info)
         case PYTYPE_DICT:
             return DATATYPE_DICT;
         case PYTYPE_OBJECT: {
-            Symbol* sym = symbol_hm_get(&top_level->hm, info.class_name);
-            return sb_build(sb, sym->cls->ns_ident, "*", NULL);
+            return sb_build(sb, info.cls->ns_ident, "*", NULL);
         }
         case PYTYPE_ITER:
             return DATATYPE_ITER;
@@ -126,11 +125,9 @@ type_info_to_c_syntax(StringBuilder* sb, LexicalScope* top_level, TypeInfo info)
 }
 
 void
-write_type_info_to_section(
-    CompilerSection* section, StringBuilder* sb, LexicalScope* top_level, TypeInfo info
-)
+write_type_info_to_section(CompilerSection* section, StringBuilder* sb, TypeInfo info)
 {
-    write_to_section(section, (char*)type_info_to_c_syntax(sb, top_level, info));
+    write_to_section(section, (char*)type_info_to_c_syntax(sb, info));
     write_to_section(section, " ");
 }
 

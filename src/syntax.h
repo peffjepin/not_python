@@ -18,6 +18,7 @@ typedef struct Statement Statement;
 typedef struct LexicalScope LexicalScope;
 typedef struct TypeInfo TypeInfo;
 typedef struct Variable Variable;
+typedef struct ClassStatement ClassStatement;
 
 typedef enum {
     PYTYPE_UNTYPED,
@@ -44,7 +45,7 @@ typedef struct {
 struct TypeInfo {
     PythonType type;
     union {
-        char* class_name;
+        ClassStatement* cls;
         TypeInfoInner* inner;
     };
 };
@@ -225,7 +226,7 @@ typedef struct {
     LexicalScope* scope;
 } FunctionStatement;
 
-typedef struct {
+struct ClassStatement {
     char* name;
     char* base;
     char* ns_ident;
@@ -234,7 +235,7 @@ typedef struct {
     Block body;
     LexicalScope* scope;
     FunctionStatement* object_model_methods[OBJECT_MODEL_COUNT];
-} ClassStatement;
+};
 
 typedef struct {
     Expression* storage;

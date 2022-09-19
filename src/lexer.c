@@ -1085,10 +1085,23 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
 static TypeInfo
 parse_type_hint(Parser* parser)
 {
-    char* ident_str = expect_token_type(parser, TOK_IDENTIFIER).value;
-    PythonType type = cstr_to_python_type(ident_str);
-    TypeInfo info = {
-        .type = type, .class_name = (type == PYTYPE_OBJECT) ? ident_str : NULL};
+    Token ident_token = expect_token_type(parser, TOK_IDENTIFIER);
+    PythonType type = cstr_to_python_type(ident_token.value);
+    ClassStatement* cls = NULL;
+    if (type == PYTYPE_OBJECT) {
+        Symbol* sym =
+            symbol_hm_get(&parser->scope_stack.scopes[0]->hm, ident_token.value);
+        if (!sym || sym->kind != SYM_CLASS) {
+            type_errorf(
+                *parser->scanner->index,
+                *ident_token.loc,
+                "unknown class `%s`",
+                ident_token.value
+            );
+        }
+        cls = sym->cls;
+    }
+    TypeInfo info = {.type = type, .cls = (type == PYTYPE_OBJECT) ? cls : NULL};
 
     switch (type) {
         case PYTYPE_TUPLE: {
@@ -1963,7 +1976,7 @@ parse_function_statement(Parser* parser, Location loc)
             );
         }
         str_vector_append(&params, self_token.value);
-        TypeInfo typing = {.type = PYTYPE_OBJECT, .class_name = parent_scope->cls->name};
+        TypeInfo typing = {.type = PYTYPE_OBJECT, .cls = parent_scope->cls};
         typing_vector_append(&types, typing);
     }
 
@@ -2116,7 +2129,7 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
         parser->arena, sizeof(Expression*) * parser->current_class_members_defaults_count
     );
     cls->sig.return_type.type = PYTYPE_OBJECT;
-    cls->sig.return_type.class_name = cls->name;
+    cls->sig.return_type.cls = cls;
 
     for (size_t i = 0; i < parser->current_class_members_count; i++) {
         AnnotationStatement annotation = parser->current_class_members[i];
