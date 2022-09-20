@@ -130,6 +130,7 @@ cmp_for_type_info(TypeInfo type_info)
 typedef struct {
     CompilerSection* section;
     TypeInfo type_info;
+    char* user_defined_variable_name;
     char* variable_name;
     bool is_declared;
     Location* loc;  // NULL for intermediate assignments
@@ -159,7 +160,7 @@ set_assignment_type_info(
                 *assignment->loc,
                 "trying to assign type `%s` to variable `%s` of type `%s`",
                 actual,
-                assignment->variable_name,
+                assignment->user_defined_variable_name,
                 expected
             );
         }
@@ -2714,6 +2715,14 @@ compile_complex_assignment(
 }
 
 static void
+compile_complex_op_assignment(
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
+)
+{
+    UNIMPLEMENTED("complex op assignment not implemented");
+}
+
+static void
 compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
     char* identifier = stmt->assignment->storage->operands[0].token.value;
@@ -2723,22 +2732,26 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
     bool top_level = section == &compiler->init_module_function;
     bool declared;
     char* variable_name;
+    char* real_var_name;
     TypeInfo* symtype;
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
         variable_name = sym->variable->ns_ident;
+        real_var_name = sym->variable->identifier;
         declared = (top_level) ? true : sym->variable->declared;
     }
     else {
         symtype = &sym->semi_scoped->type;
         variable_name = sym->semi_scoped->current_id;
+        real_var_name = sym->semi_scoped->identifier;
         declared = true;
     }
 
     C_Assignment assignment = {
         .section = section,
         .variable_name = variable_name,
+        .user_defined_variable_name = real_var_name,
         .type_info = *symtype,
         .is_declared = declared,
         .loc = &stmt->loc,
@@ -2755,15 +2768,80 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
         );
 }
 
+static Operator OP_ASSIGNMENT_TO_OP_TABLE[OPERATORS_MAX] = {
+    [OPERATOR_PLUS_ASSIGNMENT] = OPERATOR_PLUS,
+    [OPERATOR_MINUS_ASSIGNMENT] = OPERATOR_MINUS,
+    [OPERATOR_MULT_ASSIGNMENT] = OPERATOR_MULT,
+    [OPERATOR_DIV_ASSIGNMENT] = OPERATOR_DIV,
+    [OPERATOR_MOD_ASSIGNMENT] = OPERATOR_MOD,
+    [OPERATOR_FLOORDIV_ASSIGNMENT] = OPERATOR_FLOORDIV,
+    [OPERATOR_POW_ASSIGNMENT] = OPERATOR_POW,
+    [OPERATOR_AND_ASSIGNMENT] = OPERATOR_BITWISE_AND,
+    [OPERATOR_OR_ASSIGNMENT] = OPERATOR_BITWISE_OR,
+    [OPERATOR_XOR_ASSIGNMENT] = OPERATOR_BITWISE_XOR,
+    [OPERATOR_RSHIFT_ASSIGNMENT] = OPERATOR_RSHIFT,
+    [OPERATOR_LSHIFT_ASSIGNMENT] = OPERATOR_LSHIFT,
+};
+
+static void
+compile_simple_op_assignment(
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
+)
+{
+    char* identifier = stmt->assignment->storage->operands[0].token.value;
+    Symbol* sym =
+        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
+    Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
+
+    char* variable_name;
+    char* real_var_name;
+    TypeInfo* symtype;
+
+    if (sym->kind == SYM_VARIABLE) {
+        symtype = &sym->variable->type;
+        variable_name = sym->variable->ns_ident;
+        real_var_name = sym->variable->identifier;
+    }
+    else {
+        symtype = &sym->semi_scoped->type;
+        variable_name = sym->semi_scoped->current_id;
+        real_var_name = sym->semi_scoped->identifier;
+    }
+
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
+    C_Assignment other_assignment = {
+        .section = section, .variable_name = other_variable, .is_declared = false};
+    render_expression_assignment(compiler, &other_assignment, stmt->assignment->value);
+
+    C_Assignment assignment = {
+        .section = section,
+        .variable_name = variable_name,
+        .user_defined_variable_name = real_var_name,
+        .type_info = *symtype,
+        .is_declared = true,
+        .loc = &stmt->loc,
+    };
+
+    char* operand_reprs[2] = {assignment.variable_name, other_assignment.variable_name};
+    TypeInfo operand_types[2] = {assignment.type_info, other_assignment.type_info};
+    render_operation(compiler, &assignment, op_type, operand_reprs, operand_types);
+}
+
 static void
 compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
-        UNIMPLEMENTED("assignment op_type not implemented");
-    if (stmt->assignment->storage->operations_count != 0)
-        compile_complex_assignment(compiler, section, stmt);
-    else
-        compile_simple_assignment(compiler, section, stmt);
+    if (stmt->assignment->storage->operations_count != 0) {
+        if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
+            compile_complex_op_assignment(compiler, section, stmt);
+        else
+            compile_complex_assignment(compiler, section, stmt);
+    }
+    else {
+        if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
+            compile_simple_op_assignment(compiler, section, stmt);
+        else
+            compile_simple_assignment(compiler, section, stmt);
+    }
 }
 
 static void
@@ -2790,6 +2868,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
             .loc = &stmt->loc,
             .section = section,
             .type_info = stmt->annotation->type,
+            .user_defined_variable_name = sym->variable->identifier,
             .variable_name = sym->variable->ns_ident,
             .is_declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
