@@ -1,6 +1,8 @@
 #ifndef OBJECT_MODEL_H
 #define OBJECT_MODEL_H
 
+#include "generated.h"
+
 typedef enum {
     NOT_IN_OBJECT_MODEL,
     OBJECT_MODEL_INIT,
@@ -73,5 +75,6 @@ typedef enum {
 } ObjectModel;
 
 ObjectModel cstr_to_object_model(char* cstr);
+ObjectModel op_assignment_to_object_model(Operator op_type);
 
 #endif

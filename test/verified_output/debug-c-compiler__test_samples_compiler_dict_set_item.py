@@ -17,13 +17,15 @@ PYDICT dict_set_item_d;
 static void init_module(void) {
 dict_set_item_d = DICT_INIT(PYINT, PYSTRING, void_int_eq);
 PYDICT NP_var0 = dict_set_item_d;
-PYINT NP_var1 = 10;
-PYSTRING NP_var2 = NOT_PYTHON_STRING_CONSTANTS[0];
-dict_set_item(NP_var0, &NP_var1, &NP_var2);
-PYDICT NP_var3 = dict_set_item_d;
-PYINT NP_var4 = 20;
+PYSTRING NP_var1 = NOT_PYTHON_STRING_CONSTANTS[0];
+PYINT NP_var2 = 10;
+PYSTRING NP_var3 = NOT_PYTHON_STRING_CONSTANTS[0];
+dict_set_item(NP_var0, &NP_var2, &NP_var3);
+PYDICT NP_var4 = dict_set_item_d;
 PYSTRING NP_var5 = NOT_PYTHON_STRING_CONSTANTS[1];
-dict_set_item(NP_var3, &NP_var4, &NP_var5);
+PYINT NP_var6 = 20;
+PYSTRING NP_var7 = NOT_PYTHON_STRING_CONSTANTS[1];
+dict_set_item(NP_var4, &NP_var6, &NP_var7);
 }
 
 // MAIN FUNCTION COMPILER SECTION

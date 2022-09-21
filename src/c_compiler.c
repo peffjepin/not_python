@@ -2545,39 +2545,12 @@ declare_variable(
 
 static void
 render_list_set_item(
-    C_Compiler* compiler, C_Assignment list_assignment, AssignmentStatement* stmt
+    C_Compiler* compiler,
+    C_Assignment list_assignment,
+    char* idx_variable,
+    char* val_variable
 )
 {
-    Operand last_operand =
-        stmt->storage->operands
-            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
-
-    if (last_operand.kind == OPERAND_SLICE)
-        UNIMPLEMENTED("list setitem from slice is unimplemented");
-    // render index to a variable
-    GENERATE_UNIQUE_VAR_NAME(compiler, index_var);
-    C_Assignment index_assignment = {
-        .section = list_assignment.section,
-        .type_info.type = PYTYPE_INT,
-        .variable_name = index_var,
-        .is_declared = false};
-    if (last_operand.kind == OPERAND_TOKEN)
-        render_simple_operand(compiler, &index_assignment, last_operand);
-    else if (last_operand.kind == OPERAND_EXPRESSION)
-        render_expression_assignment(compiler, &index_assignment, last_operand.expr);
-    else
-        UNREACHABLE("unexpected operand kind for setitem index")
-
-    // render item to a variable
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
-    C_Assignment item_assignment = {
-        .section = list_assignment.section,
-        .type_info = list_assignment.type_info.inner->types[0],
-        .variable_name = item_var,
-        .is_declared = false};
-    render_expression_assignment(compiler, &item_assignment, stmt->value);
-
-    // render setitem
     write_many_to_section(
         list_assignment.section,
         "LIST_SET_ITEM(",
@@ -2585,87 +2558,44 @@ render_list_set_item(
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_assignment.type_info.inner->types[0]),
         ", ",
-        index_var,
+        idx_variable,
         ", ",
-        item_var,
+        val_variable,
         ");\n",
         NULL
     );
 }
 
 static void
-render_dict_set_item(
-    C_Compiler* compiler, C_Assignment dict_assignment, AssignmentStatement* stmt
-)
+render_dict_set_item(C_Assignment dict_assignment, char* key_variable, char* val_variable)
 {
-    Operand last_operand =
-        stmt->storage->operands
-            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
-
-    TypeInfo key_type_info = dict_assignment.type_info.inner->types[0];
-    TypeInfo val_type_info = dict_assignment.type_info.inner->types[1];
-
-    // render key to a variable
-    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
-    C_Assignment key_assignment = {
-        .section = dict_assignment.section,
-        .type_info = key_type_info,
-        .variable_name = key_variable,
-        .is_declared = false};
-    if (last_operand.kind == OPERAND_TOKEN)
-        render_simple_operand(compiler, &key_assignment, last_operand);
-    else if (last_operand.kind == OPERAND_EXPRESSION)
-        render_expression_assignment(compiler, &key_assignment, last_operand.expr);
-    else
-        UNREACHABLE("unexpected operand kind for dict setitem key")
-
-    // render val to a variable
-    GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
-    C_Assignment val_assignment = {
-        .section = dict_assignment.section,
-        .type_info = val_type_info,
-        .variable_name = val_variable,
-        .is_declared = false};
-    render_expression_assignment(compiler, &val_assignment, stmt->value);
-
-    // render set item operation
     write_many_to_section(
         dict_assignment.section,
         "dict_set_item(",
         dict_assignment.variable_name,
         ", &",
-        key_assignment.variable_name,
+        key_variable,
         ", &",
-        val_assignment.variable_name,
+        val_variable,
         ");\n",
         NULL
     );
 }
 
-static void
-render_object_set_attr(
-    C_Compiler* compiler, C_Assignment object_assignment, AssignmentStatement* stmt
-)
-{
-    Operand last_operand =
-        stmt->storage->operands
-            [stmt->storage->operations[stmt->storage->operations_count - 1].right];
-    ClassStatement* clsdef = object_assignment.type_info.cls;
-
-    C_Assignment assignment = {
-        .section = object_assignment.section,
-        .type_info =
-            get_class_member_type_info(compiler, clsdef, last_operand.token.value),
-        .variable_name = sb_build(
-            &compiler->sb,
-            object_assignment.variable_name,
-            "->",
-            last_operand.token.value,
-            NULL
-        ),
-        .is_declared = true};
-    render_expression_assignment(compiler, &assignment, stmt->value);
-}
+static Operator OP_ASSIGNMENT_TO_OP_TABLE[OPERATORS_MAX] = {
+    [OPERATOR_PLUS_ASSIGNMENT] = OPERATOR_PLUS,
+    [OPERATOR_MINUS_ASSIGNMENT] = OPERATOR_MINUS,
+    [OPERATOR_MULT_ASSIGNMENT] = OPERATOR_MULT,
+    [OPERATOR_DIV_ASSIGNMENT] = OPERATOR_DIV,
+    [OPERATOR_MOD_ASSIGNMENT] = OPERATOR_MOD,
+    [OPERATOR_FLOORDIV_ASSIGNMENT] = OPERATOR_FLOORDIV,
+    [OPERATOR_POW_ASSIGNMENT] = OPERATOR_POW,
+    [OPERATOR_AND_ASSIGNMENT] = OPERATOR_BITWISE_AND,
+    [OPERATOR_OR_ASSIGNMENT] = OPERATOR_BITWISE_OR,
+    [OPERATOR_XOR_ASSIGNMENT] = OPERATOR_BITWISE_XOR,
+    [OPERATOR_RSHIFT_ASSIGNMENT] = OPERATOR_RSHIFT,
+    [OPERATOR_LSHIFT_ASSIGNMENT] = OPERATOR_LSHIFT,
+};
 
 static void
 compile_complex_assignment(
@@ -2674,52 +2604,178 @@ compile_complex_assignment(
 {
     Operation last_op = stmt->assignment->storage
                             ->operations[stmt->assignment->storage->operations_count - 1];
+    Operand last_operand = stmt->assignment->storage->operands[last_op.right];
+
+    // render all but the last operation of left hand side to a variable
+    //      ex: a.b.c.d              would render a.b.c to a variable
+    //      ex: [1, 2, 3].copy()     would render [1,2,3] to a variable
+    Expression container_expr = *stmt->assignment->storage;
+    container_expr.operations_count -= 1;
+    GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
+    C_Assignment container_assignment = {
+        .section = section, .variable_name = container_variable, .is_declared = false};
+    render_expression_assignment(compiler, &container_assignment, &container_expr);
 
     if (last_op.op_type == OPERATOR_GET_ITEM) {
-        Expression container_expr = *stmt->assignment->storage;
-        container_expr.operations_count -= 1;
-        GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
-        C_Assignment container_assignment = {
-            .section = section,
-            .variable_name = container_variable,
-            .is_declared = false};
-        render_expression_assignment(compiler, &container_assignment, &container_expr);
+        // set key/val expected types
+        TypeInfo key_type_info;
+        TypeInfo val_type_info;
         switch (container_assignment.type_info.type) {
             case PYTYPE_LIST: {
-                render_list_set_item(compiler, container_assignment, stmt->assignment);
+                key_type_info.type = PYTYPE_INT;
+                val_type_info = container_assignment.type_info.inner->types[0];
                 break;
             }
-            case PYTYPE_DICT:
-                render_dict_set_item(compiler, container_assignment, stmt->assignment);
+            case PYTYPE_DICT: {
+                key_type_info = container_assignment.type_info.inner->types[0];
+                val_type_info = container_assignment.type_info.inner->types[1];
                 break;
+            }
+            default:
+                UNIMPLEMENTED("setitem not implemented for this data type");
+        }
+
+        // render key to a variable
+        GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
+        C_Assignment key_assignment = {
+            .section = container_assignment.section,
+            .type_info = key_type_info,
+            .variable_name = key_variable,
+            .is_declared = false};
+        render_operand(compiler, &key_assignment, last_operand);
+
+        // render value to a variable
+        GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
+        if (stmt->assignment->op_type == OPERATOR_ASSIGNMENT) {
+            C_Assignment val_assignment = {
+                .section = container_assignment.section,
+                .type_info = val_type_info,
+                .variable_name = val_variable,
+                .is_declared = false};
+            render_expression_assignment(
+                compiler, &val_assignment, stmt->assignment->value
+            );
+        }
+        else {
+            // getitem
+            GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
+            C_Assignment current_val_assignment = {
+                .section = container_assignment.section,
+                .type_info = val_type_info,
+                .variable_name = current_val_variable,
+                .is_declared = false};
+            char* current_reprs[2] = {
+                container_assignment.variable_name, key_assignment.variable_name};
+            TypeInfo current_types[2] = {
+                container_assignment.type_info, key_assignment.type_info};
+            render_operation(
+                compiler,
+                &current_val_assignment,
+                OPERATOR_GET_ITEM,
+                current_reprs,
+                current_types
+            );
+
+            // right side expression
+            GENERATE_UNIQUE_VAR_NAME(compiler, other_val_variable);
+            C_Assignment other_val_assignment = {
+                .section = container_assignment.section,
+                .variable_name = other_val_variable,
+                .is_declared = false};
+            render_expression_assignment(
+                compiler, &other_val_assignment, stmt->assignment->value
+            );
+
+            // combine current value with right side expression
+            Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
+            C_Assignment val_assignment = {
+                .section = container_assignment.section,
+                .type_info = val_type_info,
+                .variable_name = val_variable,
+                .is_declared = false};
+            char* new_reprs[2] = {current_val_variable, other_val_variable};
+            TypeInfo new_types[2] = {
+                current_val_assignment.type_info, other_val_assignment.type_info};
+            render_operation(compiler, &val_assignment, op_type, new_reprs, new_types);
+        }
+        switch (container_assignment.type_info.type) {
+            case PYTYPE_LIST: {
+                render_list_set_item(
+                    compiler, container_assignment, key_variable, val_variable
+                );
+                return;
+            }
+            case PYTYPE_DICT: {
+                render_dict_set_item(container_assignment, key_variable, val_variable);
+                return;
+            }
             default:
                 UNIMPLEMENTED("setitem not implemented for this data type");
         }
     }
     else if (last_op.op_type == OPERATOR_GET_ATTR) {
-        Expression first_part = *stmt->assignment->storage;
-        first_part.operations_count -= 1;
-        GENERATE_UNIQUE_VAR_NAME(compiler, first_part_variable);
-        C_Assignment first_part_assignment = {
-            .section = section,
-            .variable_name = first_part_variable,
-            .is_declared = false};
-        render_expression_assignment(compiler, &first_part_assignment, &first_part);
-        if (first_part_assignment.type_info.type != PYTYPE_OBJECT) {
+        if (container_assignment.type_info.type != PYTYPE_OBJECT) {
             UNIMPLEMENTED("setattr for this type not implemented");
         }
-        render_object_set_attr(compiler, first_part_assignment, stmt->assignment);
+        ClassStatement* clsdef = container_assignment.type_info.cls;
+        TypeInfo member_type =
+            get_class_member_type_info(compiler, clsdef, last_operand.token.value);
+        C_Assignment assignment = {
+            .section = container_assignment.section,
+            .type_info = member_type,
+            .variable_name = sb_build(
+                &compiler->sb,
+                container_assignment.variable_name,
+                "->",
+                last_operand.token.value,
+                NULL
+            ),
+            .is_declared = true};
+
+        if (stmt->assignment->op_type == OPERATOR_ASSIGNMENT) {
+            // regular assignment
+            render_expression_assignment(compiler, &assignment, stmt->assignment->value);
+        }
+        else {
+            // op assignment
+            Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
+
+            // render getattr
+            GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
+            C_Assignment current_val_assignment = {
+                .section = container_assignment.section,
+                .type_info = member_type,
+                .variable_name = current_val_variable,
+
+            };
+            render_getattr_operation(
+                compiler,
+                &current_val_assignment,
+                container_assignment.variable_name,
+                container_assignment.type_info,
+                last_operand.token.value
+            );
+
+            // render right hand side to variable
+            GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
+            C_Assignment other_assignment = {
+                .section = container_assignment.section,
+                .type_info = member_type,
+                .variable_name = other_variable};
+            render_expression_assignment(
+                compiler, &other_assignment, stmt->assignment->value
+            );
+
+            // render operation to combine current value with new expression
+            char* reprs[2] = {current_val_variable, other_variable};
+            TypeInfo types[2] = {
+                current_val_assignment.type_info, other_assignment.type_info};
+            render_operation(compiler, &assignment, op_type, reprs, types);
+        }
+        return;
     }
     else
-        UNIMPLEMENTED("complex assignment compilation unimplemented");
-}
-
-static void
-compile_complex_op_assignment(
-    C_Compiler* compiler, CompilerSection* section, Statement* stmt
-)
-{
-    UNIMPLEMENTED("complex op assignment not implemented");
+        UNIMPLEMENTED("complex assignment compilation unimplemented for op type");
 }
 
 static void
@@ -2768,21 +2824,6 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
         );
 }
 
-static Operator OP_ASSIGNMENT_TO_OP_TABLE[OPERATORS_MAX] = {
-    [OPERATOR_PLUS_ASSIGNMENT] = OPERATOR_PLUS,
-    [OPERATOR_MINUS_ASSIGNMENT] = OPERATOR_MINUS,
-    [OPERATOR_MULT_ASSIGNMENT] = OPERATOR_MULT,
-    [OPERATOR_DIV_ASSIGNMENT] = OPERATOR_DIV,
-    [OPERATOR_MOD_ASSIGNMENT] = OPERATOR_MOD,
-    [OPERATOR_FLOORDIV_ASSIGNMENT] = OPERATOR_FLOORDIV,
-    [OPERATOR_POW_ASSIGNMENT] = OPERATOR_POW,
-    [OPERATOR_AND_ASSIGNMENT] = OPERATOR_BITWISE_AND,
-    [OPERATOR_OR_ASSIGNMENT] = OPERATOR_BITWISE_OR,
-    [OPERATOR_XOR_ASSIGNMENT] = OPERATOR_BITWISE_XOR,
-    [OPERATOR_RSHIFT_ASSIGNMENT] = OPERATOR_RSHIFT,
-    [OPERATOR_LSHIFT_ASSIGNMENT] = OPERATOR_LSHIFT,
-};
-
 static void
 compile_simple_op_assignment(
     C_Compiler* compiler, CompilerSection* section, Statement* stmt
@@ -2830,12 +2871,8 @@ compile_simple_op_assignment(
 static void
 compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    if (stmt->assignment->storage->operations_count != 0) {
-        if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
-            compile_complex_op_assignment(compiler, section, stmt);
-        else
-            compile_complex_assignment(compiler, section, stmt);
-    }
+    if (stmt->assignment->storage->operations_count != 0)
+        compile_complex_assignment(compiler, section, stmt);
     else {
         if (stmt->assignment->op_type != OPERATOR_ASSIGNMENT)
             compile_simple_op_assignment(compiler, section, stmt);
