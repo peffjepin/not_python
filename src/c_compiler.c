@@ -2854,18 +2854,76 @@ compile_simple_op_assignment(
         .section = section, .variable_name = other_variable, .is_declared = false};
     render_expression_assignment(compiler, &other_assignment, stmt->assignment->value);
 
-    C_Assignment assignment = {
-        .section = section,
-        .variable_name = variable_name,
-        .user_defined_variable_name = real_var_name,
-        .type_info = *symtype,
-        .is_declared = true,
-        .loc = &stmt->loc,
-    };
+    if (symtype->type == PYTYPE_OBJECT) {
+        ClassStatement* clsdef = symtype->cls;
+        ObjectModel om = op_assignment_to_object_model(stmt->assignment->op_type);
+        FunctionStatement* fndef = clsdef->object_model_methods[om];
 
-    char* operand_reprs[2] = {assignment.variable_name, other_assignment.variable_name};
-    TypeInfo operand_types[2] = {assignment.type_info, other_assignment.type_info};
-    render_operation(compiler, &assignment, op_type, operand_reprs, operand_types);
+        if (!fndef) {
+            static const size_t buflen = 1024;
+            char object_type_hr[buflen];
+            render_type_info_human_readable(*symtype, object_type_hr, buflen);
+            type_errorf(
+                compiler->file_index,
+                stmt->loc,
+                "type `%s` does not support `%s` operation",
+                object_type_hr,
+                op_to_cstr(stmt->assignment->op_type)
+            );
+        }
+        if (!compare_types(other_assignment.type_info, fndef->sig.types[1])) {
+            static const size_t buflen = 1024;
+            char object_type_hr[buflen];
+            render_type_info_human_readable(*symtype, object_type_hr, buflen);
+            char rvalue_type_hr[buflen];
+            render_type_info_human_readable(
+                other_assignment.type_info, rvalue_type_hr, buflen
+            );
+            type_errorf(
+                compiler->file_index,
+                stmt->loc,
+                "type `%s` does not support `%s` operation with `%s` rtype",
+                object_type_hr,
+                op_to_cstr(stmt->assignment->op_type),
+                rvalue_type_hr
+            );
+        }
+
+        C_Assignment assignment = {
+            .section = section,
+            .variable_name = variable_name,
+            .user_defined_variable_name = real_var_name,
+            .type_info = *symtype,
+            .is_declared = true,
+            .loc = &stmt->loc,
+        };
+        prepare_c_assignment_for_rendering(compiler, &assignment);
+        write_many_to_section(
+            section,
+            fndef->ns_ident,
+            "(",
+            variable_name,
+            ", ",
+            other_assignment.variable_name,
+            ");\n",
+            NULL
+        );
+    }
+    else {
+        C_Assignment assignment = {
+            .section = section,
+            .variable_name = variable_name,
+            .user_defined_variable_name = real_var_name,
+            .type_info = *symtype,
+            .is_declared = true,
+            .loc = &stmt->loc,
+        };
+
+        char* operand_reprs[2] = {
+            assignment.variable_name, other_assignment.variable_name};
+        TypeInfo operand_types[2] = {assignment.type_info, other_assignment.type_info};
+        render_operation(compiler, &assignment, op_type, operand_reprs, operand_types);
+    }
 }
 
 static void
