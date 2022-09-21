@@ -154,9 +154,13 @@ static void
 run_program(char* program_name)
 {
     ShortString str = {0};
-    str.data[0] = '.';
-    str.data[1] = '/';
-    memcpy(str.data + 2, program_name, strlen(program_name));
+    size_t offset = 0;
+    if (program_name[0] != '/') {
+        offset = 2;
+        str.data[0] = '.';
+        str.data[1] = '/';
+    }
+    memcpy(str.data + offset, program_name, strlen(program_name));
     char* const argv[] = {str.data, NULL};
     fork_and_run_sync(argv);
 }
