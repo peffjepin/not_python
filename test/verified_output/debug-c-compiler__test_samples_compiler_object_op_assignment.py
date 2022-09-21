@@ -15,9 +15,9 @@ object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* 
 // FUNCTION DEFINITIONS COMPILER SECTION
 object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* self, PYINT other) {
 object_op_assignment_A* NP_var0 = self;
-PYINT NP_var1 = NP_var0->value;
-PYINT NP_var2 = other;
-NP_var0->value = NP_var1+NP_var2;
+PYINT NP_var1 = other;
+PYINT NP_var2 = NP_var0->value;
+NP_var0->value = NP_var2+NP_var1;
 object_op_assignment_A* NP_var3 = self;
 return NP_var3;
 }

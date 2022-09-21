@@ -137,7 +137,7 @@ def verify_new_entry_with_user(test_key, checksum, output):
 
 
 def print_failing_test_case(test_key, output):
-    print("#" * LINE_LENGTH * 1.3)
+    print("#" * int(LINE_LENGTH * 1.3))
 
     print("FAILED TEST CASE:")
     print_labeled_separator(test_key)

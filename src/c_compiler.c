@@ -2598,10 +2598,68 @@ static Operator OP_ASSIGNMENT_TO_OP_TABLE[OPERATORS_MAX] = {
 };
 
 static void
+render_object_op_assignment(
+    C_Compiler* compiler,
+    C_Assignment obj_assignment,
+    C_Assignment other_assignment,
+    Operator op_assignment_type
+)
+{
+    ClassStatement* clsdef = obj_assignment.type_info.cls;
+    ObjectModel om = op_assignment_to_object_model(op_assignment_type);
+    FunctionStatement* fndef = clsdef->object_model_methods[om];
+
+    if (!fndef) {
+        static const size_t buflen = 1024;
+        char object_type_hr[buflen];
+        render_type_info_human_readable(obj_assignment.type_info, object_type_hr, buflen);
+        type_errorf(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "type `%s` does not support `%s` operation",
+            object_type_hr,
+            op_to_cstr(op_assignment_type)
+        );
+    }
+    if (!compare_types(other_assignment.type_info, fndef->sig.types[1])) {
+        static const size_t buflen = 1024;
+        char object_type_hr[buflen];
+        render_type_info_human_readable(obj_assignment.type_info, object_type_hr, buflen);
+        char rvalue_type_hr[buflen];
+        render_type_info_human_readable(
+            other_assignment.type_info, rvalue_type_hr, buflen
+        );
+        type_errorf(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "type `%s` does not support `%s` operation with `%s` rtype",
+            object_type_hr,
+            op_to_cstr(op_assignment_type),
+            rvalue_type_hr
+        );
+    }
+
+    prepare_c_assignment_for_rendering(compiler, &obj_assignment);
+    write_many_to_section(
+        obj_assignment.section,
+        fndef->ns_ident,
+        "(",
+        obj_assignment.variable_name,
+        ", ",
+        other_assignment.variable_name,
+        ");\n",
+        NULL
+    );
+}
+
+static void
 compile_complex_assignment(
     C_Compiler* compiler, CompilerSection* section, Statement* stmt
 )
 {
+    // TODO: in the future I might want to try and break up this function
+    // it was broken up in the past but was quite awkward as such.
+    //
     Operation last_op = stmt->assignment->storage
                             ->operations[stmt->assignment->storage->operations_count - 1];
     Operand last_operand = stmt->assignment->storage->operands[last_op.right];
@@ -2686,17 +2744,32 @@ compile_complex_assignment(
                 compiler, &other_val_assignment, stmt->assignment->value
             );
 
+            // render __iadd__, __isub__... object model method
+            if (current_val_assignment.type_info.type == PYTYPE_OBJECT) {
+                current_val_assignment.is_declared = true;
+                render_object_op_assignment(
+                    compiler,
+                    current_val_assignment,
+                    other_val_assignment,
+                    stmt->assignment->op_type
+                );
+                return;
+            }
             // combine current value with right side expression
-            Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
-            C_Assignment val_assignment = {
-                .section = container_assignment.section,
-                .type_info = val_type_info,
-                .variable_name = val_variable,
-                .is_declared = false};
-            char* new_reprs[2] = {current_val_variable, other_val_variable};
-            TypeInfo new_types[2] = {
-                current_val_assignment.type_info, other_val_assignment.type_info};
-            render_operation(compiler, &val_assignment, op_type, new_reprs, new_types);
+            else {
+                Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
+                C_Assignment val_assignment = {
+                    .section = container_assignment.section,
+                    .type_info = val_type_info,
+                    .variable_name = val_variable,
+                    .is_declared = false};
+                char* new_reprs[2] = {current_val_variable, other_val_variable};
+                TypeInfo new_types[2] = {
+                    current_val_assignment.type_info, other_val_assignment.type_info};
+                render_operation(
+                    compiler, &val_assignment, op_type, new_reprs, new_types
+                );
+            }
         }
         switch (container_assignment.type_info.type) {
             case PYTYPE_LIST: {
@@ -2740,37 +2813,44 @@ compile_complex_assignment(
             // op assignment
             Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
 
-            // render getattr
-            GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
-            C_Assignment current_val_assignment = {
-                .section = container_assignment.section,
-                .type_info = member_type,
-                .variable_name = current_val_variable,
-
-            };
-            render_getattr_operation(
-                compiler,
-                &current_val_assignment,
-                container_assignment.variable_name,
-                container_assignment.type_info,
-                last_operand.token.value
-            );
-
             // render right hand side to variable
             GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
             C_Assignment other_assignment = {
-                .section = container_assignment.section,
-                .type_info = member_type,
-                .variable_name = other_variable};
+                .section = container_assignment.section, .variable_name = other_variable};
             render_expression_assignment(
                 compiler, &other_assignment, stmt->assignment->value
             );
 
-            // render operation to combine current value with new expression
-            char* reprs[2] = {current_val_variable, other_variable};
-            TypeInfo types[2] = {
-                current_val_assignment.type_info, other_assignment.type_info};
-            render_operation(compiler, &assignment, op_type, reprs, types);
+            // render op assignment object model method (__iadd__, __isub__, ...)
+            if (member_type.type == PYTYPE_OBJECT) {
+                render_object_op_assignment(
+                    compiler, assignment, other_assignment, stmt->assignment->op_type
+                );
+            }
+            // set member to current_value (op_type) new value
+            else {
+                // render getattr
+                GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
+                C_Assignment current_val_assignment = {
+                    .section = container_assignment.section,
+                    .type_info = member_type,
+                    .variable_name = current_val_variable,
+
+                };
+                render_getattr_operation(
+                    compiler,
+                    &current_val_assignment,
+                    container_assignment.variable_name,
+                    container_assignment.type_info,
+                    last_operand.token.value
+                );
+
+                // render operation to combine current value with new expression
+                char* reprs[2] = {current_val_variable, other_variable};
+                TypeInfo types[2] = {
+                    current_val_assignment.type_info, other_assignment.type_info};
+                render_operation(compiler, &assignment, op_type, reprs, types);
+            }
         }
         return;
     }
@@ -2854,71 +2934,21 @@ compile_simple_op_assignment(
         .section = section, .variable_name = other_variable, .is_declared = false};
     render_expression_assignment(compiler, &other_assignment, stmt->assignment->value);
 
+    C_Assignment assignment = {
+        .section = section,
+        .variable_name = variable_name,
+        .user_defined_variable_name = real_var_name,
+        .type_info = *symtype,
+        .is_declared = true,
+        .loc = &stmt->loc,
+    };
+
     if (symtype->type == PYTYPE_OBJECT) {
-        ClassStatement* clsdef = symtype->cls;
-        ObjectModel om = op_assignment_to_object_model(stmt->assignment->op_type);
-        FunctionStatement* fndef = clsdef->object_model_methods[om];
-
-        if (!fndef) {
-            static const size_t buflen = 1024;
-            char object_type_hr[buflen];
-            render_type_info_human_readable(*symtype, object_type_hr, buflen);
-            type_errorf(
-                compiler->file_index,
-                stmt->loc,
-                "type `%s` does not support `%s` operation",
-                object_type_hr,
-                op_to_cstr(stmt->assignment->op_type)
-            );
-        }
-        if (!compare_types(other_assignment.type_info, fndef->sig.types[1])) {
-            static const size_t buflen = 1024;
-            char object_type_hr[buflen];
-            render_type_info_human_readable(*symtype, object_type_hr, buflen);
-            char rvalue_type_hr[buflen];
-            render_type_info_human_readable(
-                other_assignment.type_info, rvalue_type_hr, buflen
-            );
-            type_errorf(
-                compiler->file_index,
-                stmt->loc,
-                "type `%s` does not support `%s` operation with `%s` rtype",
-                object_type_hr,
-                op_to_cstr(stmt->assignment->op_type),
-                rvalue_type_hr
-            );
-        }
-
-        C_Assignment assignment = {
-            .section = section,
-            .variable_name = variable_name,
-            .user_defined_variable_name = real_var_name,
-            .type_info = *symtype,
-            .is_declared = true,
-            .loc = &stmt->loc,
-        };
-        prepare_c_assignment_for_rendering(compiler, &assignment);
-        write_many_to_section(
-            section,
-            fndef->ns_ident,
-            "(",
-            variable_name,
-            ", ",
-            other_assignment.variable_name,
-            ");\n",
-            NULL
+        render_object_op_assignment(
+            compiler, assignment, other_assignment, stmt->assignment->op_type
         );
     }
     else {
-        C_Assignment assignment = {
-            .section = section,
-            .variable_name = variable_name,
-            .user_defined_variable_name = real_var_name,
-            .type_info = *symtype,
-            .is_declared = true,
-            .loc = &stmt->loc,
-        };
-
         char* operand_reprs[2] = {
             assignment.variable_name, other_assignment.variable_name};
         TypeInfo operand_types[2] = {assignment.type_info, other_assignment.type_info};

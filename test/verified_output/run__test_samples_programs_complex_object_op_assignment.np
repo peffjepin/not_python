@@ -1,0 +1,5 @@
+B(a=A(value=2))
+A(value=101) A(value=2) A(value=3)
+B(a=A(value=101)) B(a=A(value=2)) B(a=A(value=3))
+
+exitcode=0
