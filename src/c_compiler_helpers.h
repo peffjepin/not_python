@@ -18,16 +18,16 @@
 #define DATATYPE_DICT "PYDICT"
 #define DATATYPE_ITER "PYITER"
 
-char* create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
+SourceString create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
 
 typedef struct {
     size_t capacity;
     size_t count;
-    StringView* elements;
+    SourceString* elements;
     int* lookup;
 } StringHashmap;
 
-size_t str_hm_put(StringHashmap* hm, StringView element);
+size_t str_hm_put(StringHashmap* hm, SourceString element);
 int str_hm_put_cstr(StringHashmap* hm, char* element);
 void str_hm_free(StringHashmap* hm);
 
@@ -54,7 +54,7 @@ typedef struct {
 
 StringBuilder sb_init();
 void sb_free(StringBuilder* sb);
-char* sb_build(StringBuilder* sb, ...);
+SourceString sb_build(StringBuilder* sb, ...);
 
 void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
 const char* type_info_to_c_syntax(StringBuilder* sb, TypeInfo info);

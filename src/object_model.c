@@ -28,9 +28,12 @@ op_assignment_to_object_model(Operator op_type)
 }
 
 ObjectModel
-cstr_to_object_model(char* cstr)
+source_string_to_object_model(SourceString str)
 {
-    if (!cstr) return NOT_IN_OBJECT_MODEL;
+    if (!str.data) return NOT_IN_OBJECT_MODEL;
+    if (str.length < 6) return NOT_IN_OBJECT_MODEL;
+
+    char* cstr = str.data;
     if (*cstr++ != '_') return NOT_IN_OBJECT_MODEL;
     if (*cstr++ != '_') return NOT_IN_OBJECT_MODEL;
 

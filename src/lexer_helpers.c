@@ -65,14 +65,10 @@
         return arena_dynamic_finalize(vec->arena, vec->data, sizeof(type) * vec->count); \
     }
 
-// kind of a hack to define StringVector without having to typedef String
-#define String char
-PTR_VECTOR_DEFINITION(String, str)
-#undef String
-
 PTR_VECTOR_DEFINITION(Expression, expr)
 PTR_VECTOR_DEFINITION(ItGroup, itgroup)
 PTR_VECTOR_DEFINITION(Statement, stmt)
+VALUE_VECTOR_DEFINITION(SourceString, str)
 VALUE_VECTOR_DEFINITION(ItIdentifier, itid)
 VALUE_VECTOR_DEFINITION(ElifStatement, elif)
 VALUE_VECTOR_DEFINITION(ExceptStatement, except)

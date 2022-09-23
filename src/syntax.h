@@ -89,7 +89,7 @@ struct Arguments {
     size_t values_count;
     size_t n_positional;
     Expression** values;
-    char** kwds;
+    SourceString* kwds;
 };
 
 struct Slice {
@@ -113,7 +113,7 @@ typedef struct {
     enum { IT_GROUP, IT_ID } kind;
     union {
         ItGroup* group;
-        char* name;
+        SourceString name;
     };
 } ItIdentifier;
 
@@ -155,14 +155,14 @@ struct Enclosure {
 
 typedef struct {
     size_t path_count;
-    char** dotted_path;
+    SourceString* dotted_path;
 } ImportPath;
 
 typedef struct {
     ImportPath from;
     size_t what_count;
-    char** what;
-    char** as;
+    SourceString* what;
+    SourceString* as;
 } ImportStatement;
 
 typedef struct {
@@ -190,8 +190,8 @@ typedef struct {
 
 typedef struct {
     size_t exceptions_count;
-    char** exceptions;
-    char* as;
+    SourceString* exceptions;
+    SourceString as;
     Block body;
 } ExceptStatement;
 
@@ -205,13 +205,13 @@ typedef struct {
 
 typedef struct {
     Expression* ctx_manager;
-    char* as;
+    SourceString as;
     Block body;
 } WithStatement;
 
 typedef struct {
     size_t params_count;
-    char** params;
+    SourceString* params;
     TypeInfo* types;
     size_t defaults_count;
     Expression** defaults;
@@ -219,18 +219,18 @@ typedef struct {
 } Signature;
 
 typedef struct {
-    char* name;
-    char* ns_ident;
+    SourceString name;
+    SourceString ns_ident;
     Signature sig;
     Block body;
     LexicalScope* scope;
 } FunctionStatement;
 
 struct ClassStatement {
-    char* name;
-    char* base;
-    char* ns_ident;
-    char* fmtstr;
+    SourceString name;
+    SourceString base;
+    SourceString ns_ident;
+    SourceString fmtstr;
     Signature sig;
     Block body;
     LexicalScope* scope;
@@ -244,7 +244,7 @@ typedef struct {
 } AssignmentStatement;
 
 typedef struct {
-    char* identifier;
+    SourceString identifier;
     TypeInfo type;
     Expression* initial;
 } AnnotationStatement;
@@ -302,8 +302,8 @@ struct Statement {
 // it lives here for now
 
 struct Variable {
-    char* identifier;
-    char* ns_ident;
+    SourceString identifier;
+    SourceString ns_ident;
     TypeInfo type;
     bool declared;
 };
@@ -318,8 +318,8 @@ struct Variable {
 // This struct is to allow for this behavior while a standard variable
 // is defined only once and when it's type is determined it is immutable.
 typedef struct {
-    char* identifier;
-    char* current_id;
+    SourceString identifier;
+    SourceString current_id;
     TypeInfo type;
     bool directly_in_scope;  // type is immutable while directly in scope
 } SemiScopedVariable;
@@ -348,7 +348,7 @@ typedef struct {
 
 SymbolHashmap symbol_hm_init(Arena* arena);
 void symbol_hm_put(SymbolHashmap* hm, Symbol element);
-Symbol* symbol_hm_get(SymbolHashmap* hm, char* identifier);
+Symbol* symbol_hm_get(SymbolHashmap* hm, SourceString identifier);
 void symbol_hm_finalize(SymbolHashmap* hm);
 
 struct LexicalScope {

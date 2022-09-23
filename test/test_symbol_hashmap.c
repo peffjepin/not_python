@@ -8,7 +8,7 @@
 static void
 assert_elems_eq(Symbol* elem1, Symbol* elem2)
 {
-    assert(strcmp(elem1->variable->identifier, elem2->variable->identifier) == 0);
+    assert(SOURCESTRING_EQ(elem1->variable->identifier, elem2->variable->identifier));
     assert(elem1->kind == elem2->kind);
 }
 
@@ -16,7 +16,7 @@ static Symbol
 make_test_symbol(char* ident)
 {
     Variable* sp = malloc(sizeof(Variable));
-    sp->identifier = ident;
+    sp->identifier.data = ident;
     return (Symbol){.kind = SYM_VARIABLE, .variable = sp};
 }
 

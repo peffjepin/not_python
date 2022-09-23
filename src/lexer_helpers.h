@@ -32,7 +32,7 @@
     } type##Vector;                                                                      \
     type##Vector prefix##_vector_init(Arena* arena);                                     \
     void prefix##_vector_append(type##Vector* vec, type* ptr);                           \
-    type** prefix##_vector_finalize(type##Vector* vec);
+    type** prefix##_vector_finalize(type##Vector* vec)
 
 #define VALUE_VECTOR_DECLARATION(type, prefix)                                           \
     typedef struct {                                                                     \
@@ -44,20 +44,16 @@
     } type##Vector;                                                                      \
     type##Vector prefix##_vector_init(Arena* arena);                                     \
     void prefix##_vector_append(type##Vector* vec, type value);                          \
-    type* prefix##_vector_finalize(type##Vector* vec);
+    type* prefix##_vector_finalize(type##Vector* vec)
 
-// kind of a hack to define StringVector without having to typedef String
-#define String char
-PTR_VECTOR_DECLARATION(String, str)
-#undef String
-
-PTR_VECTOR_DECLARATION(Expression, expr)
-PTR_VECTOR_DECLARATION(ItGroup, itgroup)
-PTR_VECTOR_DECLARATION(Statement, stmt)
-VALUE_VECTOR_DECLARATION(ItIdentifier, itid)
-VALUE_VECTOR_DECLARATION(ElifStatement, elif)
-VALUE_VECTOR_DECLARATION(ExceptStatement, except)
-VALUE_VECTOR_DECLARATION(TypeInfo, typing)
+PTR_VECTOR_DECLARATION(Expression, expr);
+PTR_VECTOR_DECLARATION(ItGroup, itgroup);
+PTR_VECTOR_DECLARATION(Statement, stmt);
+VALUE_VECTOR_DECLARATION(SourceString, str);
+VALUE_VECTOR_DECLARATION(ItIdentifier, itid);
+VALUE_VECTOR_DECLARATION(ElifStatement, elif);
+VALUE_VECTOR_DECLARATION(ExceptStatement, except);
+VALUE_VECTOR_DECLARATION(TypeInfo, typing);
 
 char* file_namespace(Arena* arena, const char* filepath);
 

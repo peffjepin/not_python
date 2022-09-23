@@ -66,9 +66,7 @@ void unspecified_errorf(FileIndex index, Location loc, char* fmt, ...);
 
 #define UNREACHABLE()                                                                    \
     do {                                                                                 \
-        diagnostic_printf(                                                               \
-            LABEL_UNREACHABLE, "%s:%i:%s: %s", __FILE__, __LINE__, __func__              \
-        );                                                                               \
+        diagnostic_printf(LABEL_UNREACHABLE, "%s:%i:%s", __FILE__, __LINE__, __func__);  \
         exit(1);                                                                         \
     } while (0)
 

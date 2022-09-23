@@ -85,7 +85,7 @@ render_operand(StringBuffer* str, Operand op)
                 str_concat_cstr(str, "True");
             }
             else {
-                str_concat_cstr(str, op.token.value);
+                str_concat_cstr(str, op.token.value.data);
             }
             break;
         case OPERAND_EXPRESSION: {
@@ -160,7 +160,7 @@ render_operand(StringBuffer* str, Operand op)
                     str_concat(str, &expr);
                 }
                 else {
-                    str_concat_cstr(str, args->kwds[kwds++]);
+                    str_concat_cstr(str, args->kwds[kwds++].data);
                     str_append_char(str, '=');
                     expr = render_expr(args->values[i]);
                     str_concat(str, &expr);
@@ -280,7 +280,7 @@ render_it_group(ItGroup* it)
         if (i > 0) str_concat_cstr(&buf, ", ");
         ItIdentifier id = it->identifiers[i];
         if (id.kind == IT_ID) {
-            str_concat_cstr(&buf, id.name);
+            str_concat_cstr(&buf, id.name.data);
         }
         else {
             StringBuffer group_render = render_it_group(id.group);
@@ -309,7 +309,7 @@ print_import_path(ImportPath path)
 {
     for (size_t i = 0; i < path.path_count; i++) {
         if (i > 0) printf(".");
-        printf("%s", path.dotted_path[i]);
+        printf("%s", path.dotted_path[i].data);
     }
 }
 
@@ -362,7 +362,7 @@ render_type_info(TypeInfo info)
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);
             break;
         case PYTYPE_OBJECT:
-            str_concat_cstr(&str, info.cls->name);
+            str_concat_cstr(&str, info.cls->name.data);
             break;
         default:
             str_concat_cstr(&str, "UnrecognizedTypeInfo");
@@ -374,9 +374,9 @@ render_type_info(TypeInfo info)
 void
 print_class_definition(ClassStatement* cls, int indent)
 {
-    indent_printf("class %s", cls->name);
-    if (cls->base) {
-        printf("(%s)", cls->base);
+    indent_printf("class %s", cls->name.data);
+    if (cls->base.data) {
+        printf("(%s)", cls->base.data);
     }
     printf(":\n");
 }
@@ -384,17 +384,19 @@ print_class_definition(ClassStatement* cls, int indent)
 void
 print_function_definition(FunctionStatement* func, int indent)
 {
-    indent_printf("def %s(", func->name);
+    indent_printf("def %s(", func->name.data);
     size_t positional_count = func->sig.params_count - func->sig.defaults_count;
     for (size_t i = 0; i < positional_count; i++) {
         if (i > 0) printf(", ");
-        printf("%s: %s", func->sig.params[i], render_type_info(func->sig.types[i]).data);
+        printf(
+            "%s: %s", func->sig.params[i].data, render_type_info(func->sig.types[i]).data
+        );
     }
     for (size_t i = 0; i < func->sig.defaults_count; i++) {
         if (i > 0 || positional_count > 0) printf(", ");
         printf(
             "%s: %s = %s",
-            func->sig.params[positional_count + i],
+            func->sig.params[positional_count + i].data,
             render_type_info(func->sig.types[positional_count + i]).data,
             render_expr(func->sig.defaults[i]).data
         );
@@ -438,8 +440,8 @@ print_statement(Statement* stmt, int indent)
                 printf(" import ");
                 for (size_t i = 0; i < stmt->import->what_count; i++) {
                     if (i > 0) printf(", ");
-                    printf("%s", stmt->import->what[i]);
-                    char* as = stmt->import->as[i];
+                    printf("%s", stmt->import->what[i].data);
+                    char* as = stmt->import->as[i].data;
                     if (as) printf(" as %s", as);
                 }
                 printf("\n");
@@ -448,7 +450,7 @@ print_statement(Statement* stmt, int indent)
                 printf("import ");
                 print_import_path(stmt->import->from);
                 if (stmt->import->as)
-                    printf(" as %s\n", stmt->import->as[0]);
+                    printf(" as %s\n", stmt->import->as[0].data);
                 else
                     printf("\n");
             }
@@ -486,13 +488,13 @@ print_statement(Statement* stmt, int indent)
                     printf("(");
                     for (size_t j = 0; j < except.exceptions_count; j++) {
                         if (j > 0) printf(", ");
-                        printf("%s", except.exceptions[j]);
+                        printf("%s", except.exceptions[j].data);
                     }
                     printf(")");
                 }
                 else
-                    printf("%s", except.exceptions[0]);
-                if (except.as != NULL) printf(" as %s", except.as);
+                    printf("%s", except.exceptions[0].data);
+                if (except.as.data != NULL) printf(" as %s", except.as.data);
                 printf(":\n");
                 print_block(except.body, indent + 4);
             }
@@ -510,7 +512,7 @@ print_statement(Statement* stmt, int indent)
         }
         case STMT_WITH: {
             indent_printf("with %s", render_expr(stmt->with->ctx_manager).data);
-            if (stmt->with->as) printf(" as %s", stmt->with->as);
+            if (stmt->with->as.data) printf(" as %s", stmt->with->as.data);
             printf(":\n");
             print_block(stmt->with->body, indent + 4);
             break;
@@ -541,7 +543,7 @@ print_statement(Statement* stmt, int indent)
         case STMT_ANNOTATION: {
             indent_printf(
                 "%s: %s",
-                stmt->annotation->identifier,
+                stmt->annotation->identifier.data,
                 render_type_info(stmt->annotation->type).data
             );
             if (stmt->annotation->initial)
@@ -572,7 +574,7 @@ print_token(Token tok)
     }
     else if (tok.type == TOK_IDENTIFIER || tok.type == TOK_NUMBER || tok.type == TOK_STRING) {
         printf(": ");
-        printf("%s", tok.value);
+        printf("%s", tok.value.data);
     }
     printf("\n");
 }
@@ -582,20 +584,20 @@ print_symbol(Symbol sym, int indent)
 {
     switch (sym.kind) {
         case SYM_VARIABLE:
-            indent_printf("%s\n", sym.variable->identifier);
+            indent_printf("%s\n", sym.variable->identifier.data);
             break;
         case SYM_SEMI_SCOPED:
-            indent_printf("%s\n", sym.semi_scoped->identifier);
+            indent_printf("%s\n", sym.semi_scoped->identifier.data);
             break;
         case SYM_FUNCTION:
-            indent_printf("%s:\n", sym.func->name);
+            indent_printf("%s:\n", sym.func->name.data);
             for (size_t i = 0; i < sym.func->scope->hm.elements_count; i++) {
                 Symbol inner = sym.func->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);
             }
             break;
         case SYM_CLASS:
-            indent_printf("%s:\n", sym.cls->name);
+            indent_printf("%s:\n", sym.cls->name.data);
             for (size_t i = 0; i < sym.cls->scope->hm.elements_count; i++) {
                 Symbol inner = sym.cls->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);

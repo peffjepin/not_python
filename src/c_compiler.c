@@ -207,37 +207,40 @@ prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignmen
     }
 }
 
+static const SourceString NONE_STR = {.data = "None", .length = 4};
+
 static char*
 simple_operand_repr(C_Compiler* compiler, Operand operand)
 {
     if (operand.token.type == TOK_IDENTIFIER) {
         // TODO: None should probably be a keyword
-        if (strcmp(operand.token.value, "None") == 0) return "NULL";
+        if (SOURCESTRING_EQ(operand.token.value, NONE_STR)) return "NULL";
         // TODO: should consider a way to avoid this lookup because it happens often
         LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
         Symbol* sym = symbol_hm_get(&scope->hm, operand.token.value);
         switch (sym->kind) {
             case SYM_SEMI_SCOPED:
-                return sym->semi_scoped->current_id;
+                return sym->semi_scoped->current_id.data;
             case SYM_VARIABLE:
-                return sym->variable->ns_ident;
+                return sym->variable->ns_ident.data;
             case SYM_FUNCTION:
-                return sym->func->ns_ident;
+                return sym->func->ns_ident.data;
             case SYM_CLASS:
-                return sym->cls->ns_ident;
+                return sym->cls->ns_ident.data;
         }
         UNREACHABLE();
     }
     else if (operand.token.type == TOK_NUMBER) {
-        return operand.token.value;
+        return operand.token.value.data;
     }
     else if (operand.token.type == TOK_STRING) {
-        size_t index = str_hm_put_cstr(&compiler->str_hm, operand.token.value);
+        size_t index = str_hm_put(&compiler->str_hm, operand.token.value);
         char strindex[10];
         sprintf(strindex, "%zu", index);
-        return sb_build(
+        SourceString str = sb_build(
             &compiler->sb, STRING_CONSTANTS_TABLE_NAME, "[", strindex, "]", NULL
         );
+        return str.data;
     }
     else if (operand.token.type == TOK_KEYWORD) {
         if (operand.token.kw == KW_TRUE)
@@ -447,10 +450,10 @@ render_enclosure_literal(
 // -1 on bad kwd
 // TODO: should check if parser even allows this to happen in the future
 static int
-index_of_kwarg(Signature sig, char* kwd)
+index_of_kwarg(Signature sig, SourceString kwd)
 {
     for (size_t i = 0; i < sig.params_count; i++) {
-        if (strcmp(kwd, sig.params[i]) == 0) return i;
+        if (SOURCESTRING_EQ(kwd, sig.params[i])) return i;
     }
     return -1;
 }
@@ -501,7 +504,7 @@ render_callable_args_to_variables(
 
     // parse kwargs
     for (size_t arg_i = args->n_positional; arg_i < args->values_count; arg_i++) {
-        char* kwd = args->kwds[arg_i - args->n_positional];
+        SourceString kwd = args->kwds[arg_i - args->n_positional];
         int param_i = index_of_kwarg(sig, kwd);
         if (param_i < 0) {
             type_errorf(
@@ -509,7 +512,7 @@ render_callable_args_to_variables(
                 compiler->current_operation_location,
                 "callable `%s` was given an unexpected keyword argument `%s`",
                 callable_name,
-                kwd
+                kwd.data
             );
         }
         params_fulfilled[param_i] = true;
@@ -528,7 +531,7 @@ render_callable_args_to_variables(
                 compiler->current_operation_location,
                 "callable `%s` missing required param `%s`",
                 callable_name,
-                sig.params[i]
+                sig.params[i].data
             );
         }
     }
@@ -563,7 +566,7 @@ render_function_call(
         assignment->section,
         args,
         fndef->sig,
-        fndef->name,
+        fndef->name.data,
         variable_names,
         false
     );
@@ -571,7 +574,7 @@ render_function_call(
     // write the call statement
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_to_section(assignment->section, fndef->ns_ident);
+    write_to_section(assignment->section, fndef->ns_ident.data);
     write_to_section(assignment->section, "(");
     for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
         if (arg_i > 0) write_to_section(assignment->section, ", ");
@@ -590,23 +593,25 @@ render_default_object_string_represntation(
 {
     // create a python string that looks like:
     //  ClassName(param1=param1_value, param2=param2_value...)
-    if (!clsdef->fmtstr)
+    if (!clsdef->fmtstr.data)
         // default fmt string expects all params to be first convereted into cstr
         clsdef->fmtstr = create_default_object_fmt_str(compiler->arena, clsdef);
 
     GENERATE_UNIQUE_VAR_NAMES(compiler, clsdef->sig.params_count, members_as_str);
     C_Assignment as_str_assignments[clsdef->sig.params_count];
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
+        SourceString varname = sb_build(
+            &compiler->sb,
+            object_assignment.variable_name,
+            "->",
+            clsdef->sig.params[i].data,
+            NULL
+        );
         C_Assignment fake_member_assignment = {
             .section = object_assignment.section,
             .type_info = clsdef->sig.types[i],
-            .variable_name = sb_build(
-                &compiler->sb,
-                object_assignment.variable_name,
-                "->",
-                clsdef->sig.params[i],
-                NULL
-            )};
+            .variable_name = varname.data,
+        };
         C_Assignment* to_string = as_str_assignments + i;
         to_string->section = object_assignment.section;
         to_string->type_info.type = PYTYPE_STRING;
@@ -616,7 +621,9 @@ render_default_object_string_represntation(
     }
 
     prepare_c_assignment_for_rendering(compiler, destination);
-    write_many_to_section(destination->section, "str_fmt(\"", clsdef->fmtstr, "\"", NULL);
+    write_many_to_section(
+        destination->section, "str_fmt(\"", clsdef->fmtstr.data, "\"", NULL
+    );
     for (size_t i = 0; i < clsdef->sig.params_count; i++)
         write_many_to_section(
             destination->section, ", np_str_to_cstr(", members_as_str[i], ")", NULL
@@ -635,7 +642,7 @@ convert_object_to_str(
         prepare_c_assignment_for_rendering(compiler, destination);
         write_many_to_section(
             destination->section,
-            user_defined_str->ns_ident,
+            user_defined_str->ns_ident.data,
             "(",
             object_assignment.variable_name,
             ")",
@@ -1171,13 +1178,14 @@ render_list_sort(
 {
     // TODO: accept key function argument
 
+    static const SourceString REVERSE = {.data = "reverse", .length = 7};
     bool bad_args = false;
     if (args->values_count != 0) {
         if (args->n_positional > 0)
             bad_args = true;
         else if (args->values_count > 1)
             bad_args = true;
-        else if (strcmp(args->kwds[0], "reverse") != 0)
+        else if (!(SOURCESTRING_EQ(args->kwds[0], REVERSE)))
             bad_args = true;
     }
     if (bad_args) {
@@ -1666,13 +1674,13 @@ render_object_operation(
 
     if (is_unary) {
         write_many_to_section(
-            assignment->section, fndef->ns_ident, "(", operand_reprs[0], ");\n", NULL
+            assignment->section, fndef->ns_ident.data, "(", operand_reprs[0], ");\n", NULL
         );
     }
     else if (is_rop) {
         write_many_to_section(
             assignment->section,
-            fndef->ns_ident,
+            fndef->ns_ident.data,
             "(",
             operand_reprs[1],
             ", ",
@@ -1684,7 +1692,7 @@ render_object_operation(
     else {
         write_many_to_section(
             assignment->section,
-            fndef->ns_ident,
+            fndef->ns_ident.data,
             "(",
             operand_reprs[0],
             ", ",
@@ -2011,14 +2019,14 @@ render_object_method_call(
     for (size_t i = 0; i < sig.params_count; i++) variable_names[i] = param_vars[i];
 
     render_callable_args_to_variables(
-        compiler, assignment->section, args, sig, fndef->name, variable_names, false
+        compiler, assignment->section, args, sig, fndef->name.data, variable_names, false
     );
 
     // write the call statement
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
-        assignment->section, fndef->ns_ident, "(", self_identifier, NULL
+        assignment->section, fndef->ns_ident.data, "(", self_identifier, NULL
     );
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
         write_to_section(assignment->section, ", ");
@@ -2039,22 +2047,23 @@ render_object_creation(
     set_assignment_type_info(compiler, assignment, clsdef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
-        assignment->section, "np_alloc(sizeof(", clsdef->ns_ident, "));\n", NULL
+        assignment->section, "np_alloc(sizeof(", clsdef->ns_ident.data, "));\n", NULL
     );
 
     FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
     if (init) {
         for (size_t i = 0; i < clsdef->sig.defaults_count; i++) {
+            SourceString varname = sb_build(
+                &compiler->sb,
+                assignment->variable_name,
+                "->",
+                clsdef->sig.params[clsdef->sig.params_count - 1 - i].data,
+                NULL
+            );
             C_Assignment default_assignment = {
                 .section = assignment->section,
                 .type_info = clsdef->sig.types[clsdef->sig.params_count - 1 - i],
-                .variable_name = sb_build(
-                    &compiler->sb,
-                    assignment->variable_name,
-                    "->",
-                    clsdef->sig.params[clsdef->sig.params_count - 1 - i],
-                    NULL
-                ),
+                .variable_name = varname.data,
                 .is_declared = true};
             render_expression_assignment(
                 compiler,
@@ -2075,9 +2084,14 @@ render_object_creation(
     // ...
     char* value_destinations[clsdef->sig.params_count];
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        value_destinations[i] = sb_build(
-            &compiler->sb, assignment->variable_name, "->", clsdef->sig.params[i], NULL
+        SourceString dst = sb_build(
+            &compiler->sb,
+            assignment->variable_name,
+            "->",
+            clsdef->sig.params[i].data,
+            NULL
         );
+        value_destinations[i] = dst.data;
     }
 
     // var->param1 = expr1;
@@ -2088,7 +2102,7 @@ render_object_creation(
         assignment->section,
         args,
         clsdef->sig,
-        clsdef->name,
+        clsdef->name.data,
         value_destinations,
         true
     );
@@ -2099,11 +2113,11 @@ render_call_operation(
     C_Compiler* compiler, C_Assignment* assignment, Expression* expr, Operation operation
 )
 {
-    char* fn_identifier = expr->operands[operation.left].token.value;
+    SourceString fn_identifier = expr->operands[operation.left].token.value;
     Arguments* args = expr->operands[operation.right].args;
     Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
     if (!sym) {
-        render_builtin(compiler, assignment, fn_identifier, args);
+        render_builtin(compiler, assignment, fn_identifier.data, args);
         return;
     }
     switch (sym->kind) {
@@ -2122,25 +2136,26 @@ render_call_operation(
                 compiler->file_index,
                 *operation.loc,
                 "symbol `%s` is not callable",
-                fn_identifier
+                fn_identifier.data
             );
     }
 }
 
 static TypeInfo
 get_class_member_type_info(
-    C_Compiler* compiler, ClassStatement* clsdef, char* member_name
+    C_Compiler* compiler, ClassStatement* clsdef, SourceString member_name
 )
 {
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        if (strcmp(member_name, clsdef->sig.params[i]) == 0) return clsdef->sig.types[i];
+        if (SOURCESTRING_EQ(member_name, clsdef->sig.params[i]))
+            return clsdef->sig.types[i];
     }
     name_errorf(
         compiler->file_index,
         compiler->current_stmt_location,
         "unknown member `%s` for type `%s`",
-        member_name,
-        clsdef->name
+        member_name.data,
+        clsdef->name.data
     );
     UNREACHABLE();
 }
@@ -2151,7 +2166,7 @@ render_getattr_operation(
     C_Assignment* assignment,
     char* left_repr,
     TypeInfo left_type,
-    char* attr
+    SourceString attr
 )
 {
     if (left_type.type != PYTYPE_OBJECT) {
@@ -2164,7 +2179,7 @@ render_getattr_operation(
     TypeInfo attr_type = get_class_member_type_info(compiler, left_type.cls, attr);
     set_assignment_type_info(compiler, assignment, attr_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_many_to_section(assignment->section, left_repr, "->", attr, ";\n", NULL);
+    write_many_to_section(assignment->section, left_repr, "->", attr.data, ";\n", NULL);
 }
 
 static void
@@ -2345,7 +2360,7 @@ render_expression_assignment(
                     compiler,
                     this_assignment,
                     &left_assignment,
-                    expr->operands[operation.right].token.value,
+                    expr->operands[operation.right].token.value.data,
                     expr->operands[next_operation.right].args
                 );
                 update_rendered_operation_memory(
@@ -2375,7 +2390,7 @@ render_expression_assignment(
                     compiler,
                     this_assignment,
                     &left_assignment,
-                    expr->operands[operation.right].token.value,
+                    expr->operands[operation.right].token.value.data,
                     expr->operands[next_operation.right].args
                 );
                 update_rendered_operation_memory(
@@ -2464,12 +2479,12 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         else
             write_type_info_to_section(sections[i], &compiler->sb, type_info);
 
-        write_to_section(sections[i], func->ns_ident);
+        write_to_section(sections[i], func->ns_ident.data);
         write_to_section(sections[i], "(");
         for (size_t j = 0; j < func->sig.params_count; j++) {
             if (j > 0) write_to_section(sections[i], ", ");
             write_type_info_to_section(sections[i], &compiler->sb, func->sig.types[j]);
-            write_to_section(sections[i], func->sig.params[j]);
+            write_to_section(sections[i], func->sig.params[j].data);
         }
     }
     write_to_section(&compiler->function_declarations, ");\n");
@@ -2503,7 +2518,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
         write_type_info_to_section(
             &compiler->struct_declarations, &compiler->sb, cls->sig.types[i]
         );
-        write_to_section(&compiler->struct_declarations, cls->sig.params[i]);
+        write_to_section(&compiler->struct_declarations, cls->sig.params[i].data);
         write_to_section(&compiler->struct_declarations, ";");
     }
 
@@ -2529,7 +2544,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
         }
     }
     write_many_to_section(
-        &compiler->struct_declarations, "} ", cls->ns_ident, ";\n", NULL
+        &compiler->struct_declarations, "} ", cls->ns_ident.data, ";\n", NULL
     );
 }
 
@@ -2642,7 +2657,7 @@ render_object_op_assignment(
     prepare_c_assignment_for_rendering(compiler, &obj_assignment);
     write_many_to_section(
         obj_assignment.section,
-        fndef->ns_ident,
+        fndef->ns_ident.data,
         "(",
         obj_assignment.variable_name,
         ", ",
@@ -2793,16 +2808,17 @@ compile_complex_assignment(
         ClassStatement* clsdef = container_assignment.type_info.cls;
         TypeInfo member_type =
             get_class_member_type_info(compiler, clsdef, last_operand.token.value);
+        SourceString varname = sb_build(
+            &compiler->sb,
+            container_assignment.variable_name,
+            "->",
+            last_operand.token.value.data,
+            NULL
+        );
         C_Assignment assignment = {
             .section = container_assignment.section,
             .type_info = member_type,
-            .variable_name = sb_build(
-                &compiler->sb,
-                container_assignment.variable_name,
-                "->",
-                last_operand.token.value,
-                NULL
-            ),
+            .variable_name = varname.data,
             .is_declared = true};
 
         if (stmt->assignment->op_type == OPERATOR_ASSIGNMENT) {
@@ -2861,7 +2877,7 @@ compile_complex_assignment(
 static void
 compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    char* identifier = stmt->assignment->storage->operands[0].token.value;
+    SourceString identifier = stmt->assignment->storage->operands[0].token.value;
     Symbol* sym =
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
 
@@ -2873,14 +2889,14 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
-        variable_name = sym->variable->ns_ident;
-        real_var_name = sym->variable->identifier;
+        variable_name = sym->variable->ns_ident.data;
+        real_var_name = sym->variable->identifier.data;
         declared = (top_level) ? true : sym->variable->declared;
     }
     else {
         symtype = &sym->semi_scoped->type;
-        variable_name = sym->semi_scoped->current_id;
-        real_var_name = sym->semi_scoped->identifier;
+        variable_name = sym->semi_scoped->current_id.data;
+        real_var_name = sym->semi_scoped->identifier.data;
         declared = true;
     }
 
@@ -2909,7 +2925,7 @@ compile_simple_op_assignment(
     C_Compiler* compiler, CompilerSection* section, Statement* stmt
 )
 {
-    char* identifier = stmt->assignment->storage->operands[0].token.value;
+    SourceString identifier = stmt->assignment->storage->operands[0].token.value;
     Symbol* sym =
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
     Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
@@ -2920,13 +2936,13 @@ compile_simple_op_assignment(
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
-        variable_name = sym->variable->ns_ident;
-        real_var_name = sym->variable->identifier;
+        variable_name = sym->variable->ns_ident.data;
+        real_var_name = sym->variable->identifier.data;
     }
     else {
         symtype = &sym->semi_scoped->type;
-        variable_name = sym->semi_scoped->current_id;
-        real_var_name = sym->semi_scoped->identifier;
+        variable_name = sym->semi_scoped->current_id.data;
+        real_var_name = sym->semi_scoped->identifier.data;
     }
 
     GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
@@ -2984,7 +3000,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
                                             ? &compiler->variable_declarations
                                             : section;
         declare_variable(
-            compiler, decl_section, stmt->annotation->type, sym->variable->ns_ident
+            compiler, decl_section, stmt->annotation->type, sym->variable->ns_ident.data
         );
     }
 
@@ -2993,8 +3009,8 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
             .loc = &stmt->loc,
             .section = section,
             .type_info = stmt->annotation->type,
-            .user_defined_variable_name = sym->variable->identifier,
-            .variable_name = sym->variable->ns_ident,
+            .user_defined_variable_name = sym->variable->identifier.data,
+            .variable_name = sym->variable->ns_ident.data,
             .is_declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
     }
@@ -3028,15 +3044,21 @@ compile_return_statement(
 
 static char*
 init_semi_scoped_variable(
-    C_Compiler* compiler, CompilerSection* section, char* identifier, TypeInfo type_info
+    C_Compiler* compiler,
+    CompilerSection* section,
+    SourceString identifier,
+    TypeInfo type_info
 )
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
     Symbol* sym = symbol_hm_get(&scope->hm, identifier);
-    if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident;
-    if (!sym->semi_scoped->current_id)
-        sym->semi_scoped->current_id = arena_alloc(compiler->arena, UNIQUE_VAR_LENGTH);
-    WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id);
+    if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident.data;
+    if (!sym->semi_scoped->current_id.data) {
+        sym->semi_scoped->current_id.data =
+            arena_alloc(compiler->arena, UNIQUE_VAR_LENGTH);
+        sym->semi_scoped->current_id.length = UNIQUE_VAR_LENGTH;
+    }
+    WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id.data);
     sym->semi_scoped->type = type_info;
     sym->semi_scoped->directly_in_scope = true;
     write_many_to_section(
@@ -3044,15 +3066,15 @@ init_semi_scoped_variable(
                                                      : section,
         type_info_to_c_syntax(&compiler->sb, type_info),
         " ",
-        sym->semi_scoped->current_id,
+        sym->semi_scoped->current_id.data,
         ";\n",
         NULL
     );
-    return sym->semi_scoped->current_id;
+    return sym->semi_scoped->current_id.data;
 }
 
 static void
-release_semi_scoped_variable(C_Compiler* compiler, char* identifier)
+release_semi_scoped_variable(C_Compiler* compiler, SourceString identifier)
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
     Symbol* sym = symbol_hm_get(&scope->hm, identifier);
@@ -3071,7 +3093,7 @@ render_list_for_each_head(
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
     // TODO: should store these variables on the ItIdentifier struct to avoid lookup
-    char* actual_ident = for_loop->it->identifiers[0].name;
+    SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(
         compiler, section, actual_ident, iterable.type_info.inner->types[0]
     );
@@ -3107,7 +3129,7 @@ render_dict_for_each_head(
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
     TypeInfo it_type = iterable.type_info.inner->types[0];
-    char* actual_ident = for_loop->it->identifiers[0].name;
+    SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
     // render for loop
@@ -3145,8 +3167,8 @@ render_dict_items_iterator_for_loop_head(
     write_many_to_section(section, "DictItem ", item_struct_variable, ";\n", NULL);
 
     // parse key value variable names
-    char* actual_key_var = NULL;
-    char* actual_val_var = NULL;
+    SourceString actual_key_var = {0};
+    SourceString actual_val_var = {0};
     if (for_loop->it->identifiers_count == 1 &&
         for_loop->it->identifiers[0].kind == IT_GROUP) {
         ItIdentifier inner_identifier = for_loop->it->identifiers[0];
@@ -3232,7 +3254,7 @@ render_iterator_for_loop_head(
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
     TypeInfo it_type = iterable.type_info.inner->types[0];
-    char* actual_ident = for_loop->it->identifiers[0].name;
+    SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
     GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
@@ -3377,13 +3399,13 @@ write_string_constants_table(C_Compiler* compiler)
         &compiler->forward, DATATYPE_STRING " " STRING_CONSTANTS_TABLE_NAME "[] = {\n"
     );
     for (size_t i = 0; i < compiler->str_hm.count; i++) {
-        StringView sv = compiler->str_hm.elements[i];
+        SourceString str = compiler->str_hm.elements[i];
         if (i > 0) write_to_section(&compiler->forward, ",\n");
         write_to_section(&compiler->forward, "{.data=\"");
-        write_to_section(&compiler->forward, sv.data);
+        write_to_section(&compiler->forward, str.data);
         write_to_section(&compiler->forward, "\", .length=");
         char length_as_str[10];
-        sprintf(length_as_str, "%zu", sv.length);
+        sprintf(length_as_str, "%zu", str.length);
         write_to_section(&compiler->forward, length_as_str);
         write_to_section(&compiler->forward, "}");
     }

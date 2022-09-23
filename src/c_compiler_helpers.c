@@ -28,7 +28,7 @@ type_info_human_readable(TypeInfo info)
         case PYTYPE_DICT:
             return "Dict";
         case PYTYPE_OBJECT:
-            return info.cls->name;
+            return info.cls->name.data;
         case PYTYPE_BOOL:
             return "bool";
         case PYTYPE_SLICE:
@@ -109,7 +109,7 @@ type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
         case PYTYPE_DICT:
             return DATATYPE_DICT;
         case PYTYPE_OBJECT: {
-            return sb_build(sb, info.cls->ns_ident, "*", NULL);
+            return sb_build(sb, info.cls->ns_ident.data, "*", NULL).data;
         }
         case PYTYPE_ITER:
             return DATATYPE_ITER;
@@ -132,17 +132,17 @@ write_type_info_to_section(CompilerSection* section, StringBuilder* sb, TypeInfo
     write_to_section(section, " ");
 }
 
-char*
+SourceString
 create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef)
 {
     // if the fmt string overflows 1024 it will just be cut short.
     char fmtbuf[1024];
     size_t remaining = 1023;
     char* write = fmtbuf;
-    char* clsname = clsdef->name;
-    while (remaining && *clsname != '\0') {
-        *write++ = *clsname++;
-        remaining--;
+    if (remaining >= clsdef->name.length) {
+        memcpy(write, clsdef->name.data, clsdef->name.length);
+        write += clsdef->name.length;
+        remaining -= clsdef->name.length;
     }
     if (remaining) {
         *write++ = '(';
@@ -154,10 +154,11 @@ create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef)
             *write++ = ' ';
             remaining -= 2;
         }
-        char* param = clsdef->sig.params[i];
-        while (remaining && *param != '\0') {
-            *write++ = *param++;
-            remaining--;
+        SourceString param = clsdef->sig.params[i];
+        if (remaining >= param.length) {
+            memcpy(write, param.data, param.length);
+            write += param.length;
+            remaining -= param.length;
         }
         if (remaining > 2) {
             *write++ = '=';
@@ -170,9 +171,11 @@ create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef)
         *write++ = ')';
         remaining--;
     }
-    char* final = arena_alloc(arena, 1024 - remaining);
-    memcpy(final, fmtbuf, 1023 - remaining);
-    return final;
+
+    SourceString rtval = {
+        .data = arena_alloc(arena, 1024 - remaining), .length = 1023 - remaining};
+    memcpy(rtval.data, fmtbuf, rtval.length);
+    return rtval;
 }
 
 static void
@@ -186,8 +189,8 @@ static void
 str_hm_rehash(StringHashmap* hm)
 {
     for (size_t i = 0; i < hm->count; i++) {
-        StringView str = hm->elements[i];
-        uint64_t hash = hash_bytes(str.data + str.offset, str.length);
+        SourceString str = hm->elements[i];
+        uint64_t hash = hash_bytes(str.data, str.length);
         size_t probe = hash % (hm->capacity * 2);
         for (;;) {
             int index = hm->lookup[probe];
@@ -218,10 +221,10 @@ str_hm_grow(StringHashmap* hm)
 }
 
 size_t
-str_hm_put(StringHashmap* hm, StringView element)
+str_hm_put(StringHashmap* hm, SourceString element)
 {
     if (hm->count == hm->capacity) str_hm_grow(hm);
-    uint64_t hash = hash_bytes(element.data + element.offset, element.length);
+    uint64_t hash = hash_bytes(element.data, element.length);
     size_t probe = hash % (hm->capacity * 2);
     for (;;) {
         int index = hm->lookup[probe];
@@ -230,8 +233,8 @@ str_hm_put(StringHashmap* hm, StringView element)
             hm->elements[hm->count] = element;
             return hm->count++;
         }
-        StringView existing = hm->elements[index];
-        if (str_eq(element, existing)) return (size_t)index;
+        SourceString existing = hm->elements[index];
+        if (SOURCESTRING_EQ(element, existing)) return (size_t)index;
         if (probe == hm->capacity * 2)
             probe = 0;
         else
@@ -242,8 +245,8 @@ str_hm_put(StringHashmap* hm, StringView element)
 int
 str_hm_put_cstr(StringHashmap* hm, char* element)
 {
-    StringView sv = {.data = element, .offset = 0, .length = strlen(element)};
-    return str_hm_put(hm, sv);
+    SourceString str = {.data = element, .length = strlen(element)};
+    return str_hm_put(hm, str);
 }
 
 void
@@ -331,7 +334,7 @@ sb_free(StringBuilder* sb)
     free(sb->buffers);
 }
 
-char*
+SourceString
 sb_build(StringBuilder* sb, ...)
 {
     va_list strings;
@@ -339,6 +342,7 @@ sb_build(StringBuilder* sb, ...)
 
     char* start = sb->write;
     size_t initial_remaining = sb->remaining;
+    size_t length = 0;
     bool fresh_buffer = false;
 
     for (;;) {
@@ -361,6 +365,7 @@ sb_build(StringBuilder* sb, ...)
             }
             *sb->write++ = c;
             sb->remaining -= 1;
+            length++;
         }
     }
 
@@ -370,5 +375,5 @@ sb_build(StringBuilder* sb, ...)
 
     va_end(strings);
 
-    return start;
+    return (SourceString){.data = start, .length = length};
 }

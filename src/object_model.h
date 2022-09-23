@@ -2,6 +2,7 @@
 #define OBJECT_MODEL_H
 
 #include "generated.h"
+#include "tokens.h"
 
 typedef enum {
     NOT_IN_OBJECT_MODEL,
@@ -74,7 +75,7 @@ typedef enum {
     OBJECT_MODEL_COUNT,
 } ObjectModel;
 
-ObjectModel cstr_to_object_model(char* cstr);
+ObjectModel source_string_to_object_model(SourceString str);
 ObjectModel op_assignment_to_object_model(Operator op_type);
 
 #endif

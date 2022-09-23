@@ -203,8 +203,9 @@ tokenize_word(Scanner* scanner)
         scanner->token.type = TOK_KEYWORD;
     }
     else {
-        scanner->token.value =
+        scanner->token.value.data =
             arena_copy(scanner->arena, scanner->buf, scanner->buflen + 1);
+        scanner->token.value.length = scanner->buflen;
         scanner->token.type = TOK_IDENTIFIER;
     }
 }
@@ -219,7 +220,9 @@ tokenize_numeric(Scanner* scanner)
     }
     scanner_ungetc(scanner);
     scanner->buf[scanner->buflen] = '\0';
-    scanner->token.value = arena_copy(scanner->arena, scanner->buf, scanner->buflen + 1);
+    scanner->token.value.data =
+        arena_copy(scanner->arena, scanner->buf, scanner->buflen + 1);
+    scanner->token.value.length = scanner->buflen;
     scanner->token.type = TOK_NUMBER;
 }
 
@@ -241,8 +244,9 @@ tokenize_string_literal(Scanner* scanner)
         }
     }
     scanner->buf[scanner->buflen - 1] = '\0';
-    scanner->token.value =
+    scanner->token.value.data =
         arena_copy(scanner->arena, scanner->buf + 1, scanner->buflen - 1);
+    scanner->token.value.length = scanner->buflen - 2;
     scanner->token.type = TOK_STRING;
 }
 
@@ -693,7 +697,7 @@ parse_arguments(Parser* parser)
     Operand op = {.kind = OPERAND_ARGUMENTS, .args = args};
 
     ExpressionVector values = expr_vector_init(parser->arena);
-    StringVector kwds = str_vector_init(parser->arena);
+    SourceStringVector kwds = str_vector_init(parser->arena);
 
     while (true) {
         // end of arguments
@@ -1020,7 +1024,7 @@ parse_block(Parser* parser, unsigned int parent_indent)
 static ImportPath
 parse_import_path(Parser* parser)
 {
-    StringVector vec = str_vector_init(parser->arena);
+    SourceStringVector vec = str_vector_init(parser->arena);
     str_vector_append(&vec, expect_token_type(parser, TOK_IDENTIFIER).value);
     while (peek_next_token(parser).type == TOK_DOT) {
         discard_next_token(parser);
@@ -1033,8 +1037,8 @@ parse_import_path(Parser* parser)
 static void
 parse_import_group(Parser* parser, ImportStatement* stmt)
 {
-    StringVector what_vec = str_vector_init(parser->arena);
-    StringVector as_vec = str_vector_init(parser->arena);
+    SourceStringVector what_vec = str_vector_init(parser->arena);
+    SourceStringVector as_vec = str_vector_init(parser->arena);
     TokenType end_of_stmt;
 
     if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
@@ -1058,8 +1062,10 @@ parse_import_group(Parser* parser, ImportStatement* stmt)
             str_vector_append(&as_vec, expect_token_type(parser, TOK_IDENTIFIER).value);
             peek = peek_next_token(parser);
         }
-        else
-            str_vector_append(&as_vec, NULL);
+        else {
+            SourceString str = {0};
+            str_vector_append(&as_vec, str);
+        }
 
         // maybe comma
         if (peek.type == TOK_COMMA) {
@@ -1084,7 +1090,7 @@ static TypeInfo
 parse_type_hint(Parser* parser)
 {
     Token ident_token = expect_token_type(parser, TOK_IDENTIFIER);
-    PythonType type = cstr_to_python_type(ident_token.value);
+    PythonType type = cstr_to_python_type(ident_token.value.data);
     ClassStatement* cls = NULL;
     if (type == PYTYPE_OBJECT) {
         Symbol* sym =
@@ -1094,7 +1100,7 @@ parse_type_hint(Parser* parser)
                 *parser->scanner->index,
                 *ident_token.loc,
                 "unknown class `%s`",
-                ident_token.value
+                ident_token.value.data
             );
         }
         cls = sym->cls;
@@ -1246,7 +1252,7 @@ parse_try_statement(Parser* parser, unsigned int indent)
                 *parser->scanner->index, *begin.loc, 2, "inconsistent indentation"
             );
         // we will need a str vector for exception names
-        StringVector exceptions = str_vector_init(parser->arena);
+        SourceStringVector exceptions = str_vector_init(parser->arena);
         // parse either: an identifier
         peek = peek_next_token(parser);
         if (peek.type == TOK_IDENTIFIER) {
@@ -1289,8 +1295,10 @@ parse_try_statement(Parser* parser, unsigned int indent)
             discard_next_token(parser);
             except.as = expect_token_type(parser, TOK_IDENTIFIER).value;
         }
-        else
-            except.as = NULL;
+        else {
+            except.as.length = 0;
+            except.as.data = NULL;
+        }
         expect_token_type(parser, TOK_COLON);
         // parse body;
         except.body = parse_block(parser, indent);
@@ -1917,30 +1925,27 @@ validate_object_model_signature(
 static void
 namespace_method(Parser* parser, FunctionStatement* fndef, ClassStatement* clsdef)
 {
-    size_t fn_name_len = strlen(fndef->name);
-    size_t cls_name_len = strlen(clsdef->name);
-    fndef->ns_ident = arena_alloc(
-        parser->arena, fn_name_len + parser->file_namespace_length + cls_name_len + 2
-    );
-    char* write = fndef->ns_ident;
+    fndef->ns_ident.length =
+        fndef->name.length + parser->file_namespace_length + clsdef->name.length + 1;
+    fndef->ns_ident.data = arena_alloc(parser->arena, fndef->ns_ident.length + 1);
+    char* write = fndef->ns_ident.data;
     memcpy(write, parser->file_namespace, parser->file_namespace_length);
     write += parser->file_namespace_length;
-    memcpy(write, clsdef->name, cls_name_len);
-    write += cls_name_len;
+    memcpy(write, clsdef->name.data, clsdef->name.length);
+    write += clsdef->name.length;
     *write++ = '_';
-    memcpy(write, fndef->name, fn_name_len);
+    memcpy(write, fndef->name.data, fndef->name.length);
 }
 
 static void
 namespace_function(Parser* parser, FunctionStatement* fndef)
 {
-    size_t fn_name_len = strlen(fndef->name);
-    fndef->ns_ident =
-        arena_alloc(parser->arena, fn_name_len + parser->file_namespace_length + 1);
-    char* write = fndef->ns_ident;
+    fndef->ns_ident.length = fndef->name.length + parser->file_namespace_length;
+    fndef->ns_ident.data = arena_alloc(parser->arena, fndef->ns_ident.length + 1);
+    char* write = fndef->ns_ident.data;
     memcpy(write, parser->file_namespace, parser->file_namespace_length);
     write += parser->file_namespace_length;
-    memcpy(write, fndef->name, fn_name_len);
+    memcpy(write, fndef->name.data, fndef->name.length);
 }
 
 static FunctionStatement*
@@ -1955,7 +1960,7 @@ parse_function_statement(Parser* parser, Location loc)
 
     // begin signature
     expect_token_type(parser, TOK_OPEN_PARENS);
-    StringVector params = str_vector_init(parser->arena);
+    SourceStringVector params = str_vector_init(parser->arena);
     TypeInfoVector types = typing_vector_init(parser->arena);
     ExpressionVector defaults = expr_vector_init(parser->arena);
 
@@ -2045,7 +2050,7 @@ parse_function_statement(Parser* parser, Location loc)
         namespace_method(parser, func, parent_scope->cls);
         // if function is part of the python object model validate it's signature and
         // add it to the classes object model table
-        ObjectModel om = cstr_to_object_model(func->name);
+        ObjectModel om = source_string_to_object_model(func->name);
         if (om != NOT_IN_OBJECT_MODEL) {
             validate_object_model_signature(parser, loc, om, func->sig);
             parent_scope->cls->object_model_methods[om] = func;
@@ -2061,15 +2066,18 @@ parse_function_statement(Parser* parser, Location loc)
 static void
 namespace_class(Parser* parser, ClassStatement* clsdef)
 {
-    size_t cls_name_len = strlen(clsdef->name);
-    clsdef->ns_ident =
-        arena_alloc(parser->arena, 1 + cls_name_len + parser->file_namespace_length);
-    memcpy(clsdef->ns_ident, parser->file_namespace, parser->file_namespace_length);
-    memcpy(clsdef->ns_ident + parser->file_namespace_length, clsdef->name, cls_name_len);
+    clsdef->ns_ident.length = clsdef->name.length + parser->file_namespace_length;
+    clsdef->ns_ident.data = arena_alloc(parser->arena, clsdef->ns_ident.length + 1);
+    memcpy(clsdef->ns_ident.data, parser->file_namespace, parser->file_namespace_length);
+    memcpy(
+        clsdef->ns_ident.data + parser->file_namespace_length,
+        clsdef->name.data,
+        clsdef->name.length
+    );
 }
 
 static ClassStatement*
-init_class_statement(Parser* parser, char* name)
+init_class_statement(Parser* parser, SourceString name)
 {
     // TODO: test a class with enough members to stress test this
     ClassStatement* cls = arena_alloc(parser->arena, sizeof(ClassStatement));
@@ -2118,8 +2126,9 @@ static void
 finalize_class_statement(Parser* parser, ClassStatement* cls)
 {
     cls->sig.params_count = parser->current_class_members_count;
-    cls->sig.params =
-        arena_alloc(parser->arena, sizeof(char*) * parser->current_class_members_count);
+    cls->sig.params = arena_alloc(
+        parser->arena, sizeof(SourceString) * parser->current_class_members_count
+    );
     cls->sig.types = arena_alloc(
         parser->arena, sizeof(TypeInfo) * parser->current_class_members_count
     );
@@ -2162,7 +2171,7 @@ parse_class_statement(Parser* parser, unsigned int indent)
         );
     }
     discard_next_token(parser);
-    char* cls_name = expect_token_type(parser, TOK_IDENTIFIER).value;
+    SourceString cls_name = expect_token_type(parser, TOK_IDENTIFIER).value;
     ClassStatement* cls = init_class_statement(parser, cls_name);
 
     if (peek_next_token(parser).type == TOK_OPEN_PARENS) {
@@ -2180,14 +2189,16 @@ parse_class_statement(Parser* parser, unsigned int indent)
 static void
 namespace_variable(Parser* parser, Variable* variable)
 {
-    size_t cls_name_len = strlen(variable->identifier);
-    variable->ns_ident =
-        arena_alloc(parser->arena, 1 + cls_name_len + parser->file_namespace_length);
-    memcpy(variable->ns_ident, parser->file_namespace, parser->file_namespace_length);
+    variable->ns_ident.length =
+        variable->identifier.length + parser->file_namespace_length;
+    variable->ns_ident.data = arena_alloc(parser->arena, variable->ns_ident.length + 1);
     memcpy(
-        variable->ns_ident + parser->file_namespace_length,
-        variable->identifier,
-        cls_name_len
+        variable->ns_ident.data, parser->file_namespace, parser->file_namespace_length
+    );
+    memcpy(
+        variable->ns_ident.data + parser->file_namespace_length,
+        variable->identifier.data,
+        variable->identifier.length
     );
 }
 
@@ -2212,7 +2223,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
 }
 
 static AnnotationStatement*
-parse_annotation_statement(Parser* parser, Location loc, char* identifier)
+parse_annotation_statement(Parser* parser, Location loc, SourceString identifier)
 {
     AnnotationStatement* annotation =
         arena_alloc(parser->arena, sizeof(AnnotationStatement));

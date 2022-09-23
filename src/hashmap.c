@@ -9,7 +9,7 @@
 
 #define LOOKUP_CAPACITY_ELEMENTS_CAPACITY_RATIO 2
 
-static char*
+static SourceString
 symbol_to_key(Symbol sym)
 {
     switch (sym.kind) {
@@ -68,18 +68,16 @@ symbol_hm_init(Arena* arena)
 }
 
 // used when probing the lookup table
-static char*
+static SourceString
 key_at(SymbolHashmap* hm, size_t probe)
 {
     return symbol_to_key(hm->elements[hm->lookup_table[probe]]);
 }
 
-// TODO: the tokenizer knows string lengths when it puts them into the arena,
-// we should save strings as a struct with length to avoid unnessesary strlen calls
 static bool
-hm_lookup_insert(SymbolHashmap* hm, size_t elem_index, char* key)
+hm_lookup_insert(SymbolHashmap* hm, size_t elem_index, SourceString key)
 {
-    uint64_t hash = hash_bytes(key, strlen(key));
+    uint64_t hash = hash_bytes(key.data, key.length);
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
     for (;;) {
@@ -87,7 +85,7 @@ hm_lookup_insert(SymbolHashmap* hm, size_t elem_index, char* key)
             hm->lookup_table[probe] = elem_index;
             return true;
         }
-        else if (strcmp(key_at(hm, probe), key) == 0) {
+        else if (SOURCESTRING_EQ(key_at(hm, probe), key)) {
             // for now we're only tracking the first occurence of a symbol within a scope
             return false;
         }
@@ -103,7 +101,7 @@ static void
 rehash(SymbolHashmap* hm)
 {
     for (size_t i = 0; i < hm->elements_count; i++) {
-        char* key = symbol_to_key(hm->elements[i]);
+        SourceString key = symbol_to_key(hm->elements[i]);
         hm_lookup_insert(hm, i, key);
     }
 }
@@ -129,9 +127,9 @@ symbol_hm_put(SymbolHashmap* hm, Symbol element)
 // NOTE: it is not safe to continue pushing elements into the hashmap while
 // using the Symbol* returned from this function, as it might be moved by a resize
 Symbol*
-symbol_hm_get(SymbolHashmap* hm, char* identifier)
+symbol_hm_get(SymbolHashmap* hm, SourceString identifier)
 {
-    uint64_t hash = hash_bytes(identifier, strlen(identifier));
+    uint64_t hash = hash_bytes(identifier.data, identifier.length);
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
 
@@ -141,7 +139,7 @@ symbol_hm_get(SymbolHashmap* hm, char* identifier)
             return NULL;
         }
         Symbol* element = hm->elements + element_index;
-        if (strcmp(symbol_to_key(*element), identifier) == 0) {
+        if (SOURCESTRING_EQ(symbol_to_key(*element), identifier)) {
             return element;
         }
         if (probe == hm->lookup_capacity - 1)

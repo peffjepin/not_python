@@ -18,7 +18,7 @@ resolve_literal_type(Token token)
         case TOK_NUMBER: {
             for (size_t i = 0;; i++) {
                 // TODO: this could be handled in the scanner
-                char c = token.value[i];
+                char c = token.value.data[i];
                 if (c == '\0') return (TypeInfo){.type = PYTYPE_INT};
                 if (c == '.' || c == 'f') return (TypeInfo){.type = PYTYPE_FLOAT};
             }
@@ -56,7 +56,7 @@ compare_types(TypeInfo type1, TypeInfo type2)
         case PYTYPE_DICT:
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
         case PYTYPE_OBJECT:
-            return outer_equal && (strcmp(type1.cls->name, type2.cls->name) == 0);
+            return outer_equal && (SOURCESTRING_EQ(type1.cls->name, type2.cls->name));
         default:
             return outer_equal;
     }
@@ -640,7 +640,7 @@ special_ops:
 }
 
 static TypeInfo
-resolve_from_scopes(TypeChecker* tc, char* identifier)
+resolve_from_scopes(TypeChecker* tc, SourceString identifier)
 {
     Symbol* sym;
     if (tc->locals) {
@@ -674,7 +674,7 @@ resolve_operand_type(TypeChecker* tc, Operand operand)
         case OPERAND_TOKEN: {
             if (operand.token.type == TOK_IDENTIFIER) {
                 // TODO: should investigate why this isn't a keyword
-                if (strcmp(operand.token.value, "None") == 0)
+                if (strcmp(operand.token.value.data, "None") == 0)
                     return (TypeInfo){.type = PYTYPE_NONE};
                 return resolve_from_scopes(tc, operand.token.value);
             }

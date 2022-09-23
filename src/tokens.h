@@ -1,6 +1,8 @@
 #ifndef TOKENS_H
 #define TOKENS_H
 
+#include <string.h>
+
 #include "generated.h"
 
 // TODO: `@` decorator token
@@ -27,6 +29,14 @@ typedef enum {
 } TokenType;
 
 typedef struct {
+    char* data;
+    size_t length;
+} SourceString;
+
+#define SOURCESTRING_EQ(str1, str2)                                                      \
+    str1.length == str2.length&& strcmp(str1.data, str2.data) == 0
+
+typedef struct {
     const char* filepath;
     unsigned int col;
     unsigned int line;
@@ -38,7 +48,7 @@ typedef struct {
     union {
         Keyword kw;
         Operator op;
-        char* value;
+        SourceString value;
     };
 } Token;
 
