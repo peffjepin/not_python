@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import tempfile
 import types
 import sys
 import os
@@ -464,37 +465,37 @@ def main():
         if p.returncode != 0:
             raise SystemExit(1)
 
-    if TMP.exists():
-        shutil.rmtree(TMP)
-    TMP.mkdir()
-
-    try:
-        for tg in tests:
-            # NOTE: this will spawn a LOT of processes unless --sync is given
-            tg.begin()
-
-        results = []
-        while tests:
-            next_iter = []
+    with tempfile.TemporaryDirectory() as tmp:
+        global TMP
+        TMP = pathlib.Path(tmp)
+        try:
             for tg in tests:
-                if tg.result:
-                    results.append(tg.result)
-                    accumulative_result += tg.result
-                else:
-                    next_iter.append(tg)
-            time.sleep(POLL)
-            tests = next_iter
+                # NOTE: this will spawn a LOT of processes unless --sync is given
+                tg.begin()
 
-        for r in results:
-            print(r)
-        print(accumulative_result)
-        VerifiedChecksums.dump()
-        return 0
-    finally:
-        if not args.preserve_test_dir:
-            if TMP.exists():
-                shutil.rmtree(TMP)
-        print(f"test.py finished in {round(time.time() - start, 4)}s")
+            results = []
+            while tests:
+                next_iter = []
+                for tg in tests:
+                    if tg.result:
+                        results.append(tg.result)
+                        accumulative_result += tg.result
+                    else:
+                        next_iter.append(tg)
+                time.sleep(POLL)
+                tests = next_iter
+
+            for r in results:
+                print(r)
+            print(accumulative_result)
+            VerifiedChecksums.dump()
+            return 0
+        finally:
+            if args.preserve_test_dir:
+                dst = ROOT/"testdir"
+                if dst.exists():
+                    shutil.rmtree(dst, ignore_errors=True)
+                shutil.copytree(TMP, dst)
 
 
 if __name__ == "__main__":

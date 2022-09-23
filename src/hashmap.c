@@ -3,10 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diagnostics.h"
 #include "np_hash.h"
 #include "syntax.h"
-
-#define UNREACHABLE(msg) assert(0 && msg)
 
 #define LOOKUP_CAPACITY_ELEMENTS_CAPACITY_RATIO 2
 
@@ -23,7 +22,7 @@ symbol_to_key(Symbol sym)
         case SYM_SEMI_SCOPED:
             return sym.semi_scoped->identifier;
     }
-    UNREACHABLE("symbol to key");
+    UNREACHABLE();
 }
 
 static void rehash(SymbolHashmap* hm);

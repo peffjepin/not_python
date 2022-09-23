@@ -25,9 +25,11 @@ LIB_OBJECTS = $(patsubst src/%.c, build/%.o, $(LIB_SOURCE))
 DEBUG_LIB_OBJECTS = $(patsubst src/%.c, build/%_db.o, $(LIB_SOURCE))
 
 debug: $(OBJECTS_DEBUG) $(DEBUG_INCLUDE) build/lib/not_python_db.a
+	@-rm npc
 	$(CC) $(DEBUG_CPPFLAGS) $(DEBUG_CFLAGS) -o npc $^
 
 release: $(OBJECTS) build/lib/not_python.a
+	@-rm npc
 	$(CC) $(RELEASE_CPPFLAGS) $(RELEASE_CFLAGS) -o npc $^
 
 clean:

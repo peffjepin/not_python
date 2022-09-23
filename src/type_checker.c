@@ -5,10 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diagnostics.h"
 #include "generated.h"
 #include "lexer_helpers.h"
-
-#define UNREACHABLE() assert(0 && "unreachable");
 
 static TypeInfo
 resolve_literal_type(Token token)

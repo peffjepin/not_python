@@ -314,7 +314,7 @@ name_errorf(FileIndex index, Location loc, char* fmt, ...)
 }
 
 void
-unimplemented_error(FileIndex index, Location loc, char* msg)
+unspecified_error(FileIndex index, Location loc, char* msg)
 {
     eprintf(LABEL_UNIMPLEMENTED_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
     eprintf(LABEL_NORMAL, "%s:\n", msg);
@@ -323,7 +323,7 @@ unimplemented_error(FileIndex index, Location loc, char* msg)
 }
 
 void
-unimplemented_errorf(FileIndex index, Location loc, char* fmt, ...)
+unspecified_errorf(FileIndex index, Location loc, char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);

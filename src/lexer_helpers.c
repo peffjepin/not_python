@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diagnostics.h"
+
 /*
  * Notes on vector definitions
  *
@@ -18,8 +20,6 @@
  * Vectors defined with VALUE_VECTOR_DEFINITION take their elements by value
  * and when finalized return type*
  */
-
-#define UNREACHABLE(msg) assert(0 && msg)
 
 #define PTR_VECTOR_DEFINITION(type, prefix)                                              \
     type##Vector prefix##_vector_init(Arena* arena)                                      \
@@ -352,5 +352,5 @@ cstr_to_python_type(char* cstr)
         default:
             return PYTYPE_OBJECT;
     }
-    UNREACHABLE("cstr_to_python_type");
+    UNREACHABLE();
 }

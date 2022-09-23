@@ -165,7 +165,7 @@ set_assignment_type_info(
             );
         }
         else {
-            unimplemented_errorf(
+            unspecified_errorf(
                 compiler->file_index,
                 compiler->current_stmt_location,
                 "inconsistent typing: expecting `%s` got `%s`",
@@ -226,7 +226,7 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
             case SYM_CLASS:
                 return sym->cls->ns_ident;
         }
-        UNREACHABLE("unexpected symbol kind")
+        UNREACHABLE();
     }
     else if (operand.token.type == TOK_NUMBER) {
         return operand.token.value;
@@ -245,10 +245,10 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         else if (operand.token.kw == KW_FALSE)
             return "false";
         else
-            UNREACHABLE("unexpected simple operand token type");
+            UNREACHABLE();
     }
     else
-        UNREACHABLE("unexpected simple operand");
+        UNREACHABLE();
 }
 
 static void
@@ -300,7 +300,7 @@ render_empty_enclosure(
         case ENCLOSURE_TUPLE:
             UNIMPLEMENTED("empty tuple rendering unimplemented");
         default:
-            UNREACHABLE("end of render empty enclosure switch");
+            UNREACHABLE();
     }
 }
 
@@ -423,7 +423,7 @@ render_enclosure_literal(
 
     if (enclosure_assignment->variable_name == NULL) {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
-        unimplemented_error(
+        unspecified_error(
             compiler->file_index,
             compiler->current_stmt_location,
             "enclosures are currently required to be assigned to a variable"
@@ -440,7 +440,7 @@ render_enclosure_literal(
         case ENCLOSURE_TUPLE:
             UNIMPLEMENTED("rendering of tuple enclosure literal unimplemented");
         default:
-            UNREACHABLE("enclosure literal default case unreachable")
+            UNREACHABLE();
     }
 }
 
@@ -695,7 +695,7 @@ convert_assignment_to_string(
             render_type_info_human_readable(
                 assignment_to_convert.type_info, from_type, buflen
             );
-            unimplemented_errorf(
+            unspecified_errorf(
                 compiler->file_index,
                 compiler->current_stmt_location,
                 "type conversion from `%s` to `str` not currently implemented",
@@ -1983,7 +1983,7 @@ render_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
             render_simple_operand(compiler, assignment, operand);
             break;
         default:
-            UNREACHABLE("default case in expression rendering should not be reached");
+            UNREACHABLE();
             break;
     }
 }
@@ -2142,7 +2142,7 @@ get_class_member_type_info(
         member_name,
         clsdef->name
     );
-    UNREACHABLE("get member type");
+    UNREACHABLE();
 }
 
 static void
@@ -2231,7 +2231,7 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
         );
         return;
     }
-    UNREACHABLE("end of write simple expression");
+    UNREACHABLE();
 }
 
 typedef struct {
@@ -2492,7 +2492,7 @@ static void
 compile_class(C_Compiler* compiler, ClassStatement* cls)
 {
     if (cls->sig.params_count == 0) {
-        unimplemented_error(
+        unspecified_error(
             compiler->file_index,
             compiler->current_stmt_location,
             "class defined without any annotated members"
@@ -2519,7 +2519,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
             case STMT_EOF:
                 break;
             default:
-                unimplemented_error(
+                unspecified_error(
                     compiler->file_index,
                     stmt->loc,
                     "only function definitions and annotations are currently "
@@ -3160,7 +3160,7 @@ render_dict_items_iterator_for_loop_head(
     }
     else {
     unexpected_identifiers:
-        unimplemented_error(
+        unspecified_error(
             compiler->file_index,
             compiler->current_stmt_location,
             "expected 2 identifier variable for for dict.items"
@@ -3360,7 +3360,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case NULL_STMT:
             break;
         default:
-            UNREACHABLE("default case unreachable");
+            UNREACHABLE();
     }
 }
 

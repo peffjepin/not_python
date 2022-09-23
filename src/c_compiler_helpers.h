@@ -6,9 +6,6 @@
 
 // TODO: some tests for various helper functions
 
-#define UNREACHABLE(msg) assert(0 && msg);
-#define UNIMPLEMENTED(msg) assert(0 && msg)
-
 // this is indicitive of a compiler bug, and TypeError from the user
 // would come about when there are conflicting types, not missing types
 #define UNTYPED_ERROR() assert(0 && "COMPILER ERROR: ran into untyped variable")

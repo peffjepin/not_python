@@ -8,8 +8,6 @@
 #include "syntax.h"
 #include "tokens.h"
 
-#define UNIMPLEMENTED(msg) assert(0 && msg)
-
 /*
  * Notes on vector declarations
  *

@@ -6,8 +6,6 @@
 
 #include "lexer_helpers.h"
 
-#define UNREACHABLE(msg) assert(0 && msg);
-
 #define SCANNER_BUF_CAPACITY 4096
 
 typedef struct {
@@ -1912,7 +1910,7 @@ validate_object_model_signature(
             UNIMPLEMENTED("__exit__ is not yet implemented");
             break;
         default:
-            UNREACHABLE("end of object model validation");
+            UNREACHABLE();
     }
 }
 

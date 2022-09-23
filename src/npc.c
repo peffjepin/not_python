@@ -41,7 +41,7 @@ make_build_directory(void)
     int status = mkdir(BUILD_DIR, 0777);
 
     if (status != 0 && errno != EEXIST)
-        errorf("failed to make" BUILD_DIR "directory (%s)", strerror(errno));
+        errorf("failed to make " BUILD_DIR " directory (%s)", strerror(errno));
 }
 
 // TODO: in the future this will need to be more robust and support multiple files

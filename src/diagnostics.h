@@ -34,7 +34,19 @@ void type_errorf(FileIndex index, Location loc, char* fmt, ...);
 void name_error(FileIndex index, Location loc, char* msg);
 void name_errorf(FileIndex index, Location loc, char* fmt, ...);
 
-void unimplemented_error(FileIndex index, Location loc, char* msg);
-void unimplemented_errorf(FileIndex index, Location loc, char* fmt, ...);
+void unspecified_error(FileIndex index, Location loc, char* msg);
+void unspecified_errorf(FileIndex index, Location loc, char* fmt, ...);
+
+#define UNIMPLEMENTED(msg)                                                               \
+    do {                                                                                 \
+        errorf("%s:%i:%s UNIMPLEMENTED: %s", __FILE__, __LINE__, __func__, msg);         \
+        exit(1);                                                                         \
+    } while (0)
+
+#define UNREACHABLE()                                                                    \
+    do {                                                                                 \
+        errorf("%s:%i:%s UNREACHABLE: %s", __FILE__, __LINE__, __func__);                \
+        exit(1);                                                                         \
+    } while (0)
 
 #endif

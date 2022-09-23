@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diagnostics.h"
 #include "np_hash.h"
 
 static const char*
@@ -39,7 +40,7 @@ type_info_human_readable(TypeInfo info)
         case PYTYPE_UNTYPED:
             return "ERROR: UNTYPED";
         default:
-            UNREACHABLE("default case type info to human readable");
+            UNREACHABLE();
     }
 }
 
@@ -117,11 +118,11 @@ type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
             render_type_info_human_readable(info, buf, 1024);
             fprintf(stderr, "%s\n", buf);
             fflush(stderr);
-            UNREACHABLE("default type info to c syntax");
+            UNREACHABLE();
             break;
         }
     }
-    UNREACHABLE("end of type info to c syntax");
+    UNREACHABLE();
 }
 
 void
