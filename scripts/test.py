@@ -377,7 +377,6 @@ def init_test_groups(args, opts):
 
 
 def main():
-    start = time.time()
     parser = argparse.ArgumentParser(
         description="runs a command across every file in a given directory"
         " and compares the output with previously verified output"
@@ -456,6 +455,7 @@ def main():
     accumulative_result = Result("total", color=True)
 
     if args.build:
+        start = time.time()
         p = subprocess.run(
             shlex.split("make debug"),
             cwd=ROOT,
@@ -464,10 +464,12 @@ def main():
         )
         if p.returncode != 0:
             raise SystemExit(1)
+        print("building npc took:", f"{round(time.time() - start, 2)}s")
 
     with tempfile.TemporaryDirectory() as tmp:
         global TMP
         TMP = pathlib.Path(tmp)
+        start = time.time()
         try:
             for tg in tests:
                 # NOTE: this will spawn a LOT of processes unless --sync is given
@@ -491,6 +493,7 @@ def main():
             VerifiedChecksums.dump()
             return 0
         finally:
+            print("testing took:", f"{round(time.time() - start, 2)}s")
             if args.preserve_test_dir:
                 dst = ROOT/"testdir"
                 if dst.exists():

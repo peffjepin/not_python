@@ -18,6 +18,25 @@ typedef struct {
 FileIndex create_file_index(Arena* arena, const char* filepath);
 void file_index_index_line(FileIndex* index, size_t line_start);
 
+typedef enum {
+    LABEL_SYNTAX_ERROR,
+    LABEL_DEFAULT_ERROR,
+    LABEL_TYPE_ERROR,
+    LABEL_NAME_ERROR,
+    LABEL_WARNING,
+    LABEL_UNSPECIFIED_ERROR,
+    LABEL_SOURCE_CODE,
+    LABEL_SOURCE_CODE_HIGHLIGHTED,
+    LABEL_NORMAL,
+    LABEL_DEBUG,
+    LABEL_UNREACHABLE,
+    LABEL_UNIMPLEMENTED,
+    LABEL_COUNT,
+} DiagnosticLabel;
+
+void diagnostic_vprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline);
+void diagnostic_printf(DiagnosticLabel label, char* fmt, ...);
+
 void error(char* msg);
 void errorf(char* fmt, ...);
 void warn(char* msg);
@@ -39,13 +58,17 @@ void unspecified_errorf(FileIndex index, Location loc, char* fmt, ...);
 
 #define UNIMPLEMENTED(msg)                                                               \
     do {                                                                                 \
-        errorf("%s:%i:%s UNIMPLEMENTED: %s", __FILE__, __LINE__, __func__, msg);         \
+        diagnostic_printf(                                                               \
+            LABEL_UNIMPLEMENTED, "%s:%i:%s: %s", __FILE__, __LINE__, __func__, msg       \
+        );                                                                               \
         exit(1);                                                                         \
     } while (0)
 
 #define UNREACHABLE()                                                                    \
     do {                                                                                 \
-        errorf("%s:%i:%s UNREACHABLE: %s", __FILE__, __LINE__, __func__);                \
+        diagnostic_printf(                                                               \
+            LABEL_UNREACHABLE, "%s:%i:%s: %s", __FILE__, __LINE__, __func__              \
+        );                                                                               \
         exit(1);                                                                         \
     } while (0)
 

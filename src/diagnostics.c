@@ -1,5 +1,6 @@
 #include "diagnostics.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -115,64 +116,53 @@ source_lines(FileIndex index, size_t line_number, size_t ctx, LineBuffer* line_b
 #define TERMINAL_CYAN "\033[0;36m"
 #define TERMINAL_WHITE "\033[0;37m"
 #define TERMINAL_RESET "\033[0m"
+#define TERMINAL_DEFAULT TERMINAL_RESET
 
-typedef enum {
-    LABEL_SYNTAX_ERROR,
-    LABEL_DEFAULT_ERROR,
-    LABEL_TYPE_ERROR,
-    LABEL_NAME_ERROR,
-    LABEL_WARNING,
-    LABEL_UNIMPLEMENTED_ERROR,
-    LABEL_SOURCE_CODE,
-    LABEL_SOURCE_CODE_HIGHLIGHTED,
-    LABEL_NORMAL,
-    LABEL_DEBUG,
-    LABEL_COUNT,
-} DiagnosticLabel;
+typedef struct {
+    const char* text;
+    const char* term_color;
+} DiagnosticConfig;
 
-static const char* LABELS_TEXT[LABEL_COUNT] = {
-    [LABEL_DEFAULT_ERROR] = "ERROR: ",
-    [LABEL_SYNTAX_ERROR] = "SyntaxError: ",
-    [LABEL_TYPE_ERROR] = "TypeError: ",
-    [LABEL_NAME_ERROR] = "NameError: ",
-    [LABEL_UNIMPLEMENTED_ERROR] = "(exhaustive error report not yet implemented):",
-    [LABEL_WARNING] = "WARNING: ",
-    [LABEL_DEBUG] = "DEBUG: ",
-    [LABEL_SOURCE_CODE] = "",
-    [LABEL_SOURCE_CODE_HIGHLIGHTED] = "",
-    [LABEL_NORMAL] = "",
+static_assert(LABEL_COUNT == 12, "new DiagnosticLabel config required");
+static const DiagnosticConfig CONFIG_TABLE[LABEL_COUNT] = {
+    [LABEL_DEFAULT_ERROR] = {.text = "ERROR: ", .term_color = TERMINAL_RED},
+    [LABEL_SYNTAX_ERROR] = {.text = "SyntaxError: ", .term_color = TERMINAL_RED},
+    [LABEL_TYPE_ERROR] = {.text = "TypeError: ", .term_color = TERMINAL_RED},
+    [LABEL_NAME_ERROR] = {.text = "NameError: ", .term_color = TERMINAL_RED},
+    [LABEL_UNSPECIFIED_ERROR] =
+        {.text = "(exhaustive error report not yet implemented):",
+         .term_color = TERMINAL_RED},
+    [LABEL_WARNING] = {.text = "WARNING: ", .term_color = TERMINAL_YELLOW},
+    [LABEL_DEBUG] = {.text = "DEBUG: ", .term_color = TERMINAL_MAGENTA},
+    [LABEL_SOURCE_CODE] = {.text = "", .term_color = TERMINAL_DEFAULT},
+    [LABEL_SOURCE_CODE_HIGHLIGHTED] = {.text = "", .term_color = TERMINAL_YELLOW},
+    [LABEL_NORMAL] = {.text = "", .term_color = TERMINAL_DEFAULT},
+    [LABEL_UNIMPLEMENTED] =
+        {.text = "INTERNAL COMPILER ERROR: (UNIMPLEMENTED): ",
+         .term_color = TERMINAL_RED},
+    [LABEL_UNREACHABLE] =
+        {.text = "INTERNAL COMPILER ERROR (UNREACHABLE): ", .term_color = TERMINAL_RED},
 };
 
-static const char* LABELS_COLOR[LABEL_COUNT] = {
-    [LABEL_DEFAULT_ERROR] = TERMINAL_RED,
-    [LABEL_SYNTAX_ERROR] = TERMINAL_RED,
-    [LABEL_TYPE_ERROR] = TERMINAL_RED,
-    [LABEL_NAME_ERROR] = TERMINAL_RED,
-    [LABEL_UNIMPLEMENTED_ERROR] = TERMINAL_RED,
-    [LABEL_WARNING] = TERMINAL_YELLOW,
-    [LABEL_DEBUG] = TERMINAL_MAGENTA,
-    [LABEL_SOURCE_CODE] = TERMINAL_RESET,
-    [LABEL_SOURCE_CODE_HIGHLIGHTED] = TERMINAL_YELLOW,
-    [LABEL_NORMAL] = TERMINAL_RESET,
-};
-
-static void
-eprintf(DiagnosticLabel label, char* fmt, ...)
+void
+diagnostic_printf(DiagnosticLabel label, char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
 
-    fprintf(stderr, "%s%s", LABELS_COLOR[label], LABELS_TEXT[label]);
+    DiagnosticConfig config = CONFIG_TABLE[label];
+    fprintf(stderr, "%s%s", config.term_color, config.text);
     vfprintf(stderr, fmt, args);
     fprintf(stderr, TERMINAL_RESET);
 
     va_end(args);
 }
 
-static void
-veprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline)
+void
+diagnostic_vprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline)
 {
-    fprintf(stderr, "%s%s", LABELS_COLOR[label], LABELS_TEXT[label]);
+    DiagnosticConfig config = CONFIG_TABLE[label];
+    fprintf(stderr, "%s%s", config.term_color, config.text);
     vfprintf(stderr, fmt, args);
     fprintf(stderr, TERMINAL_RESET);
     if (newline) fprintf(stderr, "\n");
@@ -181,7 +171,7 @@ veprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline)
 void
 error(char* msg)
 {
-    eprintf(LABEL_DEFAULT_ERROR, "%s\n", msg);
+    diagnostic_printf(LABEL_DEFAULT_ERROR, "%s\n", msg);
     exit(1);
 }
 
@@ -190,7 +180,7 @@ errorf(char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    veprintf(LABEL_DEFAULT_ERROR, fmt, args, true);
+    diagnostic_vprintf(LABEL_DEFAULT_ERROR, fmt, args, true);
     va_end(args);
     exit(1);
 }
@@ -198,7 +188,7 @@ errorf(char* fmt, ...)
 void
 warn(char* msg)
 {
-    eprintf(LABEL_WARNING, "%s\n", msg);
+    diagnostic_printf(LABEL_WARNING, "%s\n", msg);
 }
 
 void
@@ -207,7 +197,7 @@ warnf(char* fmt, ...)
     va_list vargs;
     va_start(vargs, fmt);
 
-    veprintf(LABEL_WARNING, fmt, vargs, true);
+    diagnostic_vprintf(LABEL_WARNING, fmt, vargs, true);
 
     va_end(vargs);
 }
@@ -215,7 +205,7 @@ warnf(char* fmt, ...)
 void
 debug(char* msg)
 {
-    eprintf(LABEL_DEBUG, "%s\n", msg);
+    diagnostic_printf(LABEL_DEBUG, "%s\n", msg);
 }
 
 void
@@ -224,7 +214,7 @@ debugf(char* fmt, ...)
     va_list vargs;
     va_start(vargs, fmt);
 
-    veprintf(LABEL_DEBUG, fmt, vargs, true);
+    diagnostic_vprintf(LABEL_DEBUG, fmt, vargs, true);
 
     va_end(vargs);
 }
@@ -237,102 +227,104 @@ print_source_code(FileIndex index, Location loc, size_t ctx)
     for (size_t i = 0; i < 1 + 2 * ctx; i++) {
         DiagnosticLabel label =
             (ctx > 0 && i == ctx) ? LABEL_SOURCE_CODE_HIGHLIGHTED : LABEL_SOURCE_CODE;
-        eprintf(label, "%s", lines[i].data);
+        diagnostic_printf(label, "%s", lines[i].data);
     }
 }
+
+static void
+error_with_source(
+    DiagnosticLabel head_label,
+    DiagnosticLabel msg_label,
+    FileIndex index,
+    Location loc,
+    size_t ctx,
+    char* msg
+)
+{
+    diagnostic_printf(head_label, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    diagnostic_printf(msg_label, "%s:\n", msg);
+    print_source_code(index, loc, ctx);
+    exit(1);
+}
+static void
+errorf_with_source(
+    DiagnosticLabel head_label,
+    DiagnosticLabel msg_label,
+    FileIndex index,
+    Location loc,
+    size_t ctx,
+    char* fmt,
+    va_list args
+)
+{
+    diagnostic_printf(head_label, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
+    diagnostic_vprintf(msg_label, fmt, args, true);
+    print_source_code(index, loc, ctx);
+    exit(1);
+}
+
+#define WITH_VA(args, last_non_va_arg)                                                   \
+    va_list args;                                                                        \
+    for (int i = (va_start(args, last_non_va_arg), 0); i < 1; i = (va_end(args), i + 1))
 
 void
 syntax_error(FileIndex index, Location loc, size_t ctx, char* msg)
 {
-    eprintf(LABEL_SYNTAX_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    eprintf(LABEL_NORMAL, "%s:\n", msg);
-    print_source_code(index, loc, ctx);
-    exit(1);
+    error_with_source(LABEL_SYNTAX_ERROR, LABEL_NORMAL, index, loc, ctx, msg);
 }
 
 void
 syntax_errorf(FileIndex index, Location loc, size_t ctx, char* fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-
-    eprintf(LABEL_SYNTAX_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    veprintf(LABEL_NORMAL, fmt, args, true);
-    print_source_code(index, loc, ctx);
-
-    va_end(args);
-
-    exit(1);
+    WITH_VA(args, fmt)
+    {
+        errorf_with_source(LABEL_SYNTAX_ERROR, LABEL_NORMAL, index, loc, ctx, fmt, args);
+    }
 }
 
 void
 type_error(FileIndex index, Location loc, char* msg)
 {
-    eprintf(LABEL_TYPE_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    eprintf(LABEL_NORMAL, "%s:\n", msg);
-    print_source_code(index, loc, 0);
-    exit(1);
+    error_with_source(LABEL_TYPE_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
 type_errorf(FileIndex index, Location loc, char* fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-
-    eprintf(LABEL_TYPE_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    veprintf(LABEL_NORMAL, fmt, args, true);
-    print_source_code(index, loc, 0);
-
-    va_end(args);
-
-    exit(1);
+    WITH_VA(args, fmt)
+    {
+        errorf_with_source(LABEL_TYPE_ERROR, LABEL_NORMAL, index, loc, 0, fmt, args);
+    }
 }
 
 void
 name_error(FileIndex index, Location loc, char* msg)
 {
-    eprintf(LABEL_NAME_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    eprintf(LABEL_NORMAL, "%s:\n", msg);
-    print_source_code(index, loc, 0);
-    exit(1);
+    error_with_source(LABEL_NAME_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
 name_errorf(FileIndex index, Location loc, char* fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-
-    eprintf(LABEL_NAME_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    veprintf(LABEL_NORMAL, fmt, args, true);
-    print_source_code(index, loc, 0);
-
-    va_end(args);
-
-    exit(1);
+    WITH_VA(args, fmt)
+    {
+        errorf_with_source(LABEL_NAME_ERROR, LABEL_NORMAL, index, loc, 0, fmt, args);
+    }
 }
 
 void
 unspecified_error(FileIndex index, Location loc, char* msg)
 {
-    eprintf(LABEL_UNIMPLEMENTED_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    eprintf(LABEL_NORMAL, "%s:\n", msg);
-    print_source_code(index, loc, 0);
-    exit(1);
+    error_with_source(LABEL_UNSPECIFIED_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
 unspecified_errorf(FileIndex index, Location loc, char* fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-
-    eprintf(LABEL_UNIMPLEMENTED_ERROR, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
-    veprintf(LABEL_NORMAL, fmt, args, true);
-    print_source_code(index, loc, 0);
-
-    va_end(args);
-
-    exit(1);
+    WITH_VA(args, fmt)
+    {
+        errorf_with_source(
+            LABEL_UNSPECIFIED_ERROR, LABEL_NORMAL, index, loc, 0, fmt, args
+        );
+    }
 }

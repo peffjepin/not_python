@@ -93,7 +93,7 @@ test: debug run_test_symbol_hashmap
 test_update: debug
 	./scripts/test.py --interactive
 
-test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o test/test_symbol_hashmap.c
+test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o build/diagnostics_db.o test/test_symbol_hashmap.c
 	$(CC) $(DEBUG_CFLAGS) -o $@ $^
 
 run_test_symbol_hashmap: test_symbol_hashmap
