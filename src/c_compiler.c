@@ -49,9 +49,14 @@ typedef struct {
         sprintf(name[i], "NP_var%zu", compiler_ptr->unique_vars_counter++);              \
     }
 
-#define GENERATE_UNIQUE_VAR_NAME(compiler_ptr, name)                                     \
-    char name[UNIQUE_VAR_LENGTH];                                                        \
-    sprintf(name, "NP_var%zu", compiler_ptr->unique_vars_counter++)
+#define GENERATE_UNIQUE_VAR_NAME(compiler_ptr, variable)                                 \
+    do {                                                                                 \
+        sprintf(                                                                         \
+            variable.local_storage, "NP_var%zu", compiler_ptr->unique_vars_counter++     \
+        );                                                                               \
+        variable.final_name = variable.local_storage;                                    \
+        variable.declared = false;                                                       \
+    } while (0)
 
 #define WRITE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                        \
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
@@ -126,13 +131,20 @@ cmp_for_type_info(TypeInfo type_info)
     return cmp_for_type;
 }
 
+#define GENERATED_VARIABLE_CAPACITY 16
+
+typedef struct {
+    TypeInfo typing;
+    bool declared;
+    char* source_name;
+    char* final_name;
+    char local_storage[GENERATED_VARIABLE_CAPACITY];
+} C_Variable;
+
 // TODO: maybe C_Variable is a better name
 typedef struct {
     CompilerSection* section;
-    TypeInfo type_info;
-    char* user_defined_variable_name;
-    char* variable_name;
-    bool is_declared;
+    C_Variable variable;
     Location* loc;  // NULL for intermediate assignments
 } C_Assignment;
 
@@ -141,9 +153,9 @@ set_assignment_type_info(
     C_Compiler* compiler, C_Assignment* assignment, TypeInfo type_info
 )
 {
-    assert(assignment->type_info.type < PYTYPE_COUNT);
-    if (assignment->type_info.type != PYTYPE_UNTYPED &&
-        !compare_types(type_info, assignment->type_info)) {
+    assert(assignment->variable.typing.type < PYTYPE_COUNT);
+    if (assignment->variable.typing.type != PYTYPE_UNTYPED &&
+        !compare_types(type_info, assignment->variable.typing)) {
         // TODO: some kind of check if this is safe to cast such
         //      ex: if expecting a float, and actually got an int, it's probably safe to
         //      just cast to float
@@ -151,7 +163,7 @@ set_assignment_type_info(
         static const size_t buflen = 1024;
         char expected[buflen];
         char actual[buflen];
-        render_type_info_human_readable(assignment->type_info, expected, buflen);
+        render_type_info_human_readable(assignment->variable.typing, expected, buflen);
         render_type_info_human_readable(type_info, actual, buflen);
 
         if (assignment->loc) {
@@ -160,7 +172,7 @@ set_assignment_type_info(
                 *assignment->loc,
                 "trying to assign type `%s` to variable `%s` of type `%s`",
                 actual,
-                assignment->user_defined_variable_name,
+                assignment->variable.source_name,
                 expected
             );
         }
@@ -175,7 +187,7 @@ set_assignment_type_info(
         }
     }
     else {
-        assignment->type_info = type_info;
+        assignment->variable.typing = type_info;
     }
 }
 
@@ -194,15 +206,15 @@ static void convert_assignment_to_string(
 static void
 prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignment)
 {
-    if (assignment->variable_name) {
-        if (!assignment->is_declared) {
-            if (assignment->type_info.type == PYTYPE_UNTYPED) UNTYPED_ERROR();
+    if (assignment->variable.final_name) {
+        if (!assignment->variable.declared) {
+            if (assignment->variable.typing.type == PYTYPE_UNTYPED) UNTYPED_ERROR();
             write_type_info_to_section(
-                assignment->section, &compiler->sb, assignment->type_info
+                assignment->section, &compiler->sb, assignment->variable.typing
             );
-            assignment->is_declared = true;
+            assignment->variable.declared = true;
         }
-        write_to_section(assignment->section, assignment->variable_name);
+        write_to_section(assignment->section, assignment->variable.final_name);
         write_to_section(assignment->section, " = ");
     }
 }
@@ -277,7 +289,7 @@ render_empty_enclosure(
                 enclosure_assignment->section,
                 "LIST_INIT(",
                 type_info_to_c_syntax(
-                    &compiler->sb, enclosure_assignment->type_info.inner->types[0]
+                    &compiler->sb, enclosure_assignment->variable.typing.inner->types[0]
                 ),
                 ");\n",
                 NULL
@@ -285,14 +297,14 @@ render_empty_enclosure(
             break;
         case ENCLOSURE_DICT:
             prepare_c_assignment_for_rendering(compiler, enclosure_assignment);
-            TypeInfo key_type = enclosure_assignment->type_info.inner->types[0];
+            TypeInfo key_type = enclosure_assignment->variable.typing.inner->types[0];
             write_many_to_section(
                 enclosure_assignment->section,
                 "DICT_INIT(",
                 type_info_to_c_syntax(&compiler->sb, key_type),
                 ", ",
                 type_info_to_c_syntax(
-                    &compiler->sb, enclosure_assignment->type_info.inner->types[1]
+                    &compiler->sb, enclosure_assignment->variable.typing.inner->types[1]
                 ),
                 ", ",
                 voidptr_cmp_for_type_info(key_type),
@@ -312,18 +324,16 @@ render_list_literal(
     C_Compiler* compiler, C_Assignment* enclosure_assignment, Operand operand
 )
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, expression_variable);
-    C_Assignment expression_assignment = {
-        .is_declared = false,
-        .section = enclosure_assignment->section,
-        .variable_name = expression_variable};
+    C_Assignment expression_assignment = {.section = enclosure_assignment->section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, expression_assignment.variable);
+
     render_expression_assignment(
         compiler, &expression_assignment, operand.enclosure->expressions[0]
     );
 
     TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
     inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
-    inner->types[0] = expression_assignment.type_info;
+    inner->types[0] = expression_assignment.variable.typing;
     inner->count = 1;
     TypeInfo enclosure_type_info = {.type = PYTYPE_LIST, .inner = inner};
     set_assignment_type_info(compiler, enclosure_assignment, enclosure_type_info);
@@ -337,11 +347,11 @@ render_list_literal(
         write_many_to_section(
             enclosure_assignment->section,
             "LIST_APPEND(",
-            enclosure_assignment->variable_name,
+            enclosure_assignment->variable.final_name,
             ", ",
-            type_info_to_c_syntax(&compiler->sb, expression_assignment.type_info),
+            type_info_to_c_syntax(&compiler->sb, expression_assignment.variable.typing),
             ", ",
-            expression_assignment.variable_name,
+            expression_assignment.variable.final_name,
             ");\n",
             NULL
         );
@@ -357,27 +367,22 @@ render_dict_literal(
     C_Compiler* compiler, C_Assignment* enclosure_assignment, Operand operand
 )
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
-    C_Assignment key_assignment = {
-        .is_declared = false,
-        .section = enclosure_assignment->section,
-        .variable_name = key_variable};
+    C_Assignment key_assignment = {.section = enclosure_assignment->section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, key_assignment.variable);
     render_expression_assignment(
         compiler, &key_assignment, operand.enclosure->expressions[0]
     );
-    GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
-    C_Assignment val_assignment = {
-        .is_declared = false,
-        .section = enclosure_assignment->section,
-        .variable_name = val_variable};
+
+    C_Assignment val_assignment = {.section = enclosure_assignment->section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, val_assignment.variable);
     render_expression_assignment(
         compiler, &val_assignment, operand.enclosure->expressions[1]
     );
 
     TypeInfoInner* inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner));
     inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo) * 2);
-    inner->types[0] = key_assignment.type_info;
-    inner->types[1] = val_assignment.type_info;
+    inner->types[0] = key_assignment.variable.typing;
+    inner->types[1] = val_assignment.variable.typing;
     inner->count = 2;
     TypeInfo enclosure_type_info = {.type = PYTYPE_DICT, .inner = inner};
     set_assignment_type_info(compiler, enclosure_assignment, enclosure_type_info);
@@ -389,11 +394,11 @@ render_dict_literal(
         write_many_to_section(
             enclosure_assignment->section,
             "dict_set_item(",
-            enclosure_assignment->variable_name,
+            enclosure_assignment->variable.final_name,
             ", &",
-            key_assignment.variable_name,
+            key_assignment.variable.final_name,
             ", &",
-            val_assignment.variable_name,
+            val_assignment.variable.final_name,
             ");\n",
             NULL
         );
@@ -413,7 +418,7 @@ render_enclosure_literal(
 )
 {
     if (operand.enclosure->expressions_count == 0) {
-        if (enclosure_assignment->type_info.type == PYTYPE_UNTYPED) {
+        if (enclosure_assignment->variable.typing.type == PYTYPE_UNTYPED) {
             type_error(
                 compiler->file_index,
                 compiler->current_stmt_location,
@@ -424,7 +429,7 @@ render_enclosure_literal(
         return;
     }
 
-    if (enclosure_assignment->variable_name == NULL) {
+    if (enclosure_assignment->variable.final_name == NULL) {
         // TODO: python allows this but I'm not sure it makes sense for us to allow this
         unspecified_error(
             compiler->file_index,
@@ -474,9 +479,9 @@ render_callable_args_to_variables(
 
     for (size_t i = 0; i < sig.params_count; i++) {
         assignments[i].section = section;
-        assignments[i].type_info = sig.types[i];
-        assignments[i].variable_name = variable_names[i];
-        assignments[i].is_declared = variables_declared;
+        assignments[i].variable.typing = sig.types[i];
+        assignments[i].variable.final_name = variable_names[i];
+        assignments[i].variable.declared = variables_declared;
     }
 
     if (args->values_count > sig.params_count) {
@@ -602,21 +607,21 @@ render_default_object_string_represntation(
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
         SourceString varname = sb_build(
             &compiler->sb,
-            object_assignment.variable_name,
+            object_assignment.variable.final_name,
             "->",
             clsdef->sig.params[i].data,
             NULL
         );
         C_Assignment fake_member_assignment = {
             .section = object_assignment.section,
-            .type_info = clsdef->sig.types[i],
-            .variable_name = varname.data,
+            .variable.typing = clsdef->sig.types[i],
+            .variable.final_name = varname.data,
         };
         C_Assignment* to_string = as_str_assignments + i;
         to_string->section = object_assignment.section;
-        to_string->type_info.type = PYTYPE_STRING;
-        to_string->is_declared = false;
-        to_string->variable_name = members_as_str[i];
+        to_string->variable.typing.type = PYTYPE_STRING;
+        to_string->variable.declared = false;
+        to_string->variable.final_name = members_as_str[i];
         convert_assignment_to_string(compiler, fake_member_assignment, to_string);
     }
 
@@ -637,21 +642,24 @@ convert_object_to_str(
 )
 {
     FunctionStatement* user_defined_str =
-        object_assignment.type_info.cls->object_model_methods[OBJECT_MODEL_STR];
+        object_assignment.variable.typing.cls->object_model_methods[OBJECT_MODEL_STR];
     if (user_defined_str) {
         prepare_c_assignment_for_rendering(compiler, destination);
         write_many_to_section(
             destination->section,
             user_defined_str->ns_ident.data,
             "(",
-            object_assignment.variable_name,
+            object_assignment.variable.final_name,
             ")",
             NULL
         );
     }
     else
         render_default_object_string_represntation(
-            compiler, object_assignment.type_info.cls, object_assignment, destination
+            compiler,
+            object_assignment.variable.typing.cls,
+            object_assignment,
+            destination
         );
 }
 
@@ -660,15 +668,15 @@ convert_assignment_to_string(
     C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
 )
 {
-    if (assignment_to_convert.type_info.type == PYTYPE_STRING) return;
+    if (assignment_to_convert.variable.typing.type == PYTYPE_STRING) return;
 
-    switch (assignment_to_convert.type_info.type) {
+    switch (assignment_to_convert.variable.typing.type) {
         case PYTYPE_INT:
             prepare_c_assignment_for_rendering(compiler, destination);
             write_many_to_section(
                 destination->section,
                 "np_int_to_str(",
-                assignment_to_convert.variable_name,
+                assignment_to_convert.variable.final_name,
                 ");\n",
                 NULL
             );
@@ -678,7 +686,7 @@ convert_assignment_to_string(
             write_many_to_section(
                 destination->section,
                 "np_float_to_str(",
-                assignment_to_convert.variable_name,
+                assignment_to_convert.variable.final_name,
                 ");\n",
                 NULL
             );
@@ -688,7 +696,7 @@ convert_assignment_to_string(
             write_many_to_section(
                 destination->section,
                 "np_bool_to_str(",
-                assignment_to_convert.variable_name,
+                assignment_to_convert.variable.final_name,
                 ");\n",
                 NULL
             );
@@ -700,7 +708,7 @@ convert_assignment_to_string(
             static const size_t buflen = 1024;
             char from_type[buflen];
             render_type_info_human_readable(
-                assignment_to_convert.type_info, from_type, buflen
+                assignment_to_convert.variable.typing, from_type, buflen
             );
             unspecified_errorf(
                 compiler->file_index,
@@ -729,18 +737,18 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
 
     if (args->values_count == 0) {
         initial_assignments[0].section = section;
-        initial_assignments[0].type_info.type = PYTYPE_STRING;
-        initial_assignments[0].variable_name = initial_resolution_vars[0];
-        initial_assignments[0].is_declared = false;
+        initial_assignments[0].variable.typing.type = PYTYPE_STRING;
+        initial_assignments[0].variable.final_name = initial_resolution_vars[0];
+        initial_assignments[0].variable.declared = false;
         prepare_c_assignment_for_rendering(compiler, initial_assignments);
         write_to_section(section, "{.data=\"\", .length=0};\n");
     }
     else {
         for (size_t i = 0; i < args->values_count; i++) {
             initial_assignments[i].section = section;
-            initial_assignments[i].type_info.type = PYTYPE_UNTYPED;
-            initial_assignments[i].variable_name = initial_resolution_vars[i];
-            initial_assignments[i].is_declared = false;
+            initial_assignments[i].variable.typing.type = PYTYPE_UNTYPED;
+            initial_assignments[i].variable.final_name = initial_resolution_vars[i];
+            initial_assignments[i].variable.declared = false;
             render_expression_assignment(
                 compiler, initial_assignments + i, args->values[i]
             );
@@ -750,12 +758,12 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
     C_Assignment converted_assignments[args_count];
     for (size_t i = 0; i < args_count; i++) {
-        if (initial_assignments[i].type_info.type == PYTYPE_STRING)
+        if (initial_assignments[i].variable.typing.type == PYTYPE_STRING)
             converted_assignments[i] = initial_assignments[i];
         else {
-            converted_assignments[i].type_info.type = PYTYPE_STRING;
-            converted_assignments[i].variable_name = string_vars[i];
-            converted_assignments[i].is_declared = false;
+            converted_assignments[i].variable.typing.type = PYTYPE_STRING;
+            converted_assignments[i].variable.final_name = string_vars[i];
+            converted_assignments[i].variable.declared = false;
             converted_assignments[i].section = section;
             convert_assignment_to_string(
                 compiler, initial_assignments[i], converted_assignments + i
@@ -770,7 +778,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     write_to_section(section, ", ");
     for (size_t i = 0; i < args_count; i++) {
         if (i > 0) write_to_section(section, ", ");
-        write_to_section(section, converted_assignments[i].variable_name);
+        write_to_section(section, converted_assignments[i].variable.final_name);
     }
     write_to_section(section, ");\n");
 }
@@ -801,25 +809,24 @@ render_list_append(
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     expect_arg_count(compiler, "list.append", args, 1);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, list_item_var);
     C_Assignment item_assignment = {
         .section = assignment->section,
-        .type_info = list_content_type,
-        .variable_name = list_item_var,
-        .is_declared = false};
+        .variable.typing = list_content_type,
+        .variable.declared = false};
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     write_many_to_section(
         assignment->section,
         "LIST_APPEND(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
-        list_item_var,
+        item_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -840,7 +847,11 @@ render_list_clear(
     expect_arg_count(compiler, "list.clear", args, 0);
 
     write_many_to_section(
-        assignment->section, "list_clear(", list_assignment->variable_name, ");\n", NULL
+        assignment->section,
+        "list_clear(",
+        list_assignment->variable.final_name,
+        ");\n",
+        NULL
     );
 }
 
@@ -853,13 +864,17 @@ render_list_copy(
 )
 {
     (void)compiler;
-    set_assignment_type_info(compiler, assignment, list_assignment->type_info);
+    set_assignment_type_info(compiler, assignment, list_assignment->variable.typing);
 
     expect_arg_count(compiler, "list.copy", args, 0);
 
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
-        assignment->section, "list_copy(", list_assignment->variable_name, ");\n", NULL
+        assignment->section,
+        "list_copy(",
+        list_assignment->variable.final_name,
+        ");\n",
+        NULL
     );
 }
 
@@ -871,39 +886,36 @@ render_list_count(
     Arguments* args
 )
 {
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     const char* cmp_func = cmp_for_type_info(list_content_type);
 
     expect_arg_count(compiler, "list.count", args, 1);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_var);
     C_Assignment item_assignment = {
-        .section = assignment->section,
-        .variable_name = item_var,
-        .type_info = list_content_type,
-        .is_declared = false};
+        .section = assignment->section, .variable.typing = list_content_type};
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_INT};
     set_assignment_type_info(compiler, assignment, return_type);
-    if (!assignment->is_declared) {
+    if (!assignment->variable.declared) {
         write_type_info_to_section(assignment->section, &compiler->sb, return_type);
-        write_to_section(assignment->section, assignment->variable_name);
+        write_to_section(assignment->section, assignment->variable.final_name);
         write_to_section(assignment->section, ";\n");
     }
 
     write_many_to_section(
         assignment->section,
         "LIST_COUNT(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
         cmp_func,
         ", ",
-        item_var,
+        item_assignment.variable.final_name,
         ", ",
-        assignment->variable_name,
+        assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -919,12 +931,10 @@ render_list_extend(
 {
     expect_arg_count(compiler, "list.extend", args, 1);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, other_var);
     C_Assignment other_assignment = {
         .section = assignment->section,
-        .type_info = list_assignment->type_info,
-        .variable_name = other_var,
-        .is_declared = false};
+        .variable.typing = list_assignment->variable.typing};
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_assignment.variable);
     render_expression_assignment(compiler, &other_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
@@ -933,9 +943,9 @@ render_list_extend(
     write_many_to_section(
         assignment->section,
         "list_extend(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
-        other_assignment.variable_name,
+        other_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -952,33 +962,28 @@ render_list_index(
     // TODO: start/stop
     expect_arg_count(compiler, "list.index", args, 1);
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     const char* cmp = cmp_for_type_info(list_content_type);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
     C_Assignment item_assignment = {
-        .section = assignment->section,
-        .type_info = list_content_type,
-        .variable_name = item_variable,
-        .is_declared = false};
+        .section = assignment->section, .variable.typing = list_content_type};
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_INT};
     set_assignment_type_info(compiler, assignment, return_type);
 
-    if (!assignment->variable_name) {
+    if (!assignment->variable.final_name) {
         // TODO: maybe trying to call this without assigning it is just an error.
-        GENERATE_UNIQUE_VAR_NAME(compiler, result_variable);
-        assignment->variable_name = result_variable;
-        assignment->is_declared = false;
+        GENERATE_UNIQUE_VAR_NAME(compiler, assignment->variable);
     }
 
-    if (!assignment->is_declared) {
+    if (!assignment->variable.declared) {
         write_many_to_section(
             assignment->section,
             type_info_to_c_syntax(&compiler->sb, return_type),
             " ",
-            assignment->variable_name,
+            assignment->variable.final_name,
             ";\n",
             NULL
         );
@@ -987,15 +992,15 @@ render_list_index(
     write_many_to_section(
         assignment->section,
         "LIST_INDEX(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
         cmp,
         ", ",
-        item_variable,
+        item_assignment.variable.final_name,
         ", ",
-        assignment->variable_name,
+        assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -1011,21 +1016,15 @@ render_list_insert(
 {
     expect_arg_count(compiler, "list.insert", args, 2);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
     C_Assignment index_assignment = {
-        .section = assignment->section,
-        .type_info.type = PYTYPE_INT,
-        .variable_name = index_variable,
-        .is_declared = false};
+        .section = assignment->section, .variable.typing.type = PYTYPE_INT};
+    GENERATE_UNIQUE_VAR_NAME(compiler, index_assignment.variable);
     render_expression_assignment(compiler, &index_assignment, args->values[0]);
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     C_Assignment item_assignment = {
-        .section = assignment->section,
-        .type_info = list_content_type,
-        .variable_name = item_variable,
-        .is_declared = false};
+        .section = assignment->section, .variable.typing = list_content_type};
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
     render_expression_assignment(compiler, &item_assignment, args->values[1]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
@@ -1034,13 +1033,13 @@ render_list_insert(
     write_many_to_section(
         assignment->section,
         "LIST_INSERT(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
-        index_variable,
+        index_assignment.variable.final_name,
         ", ",
-        item_variable,
+        item_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -1054,18 +1053,13 @@ render_list_pop(
     Arguments* args
 )
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
+    C_Assignment index_assignment = {
+        .section = assignment->section, .variable.typing.type = PYTYPE_INT};
     if (args->values_count == 0) {
-        index_variable[0] = '-';
-        index_variable[1] = '1';
-        index_variable[2] = '\0';
+        index_assignment.variable.final_name = "-1";
     }
     else if (args->values_count == 1) {
-        C_Assignment index_assignment = {
-            .section = assignment->section,
-            .type_info.type = PYTYPE_INT,
-            .variable_name = index_variable,
-            .is_declared = false};
+        GENERATE_UNIQUE_VAR_NAME(compiler, index_assignment.variable);
         render_expression_assignment(compiler, &index_assignment, args->values[0]);
     }
     else {
@@ -1077,19 +1071,17 @@ render_list_pop(
         );
     }
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     set_assignment_type_info(compiler, assignment, list_content_type);
-    if (!assignment->variable_name) {
-        GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
-        assignment->variable_name = item_variable;
-        assignment->is_declared = false;
+    if (!assignment->variable.final_name) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, assignment->variable);
     }
-    if (!assignment->is_declared) {
+    if (!assignment->variable.declared) {
         write_many_to_section(
             assignment->section,
             type_info_to_c_syntax(&compiler->sb, list_content_type),
             " ",
-            assignment->variable_name,
+            assignment->variable.final_name,
             ";\n",
             NULL
         );
@@ -1098,13 +1090,13 @@ render_list_pop(
     write_many_to_section(
         assignment->section,
         "LIST_POP(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
-        index_variable,
+        index_assignment.variable.final_name,
         ", ",
-        assignment->variable_name,
+        assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -1120,15 +1112,12 @@ render_list_remove(
 {
     expect_arg_count(compiler, "list.remove", args, 1);
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     const char* cmp = cmp_for_type_info(list_content_type);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_variable);
     C_Assignment item_assignment = {
-        .section = assignment->section,
-        .type_info = list_content_type,
-        .variable_name = item_variable,
-        .is_declared = false};
+        .section = assignment->section, .variable.typing = list_content_type};
+    GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
     render_expression_assignment(compiler, &item_assignment, args->values[0]);
 
     TypeInfo return_type = {.type = PYTYPE_NONE};
@@ -1137,13 +1126,13 @@ render_list_remove(
     write_many_to_section(
         assignment->section,
         "LIST_REMOVE(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, list_content_type),
         ", ",
         cmp,
         ", ",
-        item_variable,
+        item_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -1164,7 +1153,11 @@ render_list_reverse(
     set_assignment_type_info(compiler, assignment, return_type);
 
     write_many_to_section(
-        assignment->section, "list_reverse(", list_assignment->variable_name, ");\n", NULL
+        assignment->section,
+        "list_reverse(",
+        list_assignment->variable.final_name,
+        ");\n",
+        NULL
     );
 }
 
@@ -1200,33 +1193,30 @@ render_list_sort(
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
 
-    TypeInfo list_content_type = list_assignment->type_info.inner->types[0];
+    TypeInfo list_content_type = list_assignment->variable.typing.inner->types[0];
     const char* rev_cmp = sort_cmp_for_type_info(list_content_type, true);
     const char* norm_cmp = sort_cmp_for_type_info(list_content_type, false);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, reversed_variable);
+    C_Assignment reversed_assignment = {
+        .section = assignment->section, .variable.typing.type = PYTYPE_BOOL};
     if (args->values_count > 0) {
-        C_Assignment reversed_assignment = {
-            .section = assignment->section,
-            .type_info.type = PYTYPE_BOOL,
-            .variable_name = reversed_variable,
-            .is_declared = false};
+        GENERATE_UNIQUE_VAR_NAME(compiler, reversed_assignment.variable);
         render_expression_assignment(compiler, &reversed_assignment, args->values[0]);
     }
     else {
-        memcpy(reversed_variable, "false", 6);
+        reversed_assignment.variable.final_name = "false";
     }
 
     write_many_to_section(
         assignment->section,
         "LIST_SORT(",
-        list_assignment->variable_name,
+        list_assignment->variable.final_name,
         ", ",
         norm_cmp,
         ", ",
         rev_cmp,
         ", ",
-        reversed_variable,
+        reversed_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -1325,7 +1315,11 @@ render_dict_clear(
     expect_arg_count(compiler, "dict.clear", args, 0);
 
     write_many_to_section(
-        assignment->section, "dict_clear(", dict_assignment->variable_name, ");\n", NULL
+        assignment->section,
+        "dict_clear(",
+        dict_assignment->variable.final_name,
+        ");\n",
+        NULL
     );
 }
 
@@ -1340,11 +1334,15 @@ render_dict_copy(
     (void)compiler;
     expect_arg_count(compiler, "dict.copy", args, 0);
 
-    TypeInfo return_type = dict_assignment->type_info;
+    TypeInfo return_type = dict_assignment->variable.typing;
     set_assignment_type_info(compiler, assignment, return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
-        assignment->section, "dict_copy(", dict_assignment->variable_name, ");\n", NULL
+        assignment->section,
+        "dict_copy(",
+        dict_assignment->variable.final_name,
+        ");\n",
+        NULL
     );
 }
 
@@ -1375,7 +1373,7 @@ render_dict_items(
 
     // ITER of DICT_ITEMS of [KEY_TYPE, VALUE_TYPE]
     TypeInfo dict_items_type = {
-        .type = PYTYPE_DICT_ITEMS, .inner = dict_assignment->type_info.inner};
+        .type = PYTYPE_DICT_ITEMS, .inner = dict_assignment->variable.typing.inner};
     TypeInfo return_type = {
         .type = PYTYPE_ITER,
         .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
@@ -1388,7 +1386,7 @@ render_dict_items(
     write_many_to_section(
         assignment->section,
         "dict_iter_items(",
-        dict_assignment->variable_name,
+        dict_assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -1409,7 +1407,7 @@ render_dict_keys(
         .type = PYTYPE_ITER,
         .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
     return_type.inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
-    return_type.inner->types[0] = dict_assignment->type_info.inner->types[0];
+    return_type.inner->types[0] = dict_assignment->variable.typing.inner->types[0];
     return_type.inner->count = 1;
 
     set_assignment_type_info(compiler, assignment, return_type);
@@ -1417,7 +1415,7 @@ render_dict_keys(
     write_many_to_section(
         assignment->section,
         "dict_iter_keys(",
-        dict_assignment->variable_name,
+        dict_assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -1431,18 +1429,16 @@ render_dict_pop(
     Arguments* args
 )
 {
-    TypeInfo return_type = dict_assignment->type_info.inner->types[1];
+    TypeInfo return_type = dict_assignment->variable.typing.inner->types[1];
     set_assignment_type_info(compiler, assignment, return_type);
 
     // TODO: implement default value
     expect_arg_count(compiler, "dict.pop", args, 1);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
     C_Assignment key_assignment = {
         .section = assignment->section,
-        .type_info = dict_assignment->type_info.inner->types[0],
-        .variable_name = key_variable,
-        .is_declared = false};
+        .variable.typing = dict_assignment->variable.typing.inner->types[0]};
+    GENERATE_UNIQUE_VAR_NAME(compiler, key_assignment.variable);
     render_expression_assignment(compiler, &key_assignment, args->values[0]);
 
     prepare_c_assignment_for_rendering(compiler, assignment);
@@ -1451,9 +1447,9 @@ render_dict_pop(
         "*(",
         type_info_to_c_syntax(&compiler->sb, return_type),
         "*)dict_pop_val(",
-        dict_assignment->variable_name,
+        dict_assignment->variable.final_name,
         ", &",
-        key_variable,
+        key_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -1488,20 +1484,18 @@ render_dict_update(
     // TODO: accept args other than another dict
     expect_arg_count(compiler, "dict.update", args, 1);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, other_dict_variable);
     C_Assignment other_dict_assignment = {
         .section = assignment->section,
-        .type_info = dict_assignment->type_info,
-        .variable_name = other_dict_variable,
-        .is_declared = false};
+        .variable.typing = dict_assignment->variable.typing};
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_dict_assignment.variable);
     render_expression_assignment(compiler, &other_dict_assignment, args->values[0]);
 
     write_many_to_section(
         assignment->section,
         "dict_update(",
-        dict_assignment->variable_name,
+        dict_assignment->variable.final_name,
         ", ",
-        other_dict_variable,
+        other_dict_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -1522,7 +1516,7 @@ render_dict_values(
         .type = PYTYPE_ITER,
         .inner = arena_alloc(compiler->arena, sizeof(TypeInfoInner))};
     return_type.inner->types = arena_alloc(compiler->arena, sizeof(TypeInfo));
-    return_type.inner->types[0] = dict_assignment->type_info.inner->types[1];
+    return_type.inner->types[0] = dict_assignment->variable.typing.inner->types[1];
     return_type.inner->count = 1;
 
     set_assignment_type_info(compiler, assignment, return_type);
@@ -1530,7 +1524,7 @@ render_dict_values(
     write_many_to_section(
         assignment->section,
         "dict_iter_vals(",
-        dict_assignment->variable_name,
+        dict_assignment->variable.final_name,
         ");\n",
         NULL
     );
@@ -1793,7 +1787,7 @@ render_operation(
             return;
         case OPERATOR_MOD:
             prepare_c_assignment_for_rendering(compiler, assignment);
-            if (assignment->type_info.type == PYTYPE_FLOAT) {
+            if (assignment->variable.typing.type == PYTYPE_FLOAT) {
                 require_math_lib(compiler);
                 write_many_to_section(
                     assignment->section,
@@ -1822,7 +1816,7 @@ render_operation(
             prepare_c_assignment_for_rendering(compiler, assignment);
             write_many_to_section(
                 assignment->section,
-                (assignment->type_info.type == PYTYPE_INT) ? "(PYINT)" : "",
+                (assignment->variable.typing.type == PYTYPE_INT) ? "(PYINT)" : "",
                 "pow(",
                 operand_reprs[0],
                 ", ",
@@ -1912,12 +1906,12 @@ render_operation(
                     UNIMPLEMENTED("list slicing unimplemented");
                 const char* dest_type_c_syntax =
                     type_info_to_c_syntax(&compiler->sb, types[0].inner->types[0]);
-                if (!assignment->is_declared)
+                if (!assignment->variable.declared)
                     write_many_to_section(
                         assignment->section,
                         dest_type_c_syntax,
                         " ",
-                        assignment->variable_name,
+                        assignment->variable.final_name,
                         ";\n",
                         NULL
                     );
@@ -1930,7 +1924,7 @@ render_operation(
                     ", ",
                     operand_reprs[1],
                     ", ",
-                    assignment->variable_name,
+                    assignment->variable.final_name,
                     ");\n",
                     NULL
                 );
@@ -2055,16 +2049,16 @@ render_object_creation(
         for (size_t i = 0; i < clsdef->sig.defaults_count; i++) {
             SourceString varname = sb_build(
                 &compiler->sb,
-                assignment->variable_name,
+                assignment->variable.final_name,
                 "->",
                 clsdef->sig.params[clsdef->sig.params_count - 1 - i].data,
                 NULL
             );
             C_Assignment default_assignment = {
                 .section = assignment->section,
-                .type_info = clsdef->sig.types[clsdef->sig.params_count - 1 - i],
-                .variable_name = varname.data,
-                .is_declared = true};
+                .variable.typing = clsdef->sig.types[clsdef->sig.params_count - 1 - i],
+                .variable.final_name = varname.data,
+                .variable.declared = true};
             render_expression_assignment(
                 compiler,
                 &default_assignment,
@@ -2072,9 +2066,9 @@ render_object_creation(
             );
         }
         C_Assignment init_assignment = {
-            .section = assignment->section, .type_info.type = PYTYPE_NONE};
+            .section = assignment->section, .variable.typing.type = PYTYPE_NONE};
         render_object_method_call(
-            compiler, &init_assignment, assignment->variable_name, init, args
+            compiler, &init_assignment, assignment->variable.final_name, init, args
         );
         return;
     }
@@ -2086,7 +2080,7 @@ render_object_creation(
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
         SourceString dst = sb_build(
             &compiler->sb,
-            assignment->variable_name,
+            assignment->variable.final_name,
             "->",
             clsdef->sig.params[i].data,
             NULL
@@ -2233,11 +2227,11 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
                 WRITE_UNIQUE_VAR_NAME(compiler, variable_memory[lr]);
                 C_Assignment operand_assignment = {
                     .section = assignment->section,
-                    .variable_name = variable_memory[lr],
-                    .is_declared = false};
+                    .variable.final_name = variable_memory[lr],
+                    .variable.declared = false};
                 render_operand(compiler, &operand_assignment, operands[lr]);
                 operand_reprs[lr] = variable_memory[lr];
-                operand_types[lr] = operand_assignment.type_info;
+                operand_types[lr] = operand_assignment.variable.typing;
             }
         }
 
@@ -2254,18 +2248,15 @@ typedef struct {
     C_Assignment** operand_index_to_previous_assignment;
 } RenderedOperationMemory;
 
-#define INIT_RENDERED_OPERATION_MEMORY(variable, expression_ptr)                         \
-    GENERATE_UNIQUE_VAR_NAMES(                                                           \
-        compiler, expr->operations_count - 1, intermediate_variables                     \
-    )                                                                                    \
+#define INIT_RENDERED_OPERATION_MEMORY(compiler, struct_varname, expression_ptr)         \
     C_Assignment assignments_memory[expr->operations_count - 1];                         \
     C_Assignment* lookup_memory[expr->operands_count];                                   \
     memset(assignments_memory, 0, sizeof(C_Assignment) * (expr->operations_count - 1));  \
     memset(lookup_memory, 0, sizeof(C_Assignment*) * (expr->operands_count));            \
     for (size_t i = 0; i < expr->operations_count - 1; i++)                              \
-        assignments_memory[i].variable_name = intermediate_variables[i];                 \
-    variable.assignments = assignments_memory;                                           \
-    variable.operand_index_to_previous_assignment = lookup_memory
+        GENERATE_UNIQUE_VAR_NAME(compiler, assignments_memory[i].variable);              \
+    struct_varname.assignments = assignments_memory;                                     \
+    struct_varname.operand_index_to_previous_assignment = lookup_memory
 
 static void
 update_rendered_operation_memory(
@@ -2307,7 +2298,7 @@ render_expression_assignment(
     }
 
     RenderedOperationMemory operation_renders;
-    INIT_RENDERED_OPERATION_MEMORY(operation_renders, expr);
+    INIT_RENDERED_OPERATION_MEMORY(compiler, operation_renders, expr);
 
     for (size_t i = 0; i < expr->operations_count; i++) {
         Operation operation = expr->operations[i];
@@ -2336,12 +2327,11 @@ render_expression_assignment(
                 left_assignment = *previous;
             else {
                 Operand operand = expr->operands[operation.left];
-                GENERATE_UNIQUE_VAR_NAME(compiler, left_variable);
+                GENERATE_UNIQUE_VAR_NAME(compiler, left_assignment.variable);
                 left_assignment.section = assignment->section;
-                left_assignment.variable_name = left_variable;
                 render_operand(compiler, &left_assignment, operand);
             }
-            if (left_assignment.type_info.type == PYTYPE_LIST) {
+            if (left_assignment.variable.typing.type == PYTYPE_LIST) {
                 if (i == expr->operations_count - 1) {
                     UNIMPLEMENTED("function references are not currently implemented");
                 }
@@ -2371,7 +2361,7 @@ render_expression_assignment(
                 );
                 continue;
             }
-            else if (left_assignment.type_info.type == PYTYPE_DICT) {
+            else if (left_assignment.variable.typing.type == PYTYPE_DICT) {
                 if (i == expr->operations_count - 1) {
                     UNIMPLEMENTED("function references are not currently implemented");
                 }
@@ -2401,12 +2391,12 @@ render_expression_assignment(
                 );
                 continue;
             }
-            else if (left_assignment.type_info.type == PYTYPE_OBJECT) {
+            else if (left_assignment.variable.typing.type == PYTYPE_OBJECT) {
                 render_getattr_operation(
                     compiler,
                     this_assignment,
-                    left_assignment.variable_name,
-                    left_assignment.type_info,
+                    left_assignment.variable.final_name,
+                    left_assignment.variable.typing,
                     expr->operands[operation.right].token.value
                 );
                 update_rendered_operation_memory(
@@ -2436,8 +2426,8 @@ render_expression_assignment(
                 operation_renders
                     .operand_index_to_previous_assignment[operand_indices[lr]];
             if (previously_rendered) {
-                operand_types[lr] = previously_rendered->type_info;
-                operand_reprs[lr] = previously_rendered->variable_name;
+                operand_types[lr] = previously_rendered->variable.typing;
+                operand_reprs[lr] = previously_rendered->variable.final_name;
                 continue;
             }
 
@@ -2450,11 +2440,11 @@ render_expression_assignment(
                 WRITE_UNIQUE_VAR_NAME(compiler, variable_memory[lr]);
                 C_Assignment operand_assignment = {
                     .section = assignment->section,
-                    .variable_name = variable_memory[lr],
-                    .is_declared = false};
+                    .variable.final_name = variable_memory[lr],
+                    .variable.declared = false};
                 render_operand(compiler, &operand_assignment, operand);
                 operand_reprs[lr] = variable_memory[lr];
-                operand_types[lr] = operand_assignment.type_info;
+                operand_types[lr] = operand_assignment.variable.typing;
             }
         }
 
@@ -2569,9 +2559,11 @@ render_list_set_item(
     write_many_to_section(
         list_assignment.section,
         "LIST_SET_ITEM(",
-        list_assignment.variable_name,
+        list_assignment.variable.final_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_assignment.type_info.inner->types[0]),
+        type_info_to_c_syntax(
+            &compiler->sb, list_assignment.variable.typing.inner->types[0]
+        ),
         ", ",
         idx_variable,
         ", ",
@@ -2587,7 +2579,7 @@ render_dict_set_item(C_Assignment dict_assignment, char* key_variable, char* val
     write_many_to_section(
         dict_assignment.section,
         "dict_set_item(",
-        dict_assignment.variable_name,
+        dict_assignment.variable.final_name,
         ", &",
         key_variable,
         ", &",
@@ -2620,14 +2612,16 @@ render_object_op_assignment(
     Operator op_assignment_type
 )
 {
-    ClassStatement* clsdef = obj_assignment.type_info.cls;
+    ClassStatement* clsdef = obj_assignment.variable.typing.cls;
     ObjectModel om = op_assignment_to_object_model(op_assignment_type);
     FunctionStatement* fndef = clsdef->object_model_methods[om];
 
     if (!fndef) {
         static const size_t buflen = 1024;
         char object_type_hr[buflen];
-        render_type_info_human_readable(obj_assignment.type_info, object_type_hr, buflen);
+        render_type_info_human_readable(
+            obj_assignment.variable.typing, object_type_hr, buflen
+        );
         type_errorf(
             compiler->file_index,
             compiler->current_stmt_location,
@@ -2636,13 +2630,15 @@ render_object_op_assignment(
             op_to_cstr(op_assignment_type)
         );
     }
-    if (!compare_types(other_assignment.type_info, fndef->sig.types[1])) {
+    if (!compare_types(other_assignment.variable.typing, fndef->sig.types[1])) {
         static const size_t buflen = 1024;
         char object_type_hr[buflen];
-        render_type_info_human_readable(obj_assignment.type_info, object_type_hr, buflen);
+        render_type_info_human_readable(
+            obj_assignment.variable.typing, object_type_hr, buflen
+        );
         char rvalue_type_hr[buflen];
         render_type_info_human_readable(
-            other_assignment.type_info, rvalue_type_hr, buflen
+            other_assignment.variable.typing, rvalue_type_hr, buflen
         );
         type_errorf(
             compiler->file_index,
@@ -2659,9 +2655,9 @@ render_object_op_assignment(
         obj_assignment.section,
         fndef->ns_ident.data,
         "(",
-        obj_assignment.variable_name,
+        obj_assignment.variable.final_name,
         ", ",
-        other_assignment.variable_name,
+        other_assignment.variable.final_name,
         ");\n",
         NULL
     );
@@ -2684,24 +2680,23 @@ compile_complex_assignment(
     //      ex: [1, 2, 3].copy()     would render [1,2,3] to a variable
     Expression container_expr = *stmt->assignment->storage;
     container_expr.operations_count -= 1;
-    GENERATE_UNIQUE_VAR_NAME(compiler, container_variable);
-    C_Assignment container_assignment = {
-        .section = section, .variable_name = container_variable, .is_declared = false};
+    C_Assignment container_assignment = {.section = section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, container_assignment.variable);
     render_expression_assignment(compiler, &container_assignment, &container_expr);
 
     if (last_op.op_type == OPERATOR_GET_ITEM) {
         // set key/val expected types
         TypeInfo key_type_info;
         TypeInfo val_type_info;
-        switch (container_assignment.type_info.type) {
+        switch (container_assignment.variable.typing.type) {
             case PYTYPE_LIST: {
                 key_type_info.type = PYTYPE_INT;
-                val_type_info = container_assignment.type_info.inner->types[0];
+                val_type_info = container_assignment.variable.typing.inner->types[0];
                 break;
             }
             case PYTYPE_DICT: {
-                key_type_info = container_assignment.type_info.inner->types[0];
-                val_type_info = container_assignment.type_info.inner->types[1];
+                key_type_info = container_assignment.variable.typing.inner->types[0];
+                val_type_info = container_assignment.variable.typing.inner->types[1];
                 break;
             }
             default:
@@ -2709,38 +2704,34 @@ compile_complex_assignment(
         }
 
         // render key to a variable
-        GENERATE_UNIQUE_VAR_NAME(compiler, key_variable);
         C_Assignment key_assignment = {
-            .section = container_assignment.section,
-            .type_info = key_type_info,
-            .variable_name = key_variable,
-            .is_declared = false};
+            .section = container_assignment.section, .variable.typing = key_type_info};
+        GENERATE_UNIQUE_VAR_NAME(compiler, key_assignment.variable);
         render_operand(compiler, &key_assignment, last_operand);
 
+        C_Assignment val_assignment = {
+            .section = container_assignment.section, .variable.typing = val_type_info};
+        GENERATE_UNIQUE_VAR_NAME(compiler, val_assignment.variable);
+
         // render value to a variable
-        GENERATE_UNIQUE_VAR_NAME(compiler, val_variable);
         if (stmt->assignment->op_type == OPERATOR_ASSIGNMENT) {
-            C_Assignment val_assignment = {
-                .section = container_assignment.section,
-                .type_info = val_type_info,
-                .variable_name = val_variable,
-                .is_declared = false};
             render_expression_assignment(
                 compiler, &val_assignment, stmt->assignment->value
             );
         }
         else {
             // getitem
-            GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
             C_Assignment current_val_assignment = {
                 .section = container_assignment.section,
-                .type_info = val_type_info,
-                .variable_name = current_val_variable,
-                .is_declared = false};
+                .variable.typing = val_type_info};
+            GENERATE_UNIQUE_VAR_NAME(compiler, current_val_assignment.variable);
+
             char* current_reprs[2] = {
-                container_assignment.variable_name, key_assignment.variable_name};
+                container_assignment.variable.final_name,
+                key_assignment.variable.final_name};
             TypeInfo current_types[2] = {
-                container_assignment.type_info, key_assignment.type_info};
+                container_assignment.variable.typing, key_assignment.variable.typing};
+
             render_operation(
                 compiler,
                 &current_val_assignment,
@@ -2750,18 +2741,15 @@ compile_complex_assignment(
             );
 
             // right side expression
-            GENERATE_UNIQUE_VAR_NAME(compiler, other_val_variable);
-            C_Assignment other_val_assignment = {
-                .section = container_assignment.section,
-                .variable_name = other_val_variable,
-                .is_declared = false};
+            C_Assignment other_val_assignment = {.section = container_assignment.section};
+            GENERATE_UNIQUE_VAR_NAME(compiler, other_val_assignment.variable);
             render_expression_assignment(
                 compiler, &other_val_assignment, stmt->assignment->value
             );
 
             // render __iadd__, __isub__... object model method
-            if (current_val_assignment.type_info.type == PYTYPE_OBJECT) {
-                current_val_assignment.is_declared = true;
+            if (current_val_assignment.variable.typing.type == PYTYPE_OBJECT) {
+                current_val_assignment.variable.declared = true;
                 render_object_op_assignment(
                     compiler,
                     current_val_assignment,
@@ -2770,31 +2758,33 @@ compile_complex_assignment(
                 );
                 return;
             }
+
             // combine current value with right side expression
-            else {
-                Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
-                C_Assignment val_assignment = {
-                    .section = container_assignment.section,
-                    .type_info = val_type_info,
-                    .variable_name = val_variable,
-                    .is_declared = false};
-                char* new_reprs[2] = {current_val_variable, other_val_variable};
-                TypeInfo new_types[2] = {
-                    current_val_assignment.type_info, other_val_assignment.type_info};
-                render_operation(
-                    compiler, &val_assignment, op_type, new_reprs, new_types
-                );
-            }
+            Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
+            char* new_reprs[2] = {
+                current_val_assignment.variable.final_name,
+                other_val_assignment.variable.final_name};
+            TypeInfo new_types[2] = {
+                current_val_assignment.variable.typing,
+                other_val_assignment.variable.typing};
+            render_operation(compiler, &val_assignment, op_type, new_reprs, new_types);
         }
-        switch (container_assignment.type_info.type) {
+        switch (container_assignment.variable.typing.type) {
             case PYTYPE_LIST: {
                 render_list_set_item(
-                    compiler, container_assignment, key_variable, val_variable
+                    compiler,
+                    container_assignment,
+                    key_assignment.variable.final_name,
+                    val_assignment.variable.final_name
                 );
                 return;
             }
             case PYTYPE_DICT: {
-                render_dict_set_item(container_assignment, key_variable, val_variable);
+                render_dict_set_item(
+                    container_assignment,
+                    key_assignment.variable.final_name,
+                    val_assignment.variable.final_name
+                );
                 return;
             }
             default:
@@ -2802,24 +2792,24 @@ compile_complex_assignment(
         }
     }
     else if (last_op.op_type == OPERATOR_GET_ATTR) {
-        if (container_assignment.type_info.type != PYTYPE_OBJECT) {
+        if (container_assignment.variable.typing.type != PYTYPE_OBJECT) {
             UNIMPLEMENTED("setattr for this type not implemented");
         }
-        ClassStatement* clsdef = container_assignment.type_info.cls;
+        ClassStatement* clsdef = container_assignment.variable.typing.cls;
         TypeInfo member_type =
             get_class_member_type_info(compiler, clsdef, last_operand.token.value);
         SourceString varname = sb_build(
             &compiler->sb,
-            container_assignment.variable_name,
+            container_assignment.variable.final_name,
             "->",
             last_operand.token.value.data,
             NULL
         );
         C_Assignment assignment = {
             .section = container_assignment.section,
-            .type_info = member_type,
-            .variable_name = varname.data,
-            .is_declared = true};
+            .variable.typing = member_type,
+            .variable.final_name = varname.data,
+            .variable.declared = true};
 
         if (stmt->assignment->op_type == OPERATOR_ASSIGNMENT) {
             // regular assignment
@@ -2830,9 +2820,8 @@ compile_complex_assignment(
             Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
 
             // render right hand side to variable
-            GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
-            C_Assignment other_assignment = {
-                .section = container_assignment.section, .variable_name = other_variable};
+            C_Assignment other_assignment = {.section = container_assignment.section};
+            GENERATE_UNIQUE_VAR_NAME(compiler, other_assignment.variable);
             render_expression_assignment(
                 compiler, &other_assignment, stmt->assignment->value
             );
@@ -2846,25 +2835,26 @@ compile_complex_assignment(
             // set member to current_value (op_type) new value
             else {
                 // render getattr
-                GENERATE_UNIQUE_VAR_NAME(compiler, current_val_variable);
                 C_Assignment current_val_assignment = {
                     .section = container_assignment.section,
-                    .type_info = member_type,
-                    .variable_name = current_val_variable,
-
+                    .variable.typing = member_type,
                 };
+                GENERATE_UNIQUE_VAR_NAME(compiler, current_val_assignment.variable);
                 render_getattr_operation(
                     compiler,
                     &current_val_assignment,
-                    container_assignment.variable_name,
-                    container_assignment.type_info,
+                    container_assignment.variable.final_name,
+                    container_assignment.variable.typing,
                     last_operand.token.value
                 );
 
                 // render operation to combine current value with new expression
-                char* reprs[2] = {current_val_variable, other_variable};
+                char* reprs[2] = {
+                    current_val_assignment.variable.final_name,
+                    other_assignment.variable.final_name};
                 TypeInfo types[2] = {
-                    current_val_assignment.type_info, other_assignment.type_info};
+                    current_val_assignment.variable.typing,
+                    other_assignment.variable.typing};
                 render_operation(compiler, &assignment, op_type, reprs, types);
             }
         }
@@ -2881,42 +2871,34 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
     Symbol* sym =
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
 
-    bool top_level = section == &compiler->init_module_function;
-    bool declared;
-    char* variable_name;
-    char* real_var_name;
     TypeInfo* symtype;
+    bool top_level = section == &compiler->init_module_function;
+    C_Assignment assignment = {.section = section, .loc = &stmt->loc};
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
-        variable_name = sym->variable->ns_ident.data;
-        real_var_name = sym->variable->identifier.data;
-        declared = (top_level) ? true : sym->variable->declared;
+        assignment.variable.final_name = sym->variable->ns_ident.data;
+        assignment.variable.source_name = sym->variable->identifier.data;
+        assignment.variable.declared = (top_level) ? true : sym->variable->declared;
+        assignment.variable.typing = *symtype;
     }
     else {
         symtype = &sym->semi_scoped->type;
-        variable_name = sym->semi_scoped->current_id.data;
-        real_var_name = sym->semi_scoped->identifier.data;
-        declared = true;
+        assignment.variable.final_name = sym->semi_scoped->current_id.data;
+        assignment.variable.source_name = sym->semi_scoped->identifier.data;
+        assignment.variable.declared = true;
+        assignment.variable.typing = *symtype;
     }
 
-    C_Assignment assignment = {
-        .section = section,
-        .variable_name = variable_name,
-        .user_defined_variable_name = real_var_name,
-        .type_info = *symtype,
-        .is_declared = declared,
-        .loc = &stmt->loc,
-    };
     render_expression_assignment(compiler, &assignment, stmt->assignment->value);
 
-    if (symtype->type == PYTYPE_UNTYPED) *symtype = assignment.type_info;
+    if (symtype->type == PYTYPE_UNTYPED) *symtype = assignment.variable.typing;
     if (top_level && sym->kind == SYM_VARIABLE && !sym->variable->declared)
         declare_variable(
             compiler,
             &compiler->variable_declarations,
-            assignment.type_info,
-            assignment.variable_name
+            assignment.variable.typing,
+            assignment.variable.final_name
         );
 }
 
@@ -2930,34 +2912,28 @@ compile_simple_op_assignment(
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
     Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
 
-    char* variable_name;
-    char* real_var_name;
     TypeInfo* symtype;
+    C_Assignment assignment = {.section = section, .loc = &stmt->loc};
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
-        variable_name = sym->variable->ns_ident.data;
-        real_var_name = sym->variable->identifier.data;
+        assignment.variable.final_name = sym->variable->ns_ident.data;
+        assignment.variable.source_name = sym->variable->identifier.data;
+        assignment.variable.typing = *symtype;
+        assignment.variable.declared = true;
     }
     else {
         symtype = &sym->semi_scoped->type;
-        variable_name = sym->semi_scoped->current_id.data;
-        real_var_name = sym->semi_scoped->identifier.data;
+        assignment.variable.final_name = sym->semi_scoped->current_id.data;
+        assignment.variable.source_name = sym->semi_scoped->identifier.data;
+        assignment.variable.typing = *symtype;
+        assignment.variable.declared = true;
     }
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, other_variable);
-    C_Assignment other_assignment = {
-        .section = section, .variable_name = other_variable, .is_declared = false};
-    render_expression_assignment(compiler, &other_assignment, stmt->assignment->value);
+    C_Assignment other_assignment = {.section = section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, other_assignment.variable);
 
-    C_Assignment assignment = {
-        .section = section,
-        .variable_name = variable_name,
-        .user_defined_variable_name = real_var_name,
-        .type_info = *symtype,
-        .is_declared = true,
-        .loc = &stmt->loc,
-    };
+    render_expression_assignment(compiler, &other_assignment, stmt->assignment->value);
 
     if (symtype->type == PYTYPE_OBJECT) {
         render_object_op_assignment(
@@ -2966,8 +2942,9 @@ compile_simple_op_assignment(
     }
     else {
         char* operand_reprs[2] = {
-            assignment.variable_name, other_assignment.variable_name};
-        TypeInfo operand_types[2] = {assignment.type_info, other_assignment.type_info};
+            assignment.variable.final_name, other_assignment.variable.final_name};
+        TypeInfo operand_types[2] = {
+            assignment.variable.typing, other_assignment.variable.typing};
         render_operation(compiler, &assignment, op_type, operand_reprs, operand_types);
     }
 }
@@ -3008,10 +2985,10 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
         C_Assignment assignment = {
             .loc = &stmt->loc,
             .section = section,
-            .type_info = stmt->annotation->type,
-            .user_defined_variable_name = sym->variable->identifier.data,
-            .variable_name = sym->variable->ns_ident.data,
-            .is_declared = true};
+            .variable.typing = stmt->annotation->type,
+            .variable.source_name = sym->variable->identifier.data,
+            .variable.final_name = sym->variable->ns_ident.data,
+            .variable.declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
     }
 }
@@ -3021,23 +2998,19 @@ compile_return_statement(
     C_Compiler* compiler, CompilerSection* section, ReturnStatement* ret
 )
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, return_var);
-
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
 
     C_Assignment assignment = {
-        .section = section,
-        .type_info = scope->func->sig.return_type,
-        .variable_name = return_var,
-        .is_declared = false};
+        .section = section, .variable.typing = scope->func->sig.return_type};
+    GENERATE_UNIQUE_VAR_NAME(compiler, assignment.variable);
     render_expression_assignment(compiler, &assignment, ret->value);
 
-    if (assignment.type_info.type == PYTYPE_NONE) {
+    if (assignment.variable.typing.type == PYTYPE_NONE) {
         write_to_section(section, "return;\n");
     }
     else {
         write_to_section(section, "return ");
-        write_to_section(section, return_var);
+        write_to_section(section, assignment.variable.final_name);
         write_to_section(section, ";\n");
     }
 }
@@ -3095,17 +3068,18 @@ render_list_for_each_head(
     // TODO: should store these variables on the ItIdentifier struct to avoid lookup
     SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(
-        compiler, section, actual_ident, iterable.type_info.inner->types[0]
+        compiler, section, actual_ident, iterable.variable.typing.inner->types[0]
     );
 
     // render for loop
-    GENERATE_UNIQUE_VAR_NAME(compiler, index_variable);
+    char index_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, index_variable);
     write_many_to_section(
         section,
         "LIST_FOR_EACH(",
-        iterable.variable_name,
+        iterable.variable.final_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, iterable.type_info.inner->types[0]),
+        type_info_to_c_syntax(&compiler->sb, iterable.variable.typing.inner->types[0]),
         ", ",
         it_ident,
         ", ",
@@ -3128,16 +3102,17 @@ render_dict_for_each_head(
     if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
-    TypeInfo it_type = iterable.type_info.inner->types[0];
+    TypeInfo it_type = iterable.variable.typing.inner->types[0];
     SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
     // render for loop
-    GENERATE_UNIQUE_VAR_NAME(compiler, iter_var);
+    char iter_var[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, iter_var);
     write_many_to_section(
         section,
         "DICT_ITER_KEYS(",
-        iterable.variable_name,
+        iterable.variable.final_name,
         ", ",
         type_info_to_c_syntax(&compiler->sb, it_type),
         ", ",
@@ -3163,7 +3138,8 @@ render_dict_items_iterator_for_loop_head(
     // away with the implementation of variable packing/unpacking
 
     // declare item struct
-    GENERATE_UNIQUE_VAR_NAME(compiler, item_struct_variable);
+    char item_struct_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, item_struct_variable);
     write_many_to_section(section, "DictItem ", item_struct_variable, ";\n", NULL);
 
     // parse key value variable names
@@ -3190,7 +3166,7 @@ render_dict_items_iterator_for_loop_head(
     }
 
     // declare key value variables
-    TypeInfoInner* iterable_inner = iterable.type_info.inner;
+    TypeInfoInner* iterable_inner = iterable.variable.typing.inner;
     TypeInfoInner* items_inner = iterable_inner->types[0].inner;
     TypeInfo key_type = items_inner->types[0];
     TypeInfo val_type = items_inner->types[1];
@@ -3202,7 +3178,8 @@ render_dict_items_iterator_for_loop_head(
         init_semi_scoped_variable(compiler, section, actual_val_var, val_type);
 
     // declare void* unpacking variable
-    GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
+    char voidptr_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
     write_many_to_section(section, "void* ", voidptr_variable, " = NULL;\n", NULL);
 
     // render while construct
@@ -3220,7 +3197,7 @@ render_dict_items_iterator_for_loop_head(
     write_many_to_section(
         section,
         "while ((",
-        voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
+        voidptr_variable," = ",iterable.variable.final_name,".next(", iterable.variable.final_name,".iter)", ",\n",
         item_struct_variable," = (",voidptr_variable, ") ? *(DictItem*)",voidptr_variable," : ",item_struct_variable, ",\n",
         key_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb,key_type),"*)(",item_struct_variable,".key) : ",key_variable,",\n",
         val_variable," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb,val_type),"*)(",item_struct_variable,".val) : ",val_variable,",\n",
@@ -3242,7 +3219,7 @@ render_iterator_for_loop_head(
     C_Assignment iterable
 )
 {
-    TypeInfoInner* iterable_inner = iterable.type_info.inner;
+    TypeInfoInner* iterable_inner = iterable.variable.typing.inner;
 
     if (iterable_inner->count == 1 &&
         iterable_inner->types[0].type == PYTYPE_DICT_ITEMS) {
@@ -3253,12 +3230,13 @@ render_iterator_for_loop_head(
     if (for_loop->it->identifiers_count > 1 || for_loop->it->identifiers[0].kind != IT_ID)
         UNIMPLEMENTED("for loops with multiple identifiers not currently implemented");
 
-    TypeInfo it_type = iterable.type_info.inner->types[0];
+    TypeInfo it_type = iterable.variable.typing.inner->types[0];
     SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
 
-    GENERATE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
-    write_many_to_section(section, "void* ", voidptr_variable, ";\n", NULL);
+    char voidptr_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
+    write_many_to_section(section, "void* ", voidptr_variable, " = NULL;\n", NULL);
 
     // declare its;
     // void* next;
@@ -3274,7 +3252,7 @@ render_iterator_for_loop_head(
     write_many_to_section(
         section,
         "while ((",
-        voidptr_variable," = ",iterable.variable_name,".next(", iterable.variable_name,".iter)", ",\n",
+        voidptr_variable," = ",iterable.variable.final_name,".next(", iterable.variable.final_name,".iter)", ",\n",
         it_ident," = (",voidptr_variable,") ? *(",type_info_to_c_syntax(&compiler->sb, it_type),"*)(",voidptr_variable,") : ",it_ident,",\n",
         voidptr_variable,
         "))",
@@ -3289,16 +3267,15 @@ compile_for_loop(
     C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
 )
 {
-    GENERATE_UNIQUE_VAR_NAME(compiler, iterable_variable);
-    C_Assignment iterable = {
-        .section = section, .variable_name = iterable_variable, .is_declared = false};
+    C_Assignment iterable = {.section = section};
+    GENERATE_UNIQUE_VAR_NAME(compiler, iterable.variable);
     render_expression_assignment(compiler, &iterable, for_loop->iterable);
 
-    if (iterable.type_info.type == PYTYPE_LIST)
+    if (iterable.variable.typing.type == PYTYPE_LIST)
         render_list_for_each_head(compiler, section, for_loop, iterable);
-    else if (iterable.type_info.type == PYTYPE_DICT)
+    else if (iterable.variable.typing.type == PYTYPE_DICT)
         render_dict_for_each_head(compiler, section, for_loop, iterable);
-    else if (iterable.type_info.type == PYTYPE_ITER)
+    else if (iterable.variable.typing.type == PYTYPE_ITER)
         render_iterator_for_loop_head(compiler, section, for_loop, iterable);
     else {
         fprintf(
@@ -3358,7 +3335,9 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
             CompilerSection* section =
                 (section_or_null) ? section_or_null : &compiler->init_module_function;
             C_Assignment assignment = {
-                .section = section, .variable_name = NULL, .is_declared = false};
+                .section = section,
+                .variable.final_name = NULL,
+                .variable.declared = false};
             render_expression_assignment(compiler, &assignment, stmt->expr);
             break;
         }

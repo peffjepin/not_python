@@ -23,9 +23,9 @@ NP_var0 = 3;
 LIST_APPEND(list_sort_l, PYINT, NP_var0);
 PYLIST NP_var2 = list_sort_l;
 LIST_SORT(NP_var2, pyint_sort_fn, pyint_sort_fn_rev, false);
-PYLIST NP_var5 = list_sort_l;
-PYBOOL NP_var6 = true;
-LIST_SORT(NP_var5, pyint_sort_fn, pyint_sort_fn_rev, NP_var6);
+PYLIST NP_var4 = list_sort_l;
+PYBOOL NP_var5 = true;
+LIST_SORT(NP_var4, pyint_sort_fn, pyint_sort_fn_rev, NP_var5);
 }
 
 // MAIN FUNCTION COMPILER SECTION

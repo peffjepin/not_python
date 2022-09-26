@@ -25,9 +25,9 @@ NP_var0 = 3;
 LIST_APPEND(list_pop_l, PYINT, NP_var0);
 PYLIST NP_var2 = list_pop_l;
 LIST_POP(NP_var2, PYINT, -1, list_pop_v1);
-PYLIST NP_var5 = list_pop_l;
-PYINT NP_var6 = 0;
-LIST_POP(NP_var5, PYINT, NP_var6, list_pop_v2);
+PYLIST NP_var4 = list_pop_l;
+PYINT NP_var5 = 0;
+LIST_POP(NP_var4, PYINT, NP_var5, list_pop_v2);
 }
 
 // MAIN FUNCTION COMPILER SECTION
