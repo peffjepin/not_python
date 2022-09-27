@@ -7,6 +7,10 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYINT op_assignments_x;
+PYINT NP_var0;
+PYINT NP_var1;
+PYINT NP_var2;
+PYINT NP_var3;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -15,13 +19,13 @@ PYINT op_assignments_x;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 op_assignments_x = 10;
-PYINT NP_var0 = 1;
+NP_var0 = 1;
 op_assignments_x = op_assignments_x-NP_var0;
-PYINT NP_var1 = 1;
+NP_var1 = 1;
 op_assignments_x = op_assignments_x+NP_var1;
-PYINT NP_var2 = 2;
+NP_var2 = 2;
 op_assignments_x = op_assignments_x*NP_var2;
-PYINT NP_var3 = 2;
+NP_var3 = 2;
 op_assignments_x = (PYINT)((PYFLOAT)op_assignments_x/(PYFLOAT)NP_var3);
 }
 

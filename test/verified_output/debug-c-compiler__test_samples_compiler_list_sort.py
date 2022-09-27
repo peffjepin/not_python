@@ -6,7 +6,11 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
+PYINT NP_var0;
 PYLIST list_sort_l;
+PYLIST NP_var2;
+PYLIST NP_var4;
+PYBOOL NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -14,17 +18,17 @@ PYLIST list_sort_l;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-PYINT NP_var0 = 1;
+NP_var0 = 1;
 list_sort_l = LIST_INIT(PYINT);
 LIST_APPEND(list_sort_l, PYINT, NP_var0);
 NP_var0 = 2;
 LIST_APPEND(list_sort_l, PYINT, NP_var0);
 NP_var0 = 3;
 LIST_APPEND(list_sort_l, PYINT, NP_var0);
-PYLIST NP_var2 = list_sort_l;
+NP_var2 = list_sort_l;
 LIST_SORT(NP_var2, pyint_sort_fn, pyint_sort_fn_rev, false);
-PYLIST NP_var4 = list_sort_l;
-PYBOOL NP_var5 = true;
+NP_var4 = list_sort_l;
+NP_var5 = true;
 LIST_SORT(NP_var4, pyint_sort_fn, pyint_sort_fn_rev, NP_var5);
 }
 

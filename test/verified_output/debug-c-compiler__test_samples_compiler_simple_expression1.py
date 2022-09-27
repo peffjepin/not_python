@@ -8,6 +8,7 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYINT simple_expression1_x;
 PYINT simple_expression1_y;
+PYINT NP_var0;
 PYINT simple_expression1_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
@@ -18,7 +19,7 @@ PYINT simple_expression1_z;
 static void init_module(void) {
 simple_expression1_x = 1;
 simple_expression1_y = 2;
-PYINT NP_var0 = simple_expression1_x+simple_expression1_y;
+NP_var0 = simple_expression1_x+simple_expression1_y;
 simple_expression1_z = NP_var0+3;
 }
 

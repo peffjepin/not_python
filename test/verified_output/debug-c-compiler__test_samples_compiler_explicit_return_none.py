@@ -12,7 +12,8 @@ void explicit_return_none_fn();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 void explicit_return_none_fn() {
-void* NP_var0 = NULL;
+void* NP_var0;
+NP_var0 = NULL;
 return;
 }
 

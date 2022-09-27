@@ -7,6 +7,8 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 PYLIST list_append_l;
+PYLIST NP_var1;
+PYINT NP_var2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -15,8 +17,8 @@ PYLIST list_append_l;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 list_append_l = LIST_INIT(PYINT);
-PYLIST NP_var1 = list_append_l;
-PYINT NP_var2 = 1;
+NP_var1 = list_append_l;
+NP_var2 = 1;
 LIST_APPEND(NP_var1, PYINT, NP_var2);
 }
 

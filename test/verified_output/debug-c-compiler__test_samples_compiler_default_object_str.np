@@ -7,6 +7,10 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 typedef struct {PYINT x;PYINT y;} default_object_str_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
+default_object_str_A* NP_var0;
+PYSTRING NP_var2;
+PYSTRING NP_var3;
+PYSTRING NP_var1;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -14,12 +18,12 @@ typedef struct {PYINT x;PYINT y;} default_object_str_A;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-default_object_str_A* NP_var0 = np_alloc(sizeof(default_object_str_A));
+NP_var0 = np_alloc(sizeof(default_object_str_A));
 NP_var0->x = 1;
 NP_var0->y = 2;
-PYSTRING NP_var2 = np_int_to_str(NP_var0->x);
-PYSTRING NP_var3 = np_int_to_str(NP_var0->y);
-PYSTRING NP_var1 = str_fmt("A(x=%s, y=%s)", np_str_to_cstr(NP_var2), np_str_to_cstr(NP_var3));
+NP_var2 = np_int_to_str(NP_var0->x);
+NP_var3 = np_int_to_str(NP_var0->y);
+NP_var1 = str_fmt("A(x=%s, y=%s)", np_str_to_cstr(NP_var2), np_str_to_cstr(NP_var3));
 builtin_print(1, NP_var1);
 }
 

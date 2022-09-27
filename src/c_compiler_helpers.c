@@ -280,6 +280,29 @@ section_free(CompilerSection* section)
 }
 
 void
+copy_section(CompilerSection* dest, CompilerSection src)
+{
+    size_t src_length = src.capacity - src.remaining;
+    if (src_length == 0) return;
+    if (!dest->write) dest->write = dest->buffer;
+
+    int extra_space_required = src_length - dest->remaining;
+    if (extra_space_required > 0) {
+        ptrdiff_t write_off = dest->write - dest->buffer;
+        dest->capacity = 2 * (dest->capacity + extra_space_required);
+        size_t middle = dest->capacity / 2;
+        dest->remaining += middle + extra_space_required;
+        dest->buffer = realloc(dest->buffer, dest->capacity);
+        if (!dest->buffer) out_of_memory();
+        dest->write = dest->buffer + write_off;
+        memset(dest->buffer + middle, 0, middle);
+    }
+    memcpy(dest->write, src.buffer, src_length);
+    dest->write += src_length;
+    dest->remaining -= src_length;
+}
+
+void
 write_to_section(CompilerSection* section, char* data)
 {
     char c;

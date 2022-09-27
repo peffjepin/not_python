@@ -13,7 +13,8 @@ PYINT function_call1_my_func();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 PYINT function_call1_my_func() {
-PYINT NP_var0 = 1;
+PYINT NP_var0;
+NP_var0 = 1;
 return NP_var0;
 }
 

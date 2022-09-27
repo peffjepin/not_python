@@ -34,6 +34,7 @@ typedef struct {
     CompilerSection function_definitions;
     CompilerSection init_module_function;
     CompilerSection main_function;
+    CompilerSection* current_variable_declaration_section;
     size_t unique_vars_counter;
     StringBuilder sb;
 } C_Compiler;
@@ -203,14 +204,16 @@ static void convert_assignment_to_string(
     C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
 );
 
+static void declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier);
+
 static void
 prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignment)
 {
     if (assignment->variable.final_name) {
         if (!assignment->variable.declared) {
             if (assignment->variable.typing.type == PYTYPE_UNTYPED) UNTYPED_ERROR();
-            write_type_info_to_section(
-                assignment->section, &compiler->sb, assignment->variable.typing
+            declare_variable(
+                compiler, assignment->variable.typing, assignment->variable.final_name
             );
             assignment->variable.declared = true;
         }
@@ -741,7 +744,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         initial_assignments[0].variable.final_name = initial_resolution_vars[0];
         initial_assignments[0].variable.declared = false;
         prepare_c_assignment_for_rendering(compiler, initial_assignments);
-        write_to_section(section, "{.data=\"\", .length=0};\n");
+        write_to_section(section, "(PYSTRING){.data=\"\", .length=0};\n");
     }
     else {
         for (size_t i = 0; i < args->values_count; i++) {
@@ -899,9 +902,8 @@ render_list_count(
     TypeInfo return_type = {.type = PYTYPE_INT};
     set_assignment_type_info(compiler, assignment, return_type);
     if (!assignment->variable.declared) {
-        write_type_info_to_section(assignment->section, &compiler->sb, return_type);
-        write_to_section(assignment->section, assignment->variable.final_name);
-        write_to_section(assignment->section, ";\n");
+        declare_variable(compiler, return_type, assignment->variable.final_name);
+        assignment->variable.declared = true;
     }
 
     write_many_to_section(
@@ -979,14 +981,8 @@ render_list_index(
     }
 
     if (!assignment->variable.declared) {
-        write_many_to_section(
-            assignment->section,
-            type_info_to_c_syntax(&compiler->sb, return_type),
-            " ",
-            assignment->variable.final_name,
-            ";\n",
-            NULL
-        );
+        declare_variable(compiler, return_type, assignment->variable.final_name);
+        assignment->variable.declared = true;
     }
 
     write_many_to_section(
@@ -1077,14 +1073,8 @@ render_list_pop(
         GENERATE_UNIQUE_VAR_NAME(compiler, assignment->variable);
     }
     if (!assignment->variable.declared) {
-        write_many_to_section(
-            assignment->section,
-            type_info_to_c_syntax(&compiler->sb, list_content_type),
-            " ",
-            assignment->variable.final_name,
-            ";\n",
-            NULL
-        );
+        declare_variable(compiler, list_content_type, assignment->variable.final_name);
+        assignment->variable.declared = true;
     }
 
     write_many_to_section(
@@ -1906,15 +1896,14 @@ render_operation(
                     UNIMPLEMENTED("list slicing unimplemented");
                 const char* dest_type_c_syntax =
                     type_info_to_c_syntax(&compiler->sb, types[0].inner->types[0]);
-                if (!assignment->variable.declared)
-                    write_many_to_section(
-                        assignment->section,
-                        dest_type_c_syntax,
-                        " ",
-                        assignment->variable.final_name,
-                        ";\n",
-                        NULL
+                if (!assignment->variable.declared) {
+                    declare_variable(
+                        compiler,
+                        types[0].inner->types[0],
+                        assignment->variable.final_name
                     );
+                    assignment->variable.declared = true;
+                }
                 write_many_to_section(
                     assignment->section,
                     "LIST_GET_ITEM(",
@@ -2458,6 +2447,10 @@ render_expression_assignment(
 static void
 compile_function(C_Compiler* compiler, FunctionStatement* func)
 {
+    CompilerSection* current_declarations_section =
+        compiler->current_variable_declaration_section;
+    compiler->current_variable_declaration_section = &compiler->function_definitions;
+
     CompilerSection* sections[2] = {
         &compiler->function_declarations, &compiler->function_definitions};
 
@@ -2491,11 +2484,17 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     compiler->tc.locals = old_locals;
 
     write_to_section(&compiler->function_definitions, "}\n");
+
+    compiler->current_variable_declaration_section = current_declarations_section;
 }
 
 static void
 compile_class(C_Compiler* compiler, ClassStatement* cls)
 {
+    CompilerSection* current_declarations_section =
+        compiler->current_variable_declaration_section;
+    compiler->current_variable_declaration_section = &compiler->function_definitions;
+
     if (cls->sig.params_count == 0) {
         unspecified_error(
             compiler->file_index,
@@ -2536,15 +2535,20 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
     write_many_to_section(
         &compiler->struct_declarations, "} ", cls->ns_ident.data, ";\n", NULL
     );
+
+    compiler->current_variable_declaration_section = current_declarations_section;
 }
 
 static void
-declare_variable(
-    C_Compiler* compiler, CompilerSection* section, TypeInfo type, char* identifier
-)
+declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
 {
     write_many_to_section(
-        section, type_info_to_c_syntax(&compiler->sb, type), " ", identifier, ";\n", NULL
+        compiler->current_variable_declaration_section,
+        type_info_to_c_syntax(&compiler->sb, type),
+        " ",
+        identifier,
+        ";\n",
+        NULL
     );
 }
 
@@ -2872,34 +2876,29 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
         symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
 
     TypeInfo* symtype;
-    bool top_level = section == &compiler->init_module_function;
     C_Assignment assignment = {.section = section, .loc = &stmt->loc};
 
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
         assignment.variable.final_name = sym->variable->ns_ident.data;
         assignment.variable.source_name = sym->variable->identifier.data;
-        assignment.variable.declared = (top_level) ? true : sym->variable->declared;
+        assignment.variable.declared = sym->variable->declared;
         assignment.variable.typing = *symtype;
     }
-    else {
+    else if (sym->kind == SYM_SEMI_SCOPED) {
         symtype = &sym->semi_scoped->type;
         assignment.variable.final_name = sym->semi_scoped->current_id.data;
         assignment.variable.source_name = sym->semi_scoped->identifier.data;
         assignment.variable.declared = true;
         assignment.variable.typing = *symtype;
     }
+    else
+        UNREACHABLE();
 
     render_expression_assignment(compiler, &assignment, stmt->assignment->value);
 
     if (symtype->type == PYTYPE_UNTYPED) *symtype = assignment.variable.typing;
-    if (top_level && sym->kind == SYM_VARIABLE && !sym->variable->declared)
-        declare_variable(
-            compiler,
-            &compiler->variable_declarations,
-            assignment.variable.typing,
-            assignment.variable.final_name
-        );
+    if (sym->kind == SYM_VARIABLE) sym->variable->declared = true;
 }
 
 static void
@@ -2965,20 +2964,14 @@ compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* st
 static void
 compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    // TODO: implement default values for class members
-
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
     Symbol* sym = symbol_hm_get(&scope->hm, stmt->annotation->identifier);
+
     if (sym->kind != SYM_VARIABLE)
         syntax_error(compiler->file_index, stmt->loc, 0, "unexpected annotation");
-
     if (!sym->variable->declared) {
-        CompilerSection* decl_section = (scope == compiler->top_level_scope)
-                                            ? &compiler->variable_declarations
-                                            : section;
-        declare_variable(
-            compiler, decl_section, stmt->annotation->type, sym->variable->ns_ident.data
-        );
+        declare_variable(compiler, stmt->annotation->type, sym->variable->ns_ident.data);
+        sym->variable->declared = true;
     }
 
     if (stmt->annotation->initial) {
@@ -3017,10 +3010,7 @@ compile_return_statement(
 
 static char*
 init_semi_scoped_variable(
-    C_Compiler* compiler,
-    CompilerSection* section,
-    SourceString identifier,
-    TypeInfo type_info
+    C_Compiler* compiler, SourceString identifier, TypeInfo type_info
 )
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
@@ -3034,15 +3024,7 @@ init_semi_scoped_variable(
     WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id.data);
     sym->semi_scoped->type = type_info;
     sym->semi_scoped->directly_in_scope = true;
-    write_many_to_section(
-        (section == &compiler->init_module_function) ? &compiler->variable_declarations
-                                                     : section,
-        type_info_to_c_syntax(&compiler->sb, type_info),
-        " ",
-        sym->semi_scoped->current_id.data,
-        ";\n",
-        NULL
-    );
+    declare_variable(compiler, type_info, sym->semi_scoped->current_id.data);
     return sym->semi_scoped->current_id.data;
 }
 
@@ -3068,7 +3050,7 @@ render_list_for_each_head(
     // TODO: should store these variables on the ItIdentifier struct to avoid lookup
     SourceString actual_ident = for_loop->it->identifiers[0].name;
     char* it_ident = init_semi_scoped_variable(
-        compiler, section, actual_ident, iterable.variable.typing.inner->types[0]
+        compiler, actual_ident, iterable.variable.typing.inner->types[0]
     );
 
     // render for loop
@@ -3104,7 +3086,7 @@ render_dict_for_each_head(
 
     TypeInfo it_type = iterable.variable.typing.inner->types[0];
     SourceString actual_ident = for_loop->it->identifiers[0].name;
-    char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
+    char* it_ident = init_semi_scoped_variable(compiler, actual_ident, it_type);
 
     // render for loop
     char iter_var[GENERATED_VARIABLE_CAPACITY];
@@ -3173,9 +3155,9 @@ render_dict_items_iterator_for_loop_head(
 
     // put it variables in scope
     char* key_variable =
-        init_semi_scoped_variable(compiler, section, actual_key_var, key_type);
+        init_semi_scoped_variable(compiler, actual_key_var, key_type);
     char* val_variable =
-        init_semi_scoped_variable(compiler, section, actual_val_var, val_type);
+        init_semi_scoped_variable(compiler, actual_val_var, val_type);
 
     // declare void* unpacking variable
     char voidptr_variable[GENERATED_VARIABLE_CAPACITY];
@@ -3232,7 +3214,7 @@ render_iterator_for_loop_head(
 
     TypeInfo it_type = iterable.variable.typing.inner->types[0];
     SourceString actual_ident = for_loop->it->identifiers[0].name;
-    char* it_ident = init_semi_scoped_variable(compiler, section, actual_ident, it_type);
+    char* it_ident = init_semi_scoped_variable(compiler, actual_ident, it_type);
 
     char voidptr_variable[GENERATED_VARIABLE_CAPACITY];
     WRITE_UNIQUE_VAR_NAME(compiler, voidptr_variable);
@@ -3267,16 +3249,18 @@ compile_for_loop(
     C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
 )
 {
-    C_Assignment iterable = {.section = section};
+    CompilerSection for_loop_section = {0};
+
+    C_Assignment iterable = {.section = &for_loop_section};
     GENERATE_UNIQUE_VAR_NAME(compiler, iterable.variable);
     render_expression_assignment(compiler, &iterable, for_loop->iterable);
 
     if (iterable.variable.typing.type == PYTYPE_LIST)
-        render_list_for_each_head(compiler, section, for_loop, iterable);
+        render_list_for_each_head(compiler, &for_loop_section, for_loop, iterable);
     else if (iterable.variable.typing.type == PYTYPE_DICT)
-        render_dict_for_each_head(compiler, section, for_loop, iterable);
+        render_dict_for_each_head(compiler, &for_loop_section, for_loop, iterable);
     else if (iterable.variable.typing.type == PYTYPE_ITER)
-        render_iterator_for_loop_head(compiler, section, for_loop, iterable);
+        render_iterator_for_loop_head(compiler, &for_loop_section, for_loop, iterable);
     else {
         fprintf(
             stderr,
@@ -3286,11 +3270,12 @@ compile_for_loop(
         exit(1);
     }
 
-    write_to_section(section, "{\n");
-    for (size_t i = 0; i < for_loop->body.stmts_count; i++) {
-        compile_statement(compiler, section, for_loop->body.stmts[i]);
-    }
-    write_to_section(section, "}\n");
+    write_to_section(&for_loop_section, "{\n");
+    for (size_t i = 0; i < for_loop->body.stmts_count; i++)
+        compile_statement(compiler, &for_loop_section, for_loop->body.stmts[i]);
+    write_to_section(&for_loop_section, "}\n");
+
+    copy_section(section, for_loop_section);
 }
 
 static void
@@ -3456,6 +3441,7 @@ Requirements
 compile_to_c(FILE* outfile, Lexer* lexer)
 {
     C_Compiler compiler = compiler_init(lexer);
+    compiler.current_variable_declaration_section = &compiler.variable_declarations;
     for (size_t i = 0; i < lexer->n_statements; i++) {
         compile_statement(&compiler, NULL, lexer->statements[i]);
     }

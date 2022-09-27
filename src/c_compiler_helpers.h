@@ -42,6 +42,7 @@ void section_free(CompilerSection* section);
 void write_to_section(CompilerSection* section, char* data);
 // LAST ... arg should be NULL
 void write_many_to_section(CompilerSection* section, ...);
+void copy_section(CompilerSection* dest, CompilerSection src);
 
 #define STRING_BUILDER_BUFFER_SIZE 4096
 
