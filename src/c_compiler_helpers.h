@@ -1,6 +1,7 @@
 #ifndef C_COMPILER_HELPERS_H
 #define C_COMPILER_HELPERS_H
 
+#include "diagnostics.h"
 #include "not_python.h"
 #include "syntax.h"
 
@@ -88,5 +89,9 @@ void write_type_info_to_section(
 const char* sort_cmp_for_type_info(TypeInfo type_info, bool reversed);
 const char* voidptr_cmp_for_type_info(TypeInfo type_info);
 const char* cmp_for_type_info(TypeInfo type_info);
+
+const char* source_string_to_exception_type_string(
+    FileIndex index, Location loc, SourceString str
+);
 
 #endif

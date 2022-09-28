@@ -468,3 +468,20 @@ cmp_for_type_info(TypeInfo type_info)
     }
     return cmp_for_type;
 }
+
+const char*
+source_string_to_exception_type_string(FileIndex index, Location loc, SourceString str)
+{
+    // TODO: the parser should probably do this
+    static const SourceString MemoryError = {.data = "MemoryError", .length = 11};
+    static const SourceString IndexError = {.data = "IndexError", .length = 10};
+    static const SourceString KeyError = {.data = "KeyError", .length = 8};
+    static const SourceString ValueError = {.data = "ValueError", .length = 10};
+
+    if (SOURCESTRING_EQ(str, MemoryError)) return "MEMORY_ERROR";
+    if (SOURCESTRING_EQ(str, IndexError)) return "INDEX_ERROR";
+    if (SOURCESTRING_EQ(str, ValueError)) return "VALUE_ERROR";
+    if (SOURCESTRING_EQ(str, KeyError)) return "KEY_ERROR";
+    unspecified_errorf(index, loc, "unrecognized exception type `%s`", str.data);
+    UNREACHABLE();
+}

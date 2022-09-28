@@ -13,9 +13,28 @@
 #define PYDICT Dict*
 #define PYITER Iterator
 
-void memory_error(void);
-void index_error(void);
-void value_error(void);
+typedef enum {
+    MEMORY_ERROR = 1u << 0,
+    INDEX_ERROR = 1u << 1,
+    VALUE_ERROR = 1u << 2,
+    KEY_ERROR = 1u << 3
+} ExceptionType;
+
+typedef struct {
+    ExceptionType type;
+    const char* msg;
+} Exception;
+
+extern Exception* global_exception;
+extern uint64_t current_excepts;
+void set_exception(ExceptionType type, const char* msg);
+Exception* get_exception(void);
+
+// TODO: better exception messages
+#define key_error() set_exception(KEY_ERROR, "key not present")
+#define index_error() set_exception(INDEX_ERROR, "index out of range")
+#define memory_error() set_exception(MEMORY_ERROR, "out of memory")
+#define value_error() set_exception(VALUE_ERROR, "value error")
 
 void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);

@@ -8,36 +8,35 @@
 
 #include "syntax.h"
 
+uint64_t current_excepts = 0;
+Exception* global_exception = NULL;
+
+void
+set_exception(ExceptionType type, const char* msg)
+{
+    // TODO: don't overwrite existing exception
+    if (current_excepts & type) {
+        global_exception = np_alloc(sizeof(Exception));
+        global_exception->type = type;
+        global_exception->msg = msg;
+        return;
+    }
+    else {
+        // TODO: use diagnostics module
+        fprintf(stderr, "ERROR: %s\n", msg);
+        exit(1);
+    }
+}
+
+Exception*
+get_exception(void)
+{
+    Exception* exc = global_exception;
+    global_exception = NULL;
+    return exc;
+}
+
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
-
-// TODO: error messages and error handlers with try blocks
-void
-memory_error(void)
-{
-    fprintf(stderr, "ERROR: out of memory\n");
-    exit(1);
-}
-
-void
-index_error(void)
-{
-    fprintf(stderr, "ERROR: index error\n");
-    exit(1);
-}
-
-void
-value_error(void)
-{
-    fprintf(stderr, "ERROR: value error\n");
-    exit(1);
-}
-
-void
-key_error(void)
-{
-    fprintf(stderr, "ERROR: key error\n");
-    exit(1);
-}
 
 PYBOOL
 str_eq(PYSTRING str1, PYSTRING str2)

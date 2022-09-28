@@ -36,6 +36,7 @@ typedef struct {
     CompilerSection* current_variable_declaration_section;
     size_t unique_vars_counter;
     size_t goto_counter;
+    char* excepts_goto;
     StringBuilder sb;
 } C_Compiler;
 
@@ -3313,6 +3314,111 @@ compile_while(C_Compiler* compiler, CompilerSection* section, WhileStatement* wh
 }
 
 static void
+check_exceptions(C_Compiler* compiler, CompilerSection* section)
+{
+    write_many_to_section(
+        section, "if (global_exception) goto ", compiler->excepts_goto, ";\n", NULL
+    );
+}
+
+static void
+compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
+{
+    // TODO: ensure fallthrough to finally
+
+    char* old_goto = compiler->excepts_goto;
+    GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, excepts_goto);
+    compiler->excepts_goto = excepts_goto;
+
+    GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, finally_goto);
+
+    // remember old excepts
+    char old_excepts[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, old_excepts);
+    write_many_to_section(
+        section, "uint64_t ", old_excepts, " = current_excepts;\n", NULL
+    );
+    // set excepts for this block
+    size_t excepts_combined = 0;
+    write_to_section(section, "current_excepts = ");
+    for (size_t i = 0; i < try->excepts_count; i++) {
+        for (size_t j = 0; j < try->excepts[i].exceptions_count; j++) {
+            if (excepts_combined > 0) write_to_section(section, " | ");
+            // TODO:
+            // the location here is actually the location of the try statement rather than
+            // the except statement -- the parser will need to be updated to capture
+            // the location of except statements
+            write_to_section(
+                section,
+                (char*)source_string_to_exception_type_string(
+                    compiler->file_index,
+                    compiler->current_stmt_location,
+                    try->excepts[i].exceptions[j]
+                )
+            );
+            excepts_combined++;
+        }
+    }
+    write_to_section(section, ";\n");
+
+    // try block
+    for (size_t i = 0; i < try->try_body.stmts_count; i++) {
+        compile_statement(compiler, section, try->try_body.stmts[i]);
+        check_exceptions(compiler, section);
+    }
+    write_many_to_section(
+        section, "if (!global_exception) goto ", finally_goto, ";\n", NULL
+    );
+
+    // except blocks
+    write_many_to_section(section, excepts_goto, ":\n", NULL);
+    char exception_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, exception_variable);
+    write_many_to_section(
+        section, "Exception* ", exception_variable, " = get_exception();\n", NULL
+    );
+    for (size_t i = 0; i < try->excepts_count; i++) {
+        if (try->excepts[i].as.data)
+            UNIMPLEMENTED("capturing exception with using as keyword is not implemented");
+        if (i == 0)
+            write_many_to_section(
+                section, "if (", exception_variable, "->type & (", NULL
+            );
+        else
+            write_many_to_section(
+                section, "else if (", exception_variable, "->type & (", NULL
+            );
+        size_t excepts_combined = 0;
+        for (size_t j = 0; j < try->excepts[i].exceptions_count; j++) {
+            if (excepts_combined > 0) write_to_section(section, " | ");
+            // TODO: imprecise location
+            write_to_section(
+                section,
+                (char*)source_string_to_exception_type_string(
+                    compiler->file_index,
+                    compiler->current_stmt_location,
+                    try->excepts[i].exceptions[j]
+                )
+            );
+            excepts_combined++;
+        }
+        write_to_section(section, ")) {\n");
+        for (size_t j = 0; j < try->excepts[i].body.stmts_count; j++)
+            compile_statement(compiler, section, try->excepts[i].body.stmts[j]);
+        write_to_section(section, "}\n");
+    }
+
+    // finally
+    write_many_to_section(section, finally_goto, ":\n", NULL);
+    for (size_t i = 0; i < try->finally_body.stmts_count; i++)
+        compile_statement(compiler, section, try->finally_body.stmts[i]);
+
+    // restore old excepts
+    write_many_to_section(section, "current_excepts = ", old_excepts, ";\n", NULL);
+    compiler->excepts_goto = old_goto;
+}
+
+static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     compiler->current_stmt_location = stmt->loc;
@@ -3332,7 +3438,8 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
             compile_if(compiler, section, stmt->conditional);
             break;
         case STMT_TRY:
-            UNIMPLEMENTED("try compilation is unimplemented");
+            compile_try(compiler, section, stmt->try_stmt);
+            break;
         case STMT_WITH:
             UNIMPLEMENTED("with compilation is unimplemented");
         case STMT_CLASS:
@@ -3350,6 +3457,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_EXPR: {
             C_Assignment assignment = {
                 .section = section,
+                .loc = &stmt->loc,
                 .variable.final_name = NULL,
                 .variable.declared = false};
             render_expression_assignment(compiler, &assignment, stmt->expr);
