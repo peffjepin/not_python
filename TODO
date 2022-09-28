@@ -8,3 +8,4 @@ test function that annotates one return type and actually returns another
 __iadd__ etc should somewhere validate that user has defined correct return type
 exhaustive testing of object model methods
 exhaustive testing of error messages
+break/continue statements

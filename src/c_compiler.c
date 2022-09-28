@@ -3287,6 +3287,32 @@ compile_if(
 }
 
 static void
+compile_while(C_Compiler* compiler, CompilerSection* section, WhileStatement* while_stmt)
+{
+    temporary_section(section)
+    {
+        write_to_section(section, "for(;;) {\n");
+
+        C_Assignment condition_assignment = {.section = section};
+        GENERATE_UNIQUE_VAR_NAME(compiler, condition_assignment.variable);
+        render_expression_assignment(
+            compiler, &condition_assignment, while_stmt->condition
+        );
+        write_many_to_section(
+            section,
+            "if (!",
+            assignment_to_truthy(&compiler->sb, condition_assignment),
+            ") break;\n",
+            NULL
+        );
+        for (size_t i = 0; i < while_stmt->body.stmts_count; i++)
+            compile_statement(compiler, section, while_stmt->body.stmts[i]);
+
+        write_to_section(section, "}\n");
+    }
+}
+
+static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     compiler->current_stmt_location = stmt->loc;
@@ -3300,7 +3326,8 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_IMPORT:
             UNIMPLEMENTED("import compilation is unimplemented");
         case STMT_WHILE:
-            UNIMPLEMENTED("while loop compilation is unimplemented");
+            compile_while(compiler, section, stmt->while_loop);
+            break;
         case STMT_IF:
             compile_if(compiler, section, stmt->conditional);
             break;
