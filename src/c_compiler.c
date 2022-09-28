@@ -14,7 +14,6 @@
 #include "syntax.h"
 #include "type_checker.h"
 
-// TODO: some standard way to implement name mangling will be needed at some point
 // TODO: tracking if variables have been initialized before use and warning if not
 
 typedef struct {
@@ -39,9 +38,37 @@ typedef struct {
     StringBuilder sb;
 } C_Compiler;
 
-// TODO: unique vars should probably be namespaced by module in the future
-
 #define GENERATED_VARIABLE_CAPACITY 16
+
+typedef struct {
+    TypeInfo typing;
+    bool declared;
+    char* source_name;
+    char* final_name;
+    char local_storage[GENERATED_VARIABLE_CAPACITY];
+} C_Variable;
+
+typedef struct {
+    CompilerSection* section;
+    C_Variable variable;
+    Location* loc;  // NULL for intermediate assignments
+} C_Assignment;
+
+static void compile_statement(
+    C_Compiler* compiler, CompilerSection* section, Statement* stmt
+);
+
+static void render_expression_assignment(
+    C_Compiler* compiler, C_Assignment* assignment, Expression* expr
+);
+
+static void convert_assignment_to_string(
+    C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
+);
+
+static void declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier);
+
+// TODO: unique vars should probably be namespaced by module in the future
 
 #define GENERATE_UNIQUE_VAR_NAME(compiler_ptr, variable)                                 \
     do {                                                                                 \
@@ -56,89 +83,6 @@ typedef struct {
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
-
-static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
-    [PYTYPE_BOOL] = "pybool_sort_fn",
-    [PYTYPE_STRING] = "ptstr_sort_fn",
-};
-
-static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn_rev",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
-    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
-    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
-};
-
-static const char*
-sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
-{
-    const char* rtval;
-    if (reversed)
-        rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
-    else
-        rtval = SORT_CMP_TABLE[type_info.type];
-    if (!rtval) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
-        exit(1);
-    }
-    return rtval;
-}
-
-static const char* VOIDPTR_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "void_int_eq",
-    [PYTYPE_FLOAT] = "void_float_eq",
-    [PYTYPE_BOOL] = "void_bool_eq",
-    [PYTYPE_STRING] = "void_str_eq",
-};
-
-static const char* CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "int_eq",
-    [PYTYPE_FLOAT] = "float_eq",
-    [PYTYPE_BOOL] = "bool_eq",
-    [PYTYPE_STRING] = "str_eq",
-};
-
-static const char*
-voidptr_cmp_for_type_info(TypeInfo type_info)
-{
-    const char* cmp_for_type = VOIDPTR_CMP_TABLE[type_info.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
-    return cmp_for_type;
-}
-
-static const char*
-cmp_for_type_info(TypeInfo type_info)
-{
-    const char* cmp_for_type = CMP_TABLE[type_info.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
-    return cmp_for_type;
-}
-
-typedef struct {
-    TypeInfo typing;
-    bool declared;
-    char* source_name;
-    char* final_name;
-    char local_storage[GENERATED_VARIABLE_CAPACITY];
-} C_Variable;
-
-// TODO: maybe C_Variable is a better name
-typedef struct {
-    CompilerSection* section;
-    C_Variable variable;
-    Location* loc;  // NULL for intermediate assignments
-} C_Assignment;
 
 static void
 set_assignment_type_info(
@@ -183,20 +127,6 @@ set_assignment_type_info(
     }
 }
 
-static void compile_statement(
-    C_Compiler* compiler, CompilerSection* section, Statement* stmt
-);
-
-static void render_expression_assignment(
-    C_Compiler* compiler, C_Assignment* assignment, Expression* expr
-);
-
-static void convert_assignment_to_string(
-    C_Compiler* compiler, C_Assignment assignment_to_convert, C_Assignment* destination
-);
-
-static void declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier);
-
 static void
 prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignment)
 {
@@ -213,13 +143,12 @@ prepare_c_assignment_for_rendering(C_Compiler* compiler, C_Assignment* assignmen
     }
 }
 
-static const SourceString NONE_STR = {.data = "None", .length = 4};
-
 static char*
 simple_operand_repr(C_Compiler* compiler, Operand operand)
 {
     if (operand.token.type == TOK_IDENTIFIER) {
         // TODO: None should probably be a keyword
+        static const SourceString NONE_STR = {.data = "None", .length = 4};
         if (SOURCESTRING_EQ(operand.token.value, NONE_STR)) return "NULL";
         // TODO: should consider a way to avoid this lookup because it happens often
         LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);

@@ -64,4 +64,8 @@ void write_type_info_to_section(
     CompilerSection* section, StringBuilder* sb, TypeInfo info
 );
 
+const char* sort_cmp_for_type_info(TypeInfo type_info, bool reversed);
+const char* voidptr_cmp_for_type_info(TypeInfo type_info);
+const char* cmp_for_type_info(TypeInfo type_info);
+
 #endif

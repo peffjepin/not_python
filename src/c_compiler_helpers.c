@@ -400,3 +400,71 @@ sb_build(StringBuilder* sb, ...)
 
     return (SourceString){.data = start, .length = length};
 }
+
+static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
+    [PYTYPE_BOOL] = "pybool_sort_fn",
+    [PYTYPE_STRING] = "ptstr_sort_fn",
+};
+
+static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "pyint_sort_fn_rev",
+    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
+    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
+    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
+};
+
+const char*
+sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
+{
+    const char* rtval;
+    if (reversed)
+        rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
+    else
+        rtval = SORT_CMP_TABLE[type_info.type];
+    if (!rtval) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
+        exit(1);
+    }
+    return rtval;
+}
+
+static const char* VOIDPTR_CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "void_int_eq",
+    [PYTYPE_FLOAT] = "void_float_eq",
+    [PYTYPE_BOOL] = "void_bool_eq",
+    [PYTYPE_STRING] = "void_str_eq",
+};
+
+static const char* CMP_TABLE[PYTYPE_COUNT] = {
+    [PYTYPE_INT] = "int_eq",
+    [PYTYPE_FLOAT] = "float_eq",
+    [PYTYPE_BOOL] = "bool_eq",
+    [PYTYPE_STRING] = "str_eq",
+};
+
+const char*
+voidptr_cmp_for_type_info(TypeInfo type_info)
+{
+    const char* cmp_for_type = VOIDPTR_CMP_TABLE[type_info.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+    return cmp_for_type;
+}
+
+const char*
+cmp_for_type_info(TypeInfo type_info)
+{
+    const char* cmp_for_type = CMP_TABLE[type_info.type];
+    if (!cmp_for_type) {
+        // TODO: error message
+        fprintf(stderr, "ERROR: comparison function not implemented\n");
+        exit(1);
+    }
+    return cmp_for_type;
+}
