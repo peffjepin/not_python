@@ -3364,6 +3364,8 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
     // try block
     for (size_t i = 0; i < try->try_body.stmts_count; i++) {
         compile_statement(compiler, section, try->try_body.stmts[i]);
+        // TODO: if within a try block we should probably check for exceptions not only
+        // after every statement, but also after every intermediate operation
         check_exceptions(compiler, section);
     }
     write_many_to_section(
