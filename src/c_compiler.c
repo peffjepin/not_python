@@ -35,6 +35,7 @@ typedef struct {
     CompilerSection main_function;
     CompilerSection* current_variable_declaration_section;
     size_t unique_vars_counter;
+    size_t goto_counter;
     StringBuilder sb;
 } C_Compiler;
 
@@ -78,6 +79,10 @@ static void declare_variable(C_Compiler* compiler, TypeInfo type, char* identifi
         variable.final_name = variable.local_storage;                                    \
         variable.declared = false;                                                       \
     } while (0)
+
+#define GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler_ptr, variable_name)                     \
+    char variable_name[GENERATED_VARIABLE_CAPACITY];                                     \
+    sprintf(variable_name, "goto%zu", compiler_ptr->goto_counter++)
 
 #define WRITE_UNIQUE_VAR_NAME(compiler_ptr, dest)                                        \
     sprintf(dest, "NP_var%zu", compiler_ptr->unique_vars_counter++)
@@ -3184,22 +3189,121 @@ compile_for_loop(
     }
 }
 
+static char*
+assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
+{
+    switch (assignment.variable.typing.type) {
+        case PYTYPE_INT:
+            return assignment.variable.final_name;
+        case PYTYPE_FLOAT:
+            return assignment.variable.final_name;
+        case PYTYPE_BOOL:
+            return assignment.variable.final_name;
+        case PYTYPE_STRING:
+            return sb_build_cstr(sb, assignment.variable.final_name, ".length", NULL);
+        case PYTYPE_LIST:
+            return sb_build_cstr(sb, assignment.variable.final_name, "->count", NULL);
+        case PYTYPE_DICT:
+            return sb_build_cstr(sb, assignment.variable.final_name, "->count", NULL);
+        case PYTYPE_NONE:
+            return "0";
+        case PYTYPE_ITER:
+            UNIMPLEMENTED("truthy conversion unimplemented for PYTYPE_ITER");
+        case PYTYPE_OBJECT:
+            UNIMPLEMENTED("truthy conversion unimplemented for PYTYPE_OBJECT");
+        case PYTYPE_SLICE:
+            UNREACHABLE();
+        case PYTYPE_DICT_ITEMS:
+            UNREACHABLE();
+        case PYTYPE_UNTYPED:
+            UNREACHABLE();
+        case PYTYPE_TUPLE:
+            UNREACHABLE();
+        case PYTYPE_COUNT:
+            UNREACHABLE();
+    }
+    UNREACHABLE();
+}
+
+static void
+compile_if(
+    C_Compiler* compiler, CompilerSection* section, ConditionalStatement* conditional
+)
+{
+    temporary_section(section)
+    {
+        GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, goto_ident);
+        bool req_goto =
+            (conditional->else_body.stmts_count > 0 || conditional->elifs_count > 0);
+
+        // if
+        C_Assignment condition_assignment = {.section = section};
+        GENERATE_UNIQUE_VAR_NAME(compiler, condition_assignment.variable);
+        render_expression_assignment(
+            compiler, &condition_assignment, conditional->condition
+        );
+        write_many_to_section(
+            section,
+            "if (",
+            assignment_to_truthy(&compiler->sb, condition_assignment),
+            ") {\n",
+            NULL
+        );
+        for (size_t i = 0; i < conditional->body.stmts_count; i++)
+            compile_statement(compiler, section, conditional->body.stmts[i]);
+        if (req_goto) write_many_to_section(section, "goto ", goto_ident, ";\n", NULL);
+        write_to_section(section, "}\n");
+
+        // elifs
+        for (size_t i = 0; i < conditional->elifs_count; i++) {
+            C_Assignment elif_condition_assignment = {.section = section};
+            GENERATE_UNIQUE_VAR_NAME(compiler, elif_condition_assignment.variable);
+            render_expression_assignment(
+                compiler, &elif_condition_assignment, conditional->elifs[i].condition
+            );
+            write_many_to_section(
+                section,
+                "if (",
+                assignment_to_truthy(&compiler->sb, elif_condition_assignment),
+                ") {\n",
+                NULL
+            );
+            for (size_t stmt_i = 0; stmt_i < conditional->elifs[i].body.stmts_count;
+                 stmt_i++)
+                compile_statement(
+                    compiler, section, conditional->elifs[i].body.stmts[stmt_i]
+                );
+            write_many_to_section(section, "goto ", goto_ident, ";\n", NULL);
+            write_to_section(section, "}\n");
+        }
+
+        // else
+        if (conditional->else_body.stmts_count > 0) {
+            for (size_t i = 0; i < conditional->else_body.stmts_count; i++)
+                compile_statement(compiler, section, conditional->else_body.stmts[i]);
+        }
+        if (req_goto) write_many_to_section(section, goto_ident, ":\n", NULL);
+    }
+}
+
 static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     compiler->current_stmt_location = stmt->loc;
+    CompilerSection* section =
+        (section_or_null) ? section_or_null : &compiler->init_module_function;
+
     switch (stmt->kind) {
-        case STMT_FOR_LOOP: {
-            CompilerSection* section =
-                (section_or_null) ? section_or_null : &compiler->init_module_function;
+        case STMT_FOR_LOOP:
             compile_for_loop(compiler, section, stmt->for_loop);
-        } break;
+            break;
         case STMT_IMPORT:
             UNIMPLEMENTED("import compilation is unimplemented");
         case STMT_WHILE:
             UNIMPLEMENTED("while loop compilation is unimplemented");
         case STMT_IF:
-            UNIMPLEMENTED("if loop compilation is unimplemented");
+            compile_if(compiler, section, stmt->conditional);
+            break;
         case STMT_TRY:
             UNIMPLEMENTED("try compilation is unimplemented");
         case STMT_WITH:
@@ -3210,21 +3314,13 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         case STMT_FUNCTION:
             compile_function(compiler, stmt->func);
             break;
-        case STMT_ASSIGNMENT: {
-            CompilerSection* section =
-                (section_or_null) ? section_or_null : &compiler->init_module_function;
+        case STMT_ASSIGNMENT:
             compile_assignment(compiler, section, stmt);
             break;
-        }
-        case STMT_ANNOTATION: {
-            CompilerSection* section =
-                (section_or_null) ? section_or_null : &compiler->init_module_function;
+        case STMT_ANNOTATION:
             compile_annotation(compiler, section, stmt);
             break;
-        }
         case STMT_EXPR: {
-            CompilerSection* section =
-                (section_or_null) ? section_or_null : &compiler->init_module_function;
             C_Assignment assignment = {
                 .section = section,
                 .variable.final_name = NULL,
