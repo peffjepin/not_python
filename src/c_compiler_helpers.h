@@ -56,6 +56,7 @@ typedef struct {
 StringBuilder sb_init();
 void sb_free(StringBuilder* sb);
 SourceString sb_build(StringBuilder* sb, ...);
+#define sb_build_cstr(sb, ...) sb_build(sb, __VA_ARGS__).data
 
 void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
 const char* type_info_to_c_syntax(StringBuilder* sb, TypeInfo info);

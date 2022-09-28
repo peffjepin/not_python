@@ -41,14 +41,7 @@ typedef struct {
 
 // TODO: unique vars should probably be namespaced by module in the future
 
-#define UNIQUE_VAR_LENGTH 12
-
-// TODO: I'd prefer a change that allows this macro to accept `;` at the end
-#define GENERATE_UNIQUE_VAR_NAMES(compiler_ptr, count, name)                             \
-    char name[count][UNIQUE_VAR_LENGTH];                                                 \
-    for (size_t i = 0; i < count; i++) {                                                 \
-        sprintf(name[i], "NP_var%zu", compiler_ptr->unique_vars_counter++);              \
-    }
+#define GENERATED_VARIABLE_CAPACITY 16
 
 #define GENERATE_UNIQUE_VAR_NAME(compiler_ptr, variable)                                 \
     do {                                                                                 \
@@ -131,8 +124,6 @@ cmp_for_type_info(TypeInfo type_info)
     }
     return cmp_for_type;
 }
-
-#define GENERATED_VARIABLE_CAPACITY 16
 
 typedef struct {
     TypeInfo typing;
@@ -469,24 +460,12 @@ index_of_kwarg(Signature sig, SourceString kwd)
 static void
 render_callable_args_to_variables(
     C_Compiler* compiler,
-    CompilerSection* section,
     Arguments* args,
     Signature sig,
     char* callable_name,
-    char** variable_names,
-    bool variables_declared
+    C_Assignment* assignments
 )
 {
-    C_Assignment assignments[sig.params_count];
-    memset(assignments, 0, sizeof(C_Assignment) * sig.params_count);
-
-    for (size_t i = 0; i < sig.params_count; i++) {
-        assignments[i].section = section;
-        assignments[i].variable.typing = sig.types[i];
-        assignments[i].variable.final_name = variable_names[i];
-        assignments[i].variable.declared = variables_declared;
-    }
-
     if (args->values_count > sig.params_count) {
         type_errorf(
             compiler->file_index,
@@ -564,19 +543,17 @@ render_function_call(
 )
 {
     // intermediate variables to store args into
-    GENERATE_UNIQUE_VAR_NAMES(compiler, fndef->sig.params_count, param_vars)
-    char* variable_names[fndef->sig.params_count];
-    for (size_t i = 0; i < fndef->sig.params_count; i++)
-        variable_names[i] = param_vars[i];
+    C_Assignment assignments[fndef->sig.params_count];
+    memset(assignments, 0, sizeof(assignments));
+    for (size_t i = 0; i < fndef->sig.params_count; i++) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, assignments[i].variable);
+        assignments[i].section = assignment->section;
+        assignments[i].variable.source_name = fndef->sig.params[i].data;
+        assignments[i].variable.typing = fndef->sig.types[i];
+    }
 
     render_callable_args_to_variables(
-        compiler,
-        assignment->section,
-        args,
-        fndef->sig,
-        fndef->name.data,
-        variable_names,
-        false
+        compiler, args, fndef->sig, fndef->name.data, assignments
     );
 
     // write the call statement
@@ -586,7 +563,7 @@ render_function_call(
     write_to_section(assignment->section, "(");
     for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
         if (arg_i > 0) write_to_section(assignment->section, ", ");
-        write_to_section(assignment->section, param_vars[arg_i]);
+        write_to_section(assignment->section, assignments[arg_i].variable.final_name);
     }
     write_to_section(assignment->section, ");\n");
 }
@@ -605,27 +582,25 @@ render_default_object_string_represntation(
         // default fmt string expects all params to be first convereted into cstr
         clsdef->fmtstr = create_default_object_fmt_str(compiler->arena, clsdef);
 
-    GENERATE_UNIQUE_VAR_NAMES(compiler, clsdef->sig.params_count, members_as_str);
     C_Assignment as_str_assignments[clsdef->sig.params_count];
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        SourceString varname = sb_build(
+        char* member_selector = sb_build_cstr(
             &compiler->sb,
             object_assignment.variable.final_name,
             "->",
             clsdef->sig.params[i].data,
             NULL
         );
-        C_Assignment fake_member_assignment = {
+        C_Assignment intermediate_member_assignment = {
             .section = object_assignment.section,
             .variable.typing = clsdef->sig.types[i],
-            .variable.final_name = varname.data,
-        };
-        C_Assignment* to_string = as_str_assignments + i;
-        to_string->section = object_assignment.section;
-        to_string->variable.typing.type = PYTYPE_STRING;
-        to_string->variable.declared = false;
-        to_string->variable.final_name = members_as_str[i];
-        convert_assignment_to_string(compiler, fake_member_assignment, to_string);
+            .variable.final_name = member_selector};
+
+        C_Assignment* as_string = as_str_assignments + i;
+        GENERATE_UNIQUE_VAR_NAME(compiler, as_string->variable);
+        as_string->section = object_assignment.section;
+        as_string->variable.typing.type = PYTYPE_STRING;
+        convert_assignment_to_string(compiler, intermediate_member_assignment, as_string);
     }
 
     prepare_c_assignment_for_rendering(compiler, destination);
@@ -634,7 +609,11 @@ render_default_object_string_represntation(
     );
     for (size_t i = 0; i < clsdef->sig.params_count; i++)
         write_many_to_section(
-            destination->section, ", np_str_to_cstr(", members_as_str[i], ")", NULL
+            destination->section,
+            ", np_str_to_cstr(",
+            as_str_assignments[i].variable.final_name,
+            ")",
+            NULL
         );
     write_to_section(destination->section, ");\n");
 }
@@ -735,38 +714,33 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
     }
 
     size_t args_count = (args->values_count == 0) ? 1 : args->values_count;
-    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, initial_resolution_vars)
     C_Assignment initial_assignments[args_count];
 
     if (args->values_count == 0) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, initial_assignments[0].variable);
         initial_assignments[0].section = section;
         initial_assignments[0].variable.typing.type = PYTYPE_STRING;
-        initial_assignments[0].variable.final_name = initial_resolution_vars[0];
-        initial_assignments[0].variable.declared = false;
         prepare_c_assignment_for_rendering(compiler, initial_assignments);
         write_to_section(section, "(PYSTRING){.data=\"\", .length=0};\n");
     }
     else {
         for (size_t i = 0; i < args->values_count; i++) {
+            GENERATE_UNIQUE_VAR_NAME(compiler, initial_assignments[i].variable);
             initial_assignments[i].section = section;
             initial_assignments[i].variable.typing.type = PYTYPE_UNTYPED;
-            initial_assignments[i].variable.final_name = initial_resolution_vars[i];
-            initial_assignments[i].variable.declared = false;
             render_expression_assignment(
                 compiler, initial_assignments + i, args->values[i]
             );
         }
     }
 
-    GENERATE_UNIQUE_VAR_NAMES(compiler, args_count, string_vars)
     C_Assignment converted_assignments[args_count];
     for (size_t i = 0; i < args_count; i++) {
         if (initial_assignments[i].variable.typing.type == PYTYPE_STRING)
             converted_assignments[i] = initial_assignments[i];
         else {
+            GENERATE_UNIQUE_VAR_NAME(compiler, converted_assignments[i].variable);
             converted_assignments[i].variable.typing.type = PYTYPE_STRING;
-            converted_assignments[i].variable.final_name = string_vars[i];
-            converted_assignments[i].variable.declared = false;
             converted_assignments[i].section = section;
             convert_assignment_to_string(
                 compiler, initial_assignments[i], converted_assignments + i
@@ -1997,12 +1971,17 @@ render_object_method_call(
     }
 
     // intermediate variables to store args into
-    GENERATE_UNIQUE_VAR_NAMES(compiler, sig.params_count, param_vars)
-    char* variable_names[sig.params_count];
-    for (size_t i = 0; i < sig.params_count; i++) variable_names[i] = param_vars[i];
+    C_Assignment intermediate_assignments[sig.params_count];
+    memset(intermediate_assignments, 0, sizeof(intermediate_assignments));
+    for (size_t i = 0; i < sig.params_count; i++) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, intermediate_assignments[i].variable);
+        intermediate_assignments[i].section = assignment->section;
+        intermediate_assignments[i].variable.typing = fndef->sig.types[i];
+        intermediate_assignments[i].variable.source_name = fndef->sig.params[i].data;
+    }
 
     render_callable_args_to_variables(
-        compiler, assignment->section, args, sig, fndef->name.data, variable_names, false
+        compiler, args, sig, fndef->name.data, intermediate_assignments
     );
 
     // write the call statement
@@ -2013,7 +1992,9 @@ render_object_method_call(
     );
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
         write_to_section(assignment->section, ", ");
-        write_to_section(assignment->section, param_vars[arg_i]);
+        write_to_section(
+            assignment->section, intermediate_assignments[arg_i].variable.final_name
+        );
     }
     write_to_section(assignment->section, ");\n");
 }
@@ -2065,29 +2046,28 @@ render_object_creation(
     // var->param1
     // var->param2
     // ...
-    char* value_destinations[clsdef->sig.params_count];
+    C_Assignment intermediate_assignments[clsdef->sig.params_count];
+    memset(intermediate_assignments, 0, sizeof(intermediate_assignments));
     for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        SourceString dst = sb_build(
+        char* dst = sb_build_cstr(
             &compiler->sb,
             assignment->variable.final_name,
             "->",
             clsdef->sig.params[i].data,
             NULL
         );
-        value_destinations[i] = dst.data;
+        intermediate_assignments[i].section = assignment->section;
+        intermediate_assignments[i].variable.final_name = dst;
+        intermediate_assignments[i].variable.source_name = clsdef->sig.params[i].data;
+        intermediate_assignments[i].variable.typing = clsdef->sig.types[i];
+        intermediate_assignments[i].variable.declared = true;
     }
 
     // var->param1 = expr1;
     // var->param2 = expr2;
     // ...
     render_callable_args_to_variables(
-        compiler,
-        assignment->section,
-        args,
-        clsdef->sig,
-        clsdef->name.data,
-        value_destinations,
-        true
+        compiler, args, clsdef->sig, clsdef->name.data, intermediate_assignments
     );
 }
 
@@ -2205,7 +2185,7 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
             expr->operands[operation.left], expr->operands[operation.right]};
         TypeInfo operand_types[2] = {0};
         char* operand_reprs[2];
-        char variable_memory[2][UNIQUE_VAR_LENGTH] = {0};
+        char variable_memory[2][GENERATED_VARIABLE_CAPACITY] = {0};
 
         for (size_t lr = (is_unary) ? 1 : 0; lr < 2; lr++) {
             if (operands[lr].kind == OPERAND_TOKEN) {
@@ -2403,7 +2383,7 @@ render_expression_assignment(
         size_t operand_indices[2] = {operation.left, operation.right};
         TypeInfo operand_types[2] = {0};
         char* operand_reprs[2] = {0};
-        char variable_memory[2][UNIQUE_VAR_LENGTH] = {0};
+        char variable_memory[2][GENERATED_VARIABLE_CAPACITY] = {0};
 
         bool is_unary =
             (operation.op_type == OPERATOR_LOGICAL_NOT ||
@@ -3018,10 +2998,10 @@ init_semi_scoped_variable(
     if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident.data;
     if (!sym->semi_scoped->current_id.data) {
         sym->semi_scoped->current_id.data =
-            arena_alloc(compiler->arena, UNIQUE_VAR_LENGTH);
-        sym->semi_scoped->current_id.length = UNIQUE_VAR_LENGTH;
+            arena_alloc(compiler->arena, GENERATED_VARIABLE_CAPACITY);
     }
     WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id.data);
+    sym->semi_scoped->current_id.length = strlen(sym->semi_scoped->current_id.data);
     sym->semi_scoped->type = type_info;
     sym->semi_scoped->directly_in_scope = true;
     declare_variable(compiler, type_info, sym->semi_scoped->current_id.data);
@@ -3154,10 +3134,8 @@ render_dict_items_iterator_for_loop_head(
     TypeInfo val_type = items_inner->types[1];
 
     // put it variables in scope
-    char* key_variable =
-        init_semi_scoped_variable(compiler, actual_key_var, key_type);
-    char* val_variable =
-        init_semi_scoped_variable(compiler, actual_val_var, val_type);
+    char* key_variable = init_semi_scoped_variable(compiler, actual_key_var, key_type);
+    char* val_variable = init_semi_scoped_variable(compiler, actual_val_var, val_type);
 
     // declare void* unpacking variable
     char voidptr_variable[GENERATED_VARIABLE_CAPACITY];

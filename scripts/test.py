@@ -234,6 +234,7 @@ class TestRunner:
             print(f"failed to decode program output ({test_case.test_key}):")
             print(exc)
             print(raw)
+            self.result.failed += 1
             return
 
         if not VerifiedChecksums.present(test_case.test_key):
