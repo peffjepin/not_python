@@ -44,6 +44,27 @@ void write_to_section(CompilerSection* section, char* data);
 void write_many_to_section(CompilerSection* section, ...);
 void copy_section(CompilerSection* dest, CompilerSection src);
 
+/*
+ * Begin a scope in which the given `section_ptr` is replaced with a temporary
+ * CompilerSection which is then copied into the real section when the scope ends
+ *
+ * USAGE:
+ * CompilerSection* my_current_section = ...;
+ *
+ * temporary_section(my_current_section) {
+ *     // `my_current_section` is now a temporary section that will be copied to the real
+ *     // section at the end of this scope
+ *     ...
+ * }
+ */
+#define temporary_section(section_ptr)                                                   \
+    CompilerSection tmp##__LINE__ = {0};                                                 \
+    CompilerSection* actual##__LINE__ = section_ptr;                                     \
+    section_ptr = &tmp##__LINE__;                                                        \
+    for (int i = 0; i < 1; i++,                                                          \
+             copy_section(actual##__LINE__, tmp##__LINE__),                              \
+             section_ptr = actual##__LINE__)
+
 #define STRING_BUILDER_BUFFER_SIZE 4096
 
 typedef struct {

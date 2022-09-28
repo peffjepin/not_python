@@ -3156,33 +3156,32 @@ compile_for_loop(
     C_Compiler* compiler, CompilerSection* section, ForLoopStatement* for_loop
 )
 {
-    CompilerSection for_loop_section = {0};
+    temporary_section(section)
+    {
+        C_Assignment iterable = {.section = section};
+        GENERATE_UNIQUE_VAR_NAME(compiler, iterable.variable);
+        render_expression_assignment(compiler, &iterable, for_loop->iterable);
 
-    C_Assignment iterable = {.section = &for_loop_section};
-    GENERATE_UNIQUE_VAR_NAME(compiler, iterable.variable);
-    render_expression_assignment(compiler, &iterable, for_loop->iterable);
+        if (iterable.variable.typing.type == PYTYPE_LIST)
+            render_list_for_each_head(compiler, section, for_loop, iterable);
+        else if (iterable.variable.typing.type == PYTYPE_DICT)
+            render_dict_for_each_head(compiler, section, for_loop, iterable);
+        else if (iterable.variable.typing.type == PYTYPE_ITER)
+            render_iterator_for_loop_head(compiler, section, for_loop, iterable);
+        else {
+            fprintf(
+                stderr,
+                "ERROR: for loops currently implemented only for lists, dicts and "
+                "iterators\n"
+            );
+            exit(1);
+        }
 
-    if (iterable.variable.typing.type == PYTYPE_LIST)
-        render_list_for_each_head(compiler, &for_loop_section, for_loop, iterable);
-    else if (iterable.variable.typing.type == PYTYPE_DICT)
-        render_dict_for_each_head(compiler, &for_loop_section, for_loop, iterable);
-    else if (iterable.variable.typing.type == PYTYPE_ITER)
-        render_iterator_for_loop_head(compiler, &for_loop_section, for_loop, iterable);
-    else {
-        fprintf(
-            stderr,
-            "ERROR: for loops currently implemented only for lists, dicts and "
-            "iterators\n"
-        );
-        exit(1);
+        write_to_section(section, "{\n");
+        for (size_t i = 0; i < for_loop->body.stmts_count; i++)
+            compile_statement(compiler, section, for_loop->body.stmts[i]);
+        write_to_section(section, "}\n");
     }
-
-    write_to_section(&for_loop_section, "{\n");
-    for (size_t i = 0; i < for_loop->body.stmts_count; i++)
-        compile_statement(compiler, &for_loop_section, for_loop->body.stmts[i]);
-    write_to_section(&for_loop_section, "}\n");
-
-    copy_section(section, for_loop_section);
 }
 
 static void
