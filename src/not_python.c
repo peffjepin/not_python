@@ -28,6 +28,19 @@ set_exception(ExceptionType type, const char* msg)
     }
 }
 
+void
+set_exceptionf(ExceptionType type, const char* fmt, ...)
+{
+    char linebuffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    size_t wrote = vsnprintf(linebuffer, 1024, fmt, args);
+    va_end(args);
+    char* msg = np_alloc(sizeof(char) * wrote);
+    memcpy(msg, linebuffer, wrote);
+    set_exception(type, (const char*)msg);
+}
+
 Exception*
 get_exception(void)
 {

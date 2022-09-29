@@ -2903,7 +2903,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
 
 static void
 compile_return_statement(
-    C_Compiler* compiler, CompilerSection* section, ReturnStatement* ret
+    C_Compiler* compiler, CompilerSection* section, Expression* value
 )
 {
     LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
@@ -2911,7 +2911,7 @@ compile_return_statement(
     C_Assignment assignment = {
         .section = section, .variable.typing = scope->func->sig.return_type};
     GENERATE_UNIQUE_VAR_NAME(compiler, assignment.variable);
-    render_expression_assignment(compiler, &assignment, ret->value);
+    render_expression_assignment(compiler, &assignment, value);
 
     if (assignment.variable.typing.type == PYTYPE_NONE) {
         write_to_section(section, "return;\n");
@@ -3430,6 +3430,27 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
 }
 
 static void
+compile_assert(C_Compiler* compiler, CompilerSection* section, Expression* value)
+{
+    char line_number[10];
+    snprintf(line_number, 10, "%u", compiler->current_stmt_location.line);
+    C_Assignment condition = {
+        .section = section, .loc = &compiler->current_stmt_location};
+    GENERATE_UNIQUE_VAR_NAME(compiler, condition.variable);
+    render_expression_assignment(compiler, &condition, value);
+    write_many_to_section(
+        section,
+        "if (!",
+        assignment_to_truthy(&compiler->sb, condition),
+        ") ",
+        "assertion_error(",
+        line_number,
+        ");\n",
+        NULL
+    );
+}
+
+static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     compiler->current_stmt_location = stmt->loc;
@@ -3437,6 +3458,9 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         (section_or_null) ? section_or_null : &compiler->init_module_function;
 
     switch (stmt->kind) {
+        case STMT_ASSERT:
+            compile_assert(compiler, section, stmt->assert_expr);
+            break;
         case STMT_FOR_LOOP:
             compile_for_loop(compiler, section, stmt->for_loop);
             break;
@@ -3488,7 +3512,7 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
                     "return statement cannot be defined at the top level scope"
                 );
             }
-            compile_return_statement(compiler, section_or_null, stmt->ret);
+            compile_return_statement(compiler, section_or_null, stmt->return_expr);
             break;
         }
         case NULL_STMT:

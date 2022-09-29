@@ -17,7 +17,8 @@ typedef enum {
     MEMORY_ERROR = 1u << 0,
     INDEX_ERROR = 1u << 1,
     VALUE_ERROR = 1u << 2,
-    KEY_ERROR = 1u << 3
+    KEY_ERROR = 1u << 3,
+    ASSERTION_ERROR = 1u << 4,
 } ExceptionType;
 
 typedef struct {
@@ -28,6 +29,7 @@ typedef struct {
 extern Exception* global_exception;
 extern uint64_t current_excepts;
 void set_exception(ExceptionType type, const char* msg);
+void set_exceptionf(ExceptionType type, const char* fmt, ...);
 Exception* get_exception(void);
 
 // TODO: better exception messages
@@ -35,6 +37,10 @@ Exception* get_exception(void);
 #define index_error() set_exception(INDEX_ERROR, "index out of range")
 #define memory_error() set_exception(MEMORY_ERROR, "out of memory")
 #define value_error() set_exception(VALUE_ERROR, "value error")
+// TODO: a good error message here will require saving metadata into executable
+// so will require some kind of `debug` option in the front end
+#define assertion_error(ln)                                                              \
+    set_exceptionf(ASSERTION_ERROR, "AssertionError on line: %i\n", ln)
 
 void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);

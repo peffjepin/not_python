@@ -2282,10 +2282,14 @@ parse_statement(Parser* parser)
             case KW_RETURN: {
                 discard_next_token(parser);
                 stmt->kind = STMT_RETURN;
-                stmt->ret = arena_alloc(parser->arena, sizeof(ReturnStatement));
-                stmt->ret->value = parse_expression(parser);
+                stmt->return_expr = parse_expression(parser);
                 return stmt;
             }
+            case KW_ASSERT:
+                discard_next_token(parser);
+                stmt->kind = STMT_ASSERT;
+                stmt->assert_expr = parse_expression(parser);
+                return stmt;
             case KW_FOR: {
                 stmt->kind = STMT_FOR_LOOP;
                 stmt->for_loop = parse_for_loop(parser, stmt->loc.col);

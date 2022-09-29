@@ -126,7 +126,8 @@ def verify_new_entry_with_user(test_key, checksum, output):
 
     file = ROOT / test_key.split()[-1]
     if file.exists():
-        print(file.read_text())
+        for i, line in enumerate(file.read_text().splitlines()):
+            print(f"{i+1}: ", line)
 
     print_labeled_separator("OUTPUT")
     print(output)

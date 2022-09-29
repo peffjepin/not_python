@@ -413,7 +413,7 @@ print_statement(Statement* stmt, int indent)
             break;
         }
         case STMT_RETURN: {
-            indent_printf("return %s\n", render_expr(stmt->ret->value).data);
+            indent_printf("return %s\n", render_expr(stmt->return_expr).data);
             break;
         }
         case STMT_EOF: {
