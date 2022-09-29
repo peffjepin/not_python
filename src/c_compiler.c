@@ -3233,7 +3233,7 @@ compile_if(
 {
     temporary_section(section)
     {
-        GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, goto_ident);
+        GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, exit_label);
         bool req_goto =
             (conditional->else_body.stmts_count > 0 || conditional->elifs_count > 0);
 
@@ -3252,7 +3252,7 @@ compile_if(
         );
         for (size_t i = 0; i < conditional->body.stmts_count; i++)
             compile_statement(compiler, section, conditional->body.stmts[i]);
-        if (req_goto) write_many_to_section(section, "goto ", goto_ident, ";\n", NULL);
+        if (req_goto) write_many_to_section(section, "goto ", exit_label, ";\n", NULL);
         write_to_section(section, "}\n");
 
         // elifs
@@ -3274,7 +3274,7 @@ compile_if(
                 compile_statement(
                     compiler, section, conditional->elifs[i].body.stmts[stmt_i]
                 );
-            write_many_to_section(section, "goto ", goto_ident, ";\n", NULL);
+            write_many_to_section(section, "goto ", exit_label, ";\n", NULL);
             write_to_section(section, "}\n");
         }
 
@@ -3283,7 +3283,7 @@ compile_if(
             for (size_t i = 0; i < conditional->else_body.stmts_count; i++)
                 compile_statement(compiler, section, conditional->else_body.stmts[i]);
         }
-        if (req_goto) write_many_to_section(section, goto_ident, ":\n", NULL);
+        if (req_goto) write_many_to_section(section, exit_label, ":\n", NULL);
     }
 }
 
@@ -3325,11 +3325,13 @@ static void
 compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
 {
     // TODO: ensure fallthrough to finally
+    // TODO: if I supported closures this could somehow be packed very neatly into
+    // a callback system that would be convenient because you could easily interact
+    // with it from C but for now this seems a lot simpler
 
     char* old_goto = compiler->excepts_goto;
     GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, excepts_goto);
     compiler->excepts_goto = excepts_goto;
-
     GENERATE_UNIQUE_GOTO_IDENTIFIER(compiler, finally_goto);
 
     // remember old excepts
@@ -3344,7 +3346,7 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
     for (size_t i = 0; i < try->excepts_count; i++) {
         for (size_t j = 0; j < try->excepts[i].exceptions_count; j++) {
             if (excepts_combined > 0) write_to_section(section, " | ");
-            // TODO:
+            // FIXME:
             // the location here is actually the location of the try statement rather than
             // the except statement -- the parser will need to be updated to capture
             // the location of except statements
@@ -3365,7 +3367,8 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
     for (size_t i = 0; i < try->try_body.stmts_count; i++) {
         compile_statement(compiler, section, try->try_body.stmts[i]);
         // TODO: if within a try block we should probably check for exceptions not only
-        // after every statement, but also after every intermediate operation
+        // after every statement, but also after every intermediate operation that could
+        // produce an exception
         check_exceptions(compiler, section);
     }
     write_many_to_section(
@@ -3381,7 +3384,7 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
     );
     for (size_t i = 0; i < try->excepts_count; i++) {
         if (try->excepts[i].as.data)
-            UNIMPLEMENTED("capturing exception with using as keyword is not implemented");
+            UNIMPLEMENTED("capturing exception using `as` keyword is not implemented");
         if (i == 0)
             write_many_to_section(
                 section, "if (", exception_variable, "->type & (", NULL
@@ -3393,7 +3396,7 @@ compile_try(C_Compiler* compiler, CompilerSection* section, TryStatement* try)
         size_t excepts_combined = 0;
         for (size_t j = 0; j < try->excepts[i].exceptions_count; j++) {
             if (excepts_combined > 0) write_to_section(section, " | ");
-            // TODO: imprecise location
+            // FIXME: imprecise location
             write_to_section(
                 section,
                 (char*)source_string_to_exception_type_string(
