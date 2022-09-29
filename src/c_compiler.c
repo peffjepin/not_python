@@ -3210,8 +3210,14 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
             return "0";
         case PYTYPE_ITER:
             UNIMPLEMENTED("truthy conversion unimplemented for PYTYPE_ITER");
-        case PYTYPE_OBJECT:
-            UNIMPLEMENTED("truthy conversion unimplemented for PYTYPE_OBJECT");
+        case PYTYPE_OBJECT: {
+            ClassStatement* clsdef = assignment.variable.typing.cls;
+            FunctionStatement* fndef = clsdef->object_model_methods[OBJECT_MODEL_BOOL];
+            if (!fndef) return "1";
+            return sb_build_cstr(
+                sb, fndef->ns_ident.data, "(", assignment.variable.final_name, ")", NULL
+            );
+        }
         case PYTYPE_SLICE:
             UNREACHABLE();
         case PYTYPE_DICT_ITEMS:

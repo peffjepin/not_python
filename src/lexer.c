@@ -1353,6 +1353,14 @@ validate_object_model_signature(
     // NOTE: being a method the first param `self` is already validated
 
     switch (om) {
+        case OBJECT_MODEL_BOOL:
+            if (sig.return_type.type != PYTYPE_BOOL)
+                type_error(
+                    *parser->scanner->index,
+                    loc,
+                    "expecting __bool__ to return type: `bool`"
+                );
+            break;
         case OBJECT_MODEL_INIT:
             if (sig.return_type.type != PYTYPE_NONE)
                 type_error(

@@ -50,6 +50,8 @@ source_string_to_object_model(SourceString str)
                     return NOT_IN_OBJECT_MODEL;
             }
             break;
+        case 'b':
+            OM_SWITCH_FINISH("ool", OBJECT_MODEL_BOOL);
         case 'c':
             switch (*cstr++) {
                 case 'a':
