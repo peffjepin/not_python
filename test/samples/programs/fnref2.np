@@ -1,0 +1,4 @@
+def my_func(value: str) -> None:
+    pass
+
+f = my_func

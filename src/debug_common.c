@@ -349,6 +349,16 @@ render_type_info(TypeInfo info)
         case PYTYPE_STRING:
             str_concat_cstr(&str, "str");
             break;
+        case PYTYPE_FUNCTION:
+            str_concat_cstr(&str, "Function[[");
+            for (size_t i = 0; i < info.sig->params_count; i++) {
+                if (i > 0) str_concat_cstr(&str, ", ");
+                str_concat_cstr(&str, render_type_info(info.sig->types[i]).data);
+            }
+            str_concat_cstr(&str, "], ");
+            str_concat_cstr(&str, render_type_info(info.sig->return_type).data);
+            str_concat_cstr(&str, "]");
+            break;
         case PYTYPE_LIST:
             str_concat_cstr(&str, "List");
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);

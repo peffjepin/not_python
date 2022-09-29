@@ -13,10 +13,10 @@ PYINT NP_var4;
 PYINT NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void object_member_op_assignments_A___init__(object_member_op_assignments_A* self);
+void* object_member_op_assignments_A___init__(object_member_op_assignments_A* self);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void object_member_op_assignments_A___init__(object_member_op_assignments_A* self) {
+void* object_member_op_assignments_A___init__(object_member_op_assignments_A* self) {
 object_member_op_assignments_A* NP_var0;
 NP_var0 = self;
 PYINT NP_var1;
@@ -24,6 +24,7 @@ NP_var1 = 1;
 PYINT NP_var2;
 NP_var2 = NP_var0->value;
 NP_var0->value = NP_var2+NP_var1;
+return NULL;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

@@ -8,13 +8,14 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // VARIABLE DECLARATIONS COMPILER SECTION
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void explicit_return_none_fn();
+void* explicit_return_none_fn();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void explicit_return_none_fn() {
+void* explicit_return_none_fn() {
 void* NP_var0;
 NP_var0 = NULL;
 return;
+return NULL;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

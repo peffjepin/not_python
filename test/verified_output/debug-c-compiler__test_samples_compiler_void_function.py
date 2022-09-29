@@ -8,10 +8,11 @@ PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
 // VARIABLE DECLARATIONS COMPILER SECTION
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void void_function_my_function();
+void* void_function_my_function();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void void_function_my_function() {
+void* void_function_my_function() {
+return NULL;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

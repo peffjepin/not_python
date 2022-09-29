@@ -78,10 +78,14 @@ typedef struct {
 StringBuilder sb_init();
 void sb_free(StringBuilder* sb);
 SourceString sb_build(StringBuilder* sb, ...);
+SourceString sb_join_ss(
+    StringBuilder* sb, SourceString* strs, size_t count, const char* delimiter
+);
 #define sb_build_cstr(sb, ...) sb_build(sb, __VA_ARGS__).data
 
 void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
-const char* type_info_to_c_syntax(StringBuilder* sb, TypeInfo info);
+SourceString type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info);
+#define type_info_to_c_syntax(sb, type_info) type_info_to_c_syntax_ss(sb, type_info).data
 void write_type_info_to_section(
     CompilerSection* section, StringBuilder* sb, TypeInfo info
 );

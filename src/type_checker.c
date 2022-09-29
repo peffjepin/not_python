@@ -648,15 +648,17 @@ resolve_from_scopes(TypeChecker* tc, SourceString identifier)
         if (sym) return sym->variable->type;
     }
     sym = symbol_hm_get(&tc->globals->hm, identifier);
-    switch (sym->kind) {
-        case SYM_VARIABLE:
-            return sym->variable->type;
-        case SYM_SEMI_SCOPED:
-            return sym->semi_scoped->type;
-        case SYM_CLASS:
-            UNIMPLEMENTED("resolve class type from scope");
-        case SYM_FUNCTION:
-            UNIMPLEMENTED("resolve function type from scope");
+    if (sym) {
+        switch (sym->kind) {
+            case SYM_VARIABLE:
+                return sym->variable->type;
+            case SYM_SEMI_SCOPED:
+                return sym->semi_scoped->type;
+            case SYM_CLASS:
+                UNIMPLEMENTED("resolve class type from scope");
+            case SYM_FUNCTION:
+                return (TypeInfo){.type = PYTYPE_FUNCTION, .sig = &sym->func->sig};
+        }
     }
     return (TypeInfo){.type = PYTYPE_UNTYPED};
 }

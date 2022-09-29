@@ -198,9 +198,18 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
 static void
 render_simple_operand(C_Compiler* compiler, C_Assignment* assignment, Operand operand)
 {
-    set_assignment_type_info(
-        compiler, assignment, resolve_operand_type(&compiler->tc, operand)
-    );
+    TypeInfo info = resolve_operand_type(&compiler->tc, operand);
+    if (info.type == PYTYPE_UNTYPED) {
+        // TODO: function to determine if this is a builtin function which cannot be
+        // referenced and give a more informative error message.
+        type_errorf(
+            compiler->file_index,
+            *operand.token.loc,
+            "unable to resolve the type for token `%s`",
+            operand.token.value.data
+        );
+    }
+    set_assignment_type_info(compiler, assignment, info);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_to_section(assignment->section, simple_operand_repr(compiler, operand));
     write_to_section(assignment->section, ";\n");
@@ -393,6 +402,38 @@ index_of_kwarg(Signature sig, SourceString kwd)
 }
 
 static void
+render_type_hinted_signature_args_to_variables(
+    C_Compiler* compiler,
+    Arguments* args,
+    Signature sig,
+    char* callable_name,
+    C_Assignment* assignments
+)
+{
+    if (args->values_count != sig.params_count) {
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "callable `%s` takes %zu arguments but %zu were given",
+            callable_name,
+            sig.params_count,
+            args->values_count
+        );
+    }
+    if (args->values_count != args->n_positional) {
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "callable `%s` derives it's type from a type hint and does not take keyword "
+            "arguments keyword arguments",
+            callable_name
+        );
+    }
+    for (size_t arg_i = 0; arg_i < args->values_count; arg_i++)
+        render_expression_assignment(compiler, assignments + arg_i, args->values[arg_i]);
+}
+
+static void
 render_callable_args_to_variables(
     C_Compiler* compiler,
     Arguments* args,
@@ -401,6 +442,13 @@ render_callable_args_to_variables(
     C_Assignment* assignments
 )
 {
+    if (!sig.params) {
+        // Signature coming from a type hint, only accepts positional args
+        render_type_hinted_signature_args_to_variables(
+            compiler, args, sig, callable_name, assignments
+        );
+        return;
+    }
     if (args->values_count > sig.params_count) {
         type_errorf(
             compiler->file_index,
@@ -467,40 +515,6 @@ render_callable_args_to_variables(
                 compiler, assignments + i, sig.defaults[i - required_count]
             );
     }
-}
-
-static void
-render_function_call(
-    C_Compiler* compiler,
-    C_Assignment* assignment,
-    FunctionStatement* fndef,
-    Arguments* args
-)
-{
-    // intermediate variables to store args into
-    C_Assignment assignments[fndef->sig.params_count];
-    memset(assignments, 0, sizeof(assignments));
-    for (size_t i = 0; i < fndef->sig.params_count; i++) {
-        GENERATE_UNIQUE_VAR_NAME(compiler, assignments[i].variable);
-        assignments[i].section = assignment->section;
-        assignments[i].variable.source_name = fndef->sig.params[i].data;
-        assignments[i].variable.typing = fndef->sig.types[i];
-    }
-
-    render_callable_args_to_variables(
-        compiler, args, fndef->sig, fndef->name.data, assignments
-    );
-
-    // write the call statement
-    set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
-    prepare_c_assignment_for_rendering(compiler, assignment);
-    write_to_section(assignment->section, fndef->ns_ident.data);
-    write_to_section(assignment->section, "(");
-    for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
-        if (arg_i > 0) write_to_section(assignment->section, ", ");
-        write_to_section(assignment->section, assignments[arg_i].variable.final_name);
-    }
-    write_to_section(assignment->section, ");\n");
 }
 
 static void
@@ -2008,35 +2022,46 @@ render_object_creation(
 
 static void
 render_call_operation(
-    C_Compiler* compiler, C_Assignment* assignment, Expression* expr, Operation operation
+    C_Compiler* compiler,
+    C_Assignment* assignment,
+    C_Variable fn_variable,
+    Arguments* args
 )
 {
-    SourceString fn_identifier = expr->operands[operation.left].token.value;
-    Arguments* args = expr->operands[operation.right].args;
-    Symbol* sym = symbol_hm_get(&compiler->top_level_scope->hm, fn_identifier);
-    if (!sym) {
-        render_builtin(compiler, assignment, fn_identifier.data, args);
-        return;
+    if (fn_variable.typing.type != PYTYPE_FUNCTION) {
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "symbol `%s` is not callable",
+            fn_variable.source_name
+        );
     }
-    switch (sym->kind) {
-        case SYM_FUNCTION: {
-            FunctionStatement* fndef = sym->func;
-            render_function_call(compiler, assignment, fndef, args);
-            break;
-        }
-        case SYM_CLASS: {
-            ClassStatement* clsdef = sym->cls;
-            render_object_creation(compiler, assignment, clsdef, args);
-            break;
-        }
-        default:
-            type_errorf(
-                compiler->file_index,
-                *operation.loc,
-                "symbol `%s` is not callable",
-                fn_identifier.data
-            );
+
+    // intermediate variables to store args into
+    Signature sig = *fn_variable.typing.sig;
+    C_Assignment assignments[sig.params_count];
+    memset(assignments, 0, sizeof(assignments));
+    for (size_t i = 0; i < sig.params_count; i++) {
+        GENERATE_UNIQUE_VAR_NAME(compiler, assignments[i].variable);
+        assignments[i].section = assignment->section;
+        if (sig.params) assignments[i].variable.source_name = sig.params[i].data;
+        assignments[i].variable.typing = sig.types[i];
     }
+
+    render_callable_args_to_variables(
+        compiler, args, sig, fn_variable.source_name, assignments
+    );
+
+    // write the call statement
+    set_assignment_type_info(compiler, assignment, sig.return_type);
+    prepare_c_assignment_for_rendering(compiler, assignment);
+    write_to_section(assignment->section, fn_variable.final_name);
+    write_to_section(assignment->section, "(");
+    for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
+        if (arg_i > 0) write_to_section(assignment->section, ", ");
+        write_to_section(assignment->section, assignments[arg_i].variable.final_name);
+    }
+    write_to_section(assignment->section, ");\n");
 }
 
 static TypeInfo
@@ -2081,6 +2106,46 @@ render_getattr_operation(
 }
 
 static void
+render_call_from_operands(
+    C_Compiler* compiler, C_Assignment* assignment, Operand left, Operand right
+)
+{
+    Symbol* sym =
+        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, left.token.value);
+    if (!sym) {
+        sym = symbol_hm_get(&compiler->top_level_scope->hm, left.token.value);
+        if (!sym) {
+            render_builtin(compiler, assignment, left.token.value.data, right.args);
+            return;
+        }
+    }
+
+    C_Variable fn_ident_variable = {0};
+    switch (sym->kind) {
+        case SYM_CLASS:
+            render_object_creation(compiler, assignment, sym->cls, right.args);
+            return;
+        case SYM_SEMI_SCOPED:
+            fn_ident_variable.source_name = sym->semi_scoped->identifier.data;
+            fn_ident_variable.final_name = sym->semi_scoped->current_id.data;
+            fn_ident_variable.typing = sym->semi_scoped->type;
+            break;
+        case SYM_VARIABLE:
+            fn_ident_variable.source_name = sym->variable->identifier.data;
+            fn_ident_variable.final_name = sym->variable->ns_ident.data;
+            fn_ident_variable.typing = sym->variable->type;
+            break;
+        case SYM_FUNCTION:
+            fn_ident_variable.source_name = sym->func->name.data;
+            fn_ident_variable.final_name = sym->func->ns_ident.data;
+            fn_ident_variable.typing.sig = &sym->func->sig;
+            fn_ident_variable.typing.type = PYTYPE_FUNCTION;
+            break;
+    }
+    render_call_operation(compiler, assignment, fn_ident_variable, right.args);
+}
+
+static void
 render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Expression* expr)
 {
     if (expr->operations_count == 0) {
@@ -2093,7 +2158,9 @@ render_simple_expression(C_Compiler* compiler, C_Assignment* assignment, Express
         compiler->current_operation_location = *operation.loc;
 
         if (operation.op_type == OPERATOR_CALL) {
-            render_call_operation(compiler, assignment, expr, operation);
+            Operand left = expr->operands[operation.left];
+            Operand right = expr->operands[operation.right];
+            render_call_from_operands(compiler, assignment, left, right);
             return;
         }
         if (operation.op_type == OPERATOR_GET_ATTR) {
@@ -2196,8 +2263,16 @@ render_expression_assignment(
     C_Compiler* compiler, C_Assignment* assignment, Expression* expr
 )
 {
+    bool untyped = assignment->variable.typing.type == PYTYPE_UNTYPED;
+
     if (expr->operations_count <= 1) {
         render_simple_expression(compiler, assignment, expr);
+        if (untyped && assignment->variable.typing.type == PYTYPE_FUNCTION)
+            type_error(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "function references must have their type annotated"
+            );
         return;
     }
 
@@ -2217,7 +2292,20 @@ render_expression_assignment(
         }
 
         if (operation.op_type == OPERATOR_CALL) {
-            render_call_operation(compiler, this_assignment, expr, operation);
+            Operand right = expr->operands[operation.right];
+            C_Assignment* previous =
+                operation_renders.operand_index_to_previous_assignment[operation.left];
+            if (previous) {
+                render_call_operation(
+                    compiler, this_assignment, previous->variable, right.args
+                );
+                update_rendered_operation_memory(
+                    &operation_renders, this_assignment, operation
+                );
+                continue;
+            }
+            Operand left = expr->operands[operation.left];
+            render_call_from_operands(compiler, this_assignment, left, right);
             update_rendered_operation_memory(
                 &operation_renders, this_assignment, operation
             );
@@ -2357,6 +2445,12 @@ render_expression_assignment(
         );
         update_rendered_operation_memory(&operation_renders, this_assignment, operation);
     }
+    if (untyped && assignment->variable.typing.type == PYTYPE_FUNCTION)
+        type_error(
+            compiler->file_index,
+            compiler->current_stmt_location,
+            "function references must have their type annotated"
+        );
 }
 
 static void
@@ -2373,7 +2467,7 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         TypeInfo type_info = func->sig.return_type;
 
         if (type_info.type == PYTYPE_NONE)
-            write_to_section(sections[i], "void ");
+            write_to_section(sections[i], "void* ");
         else
             write_type_info_to_section(sections[i], &compiler->sb, type_info);
 
@@ -2398,6 +2492,8 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     scope_stack_pop(&compiler->scope_stack);
     compiler->tc.locals = old_locals;
 
+    if (func->sig.return_type.type == PYTYPE_NONE)
+        write_to_section(&compiler->function_definitions, "return NULL;\n");
     write_to_section(&compiler->function_definitions, "}\n");
 
     compiler->current_variable_declaration_section = current_declarations_section;
@@ -2457,14 +2553,37 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
 static void
 declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
 {
-    write_many_to_section(
-        compiler->current_variable_declaration_section,
-        type_info_to_c_syntax(&compiler->sb, type),
-        " ",
-        identifier,
-        ";\n",
-        NULL
-    );
+    if (type.type == PYTYPE_FUNCTION) {
+        // c function ptr declaration -> `ret_type (*ident)(param_types, ...);`
+        // type_info_to_c_syntax -> `ret_type (*)(param_types, ...);`
+        size_t off = 0;
+        char* c_syntax = type_info_to_c_syntax(&compiler->sb, type);
+        for (size_t i = 0; c_syntax[i] != ' '; i++, off++)
+            ;
+        // c_syntax[off] == ' ' now
+        off += 3;
+        char before[off + 1];
+        memcpy(before, c_syntax, off);
+        before[off] = '\0';
+        write_many_to_section(
+            compiler->current_variable_declaration_section,
+            before,
+            identifier,
+            c_syntax + off,
+            ";\n",
+            NULL
+        );
+    }
+    else {
+        write_many_to_section(
+            compiler->current_variable_declaration_section,
+            type_info_to_c_syntax(&compiler->sb, type),
+            " ",
+            identifier,
+            ";\n",
+            NULL
+        );
+    }
 }
 
 static void

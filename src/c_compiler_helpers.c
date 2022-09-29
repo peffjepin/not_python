@@ -27,6 +27,8 @@ type_info_human_readable(TypeInfo info)
             return "Tuple";
         case PYTYPE_DICT:
             return "Dict";
+        case PYTYPE_FUNCTION:
+            return "Function";
         case PYTYPE_OBJECT:
             return info.cls->name.data;
         case PYTYPE_BOOL:
@@ -54,7 +56,37 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
         *buffer++ = *outer++;
         remaining--;
     }
-    if (info.type != PYTYPE_OBJECT && info.inner) {
+    if (info.type == PYTYPE_FUNCTION) {
+        if (remaining > 2) {
+            *buffer++ = '[';
+            *buffer++ = '[';
+            remaining -= 2;
+        }
+        for (size_t i = 0; i < info.sig->params_count; i++) {
+            if (i > 0 && remaining > 2) {
+                *buffer++ = ',';
+                *buffer++ = ' ';
+                remaining -= 2;
+            }
+            remaining -= write_type_info_into_buffer_human_readable(
+                info.sig->types[i], buffer, remaining
+            );
+        }
+        if (remaining > 2) {
+            *buffer++ = ']';
+            *buffer++ = ',';
+            *buffer++ = ' ';
+            remaining -= 2;
+        }
+        remaining -= write_type_info_into_buffer_human_readable(
+            info.sig->return_type, buffer, remaining
+        );
+        if (remaining > 0) {
+            *buffer++ = ']';
+            remaining -= 1;
+        }
+    }
+    else if (info.type != PYTYPE_OBJECT && info.inner) {
         if (remaining > 1) {
             *buffer++ = '[';
             remaining--;
@@ -85,34 +117,79 @@ render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
 }
 
 const char*
-type_info_to_c_syntax(StringBuilder* sb, TypeInfo info)
+type_infos_to_comma_separated_c_syntax(
+    StringBuilder* sb, TypeInfo* types, size_t types_count
+)
+{
+    SourceString c_syntax[types_count];
+    for (size_t i = 0; i < types_count; i++) {
+        c_syntax[i] = type_info_to_c_syntax_ss(sb, types[i]);
+    }
+    return sb_join_ss(sb, c_syntax, types_count, ", ").data;
+}
+
+SourceString
+type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info)
 {
     switch (info.type) {
         case PYTYPE_UNTYPED:
             UNTYPED_ERROR();
             break;
-        case PYTYPE_NONE:
-            return "void*";
-        case PYTYPE_INT:
-            return DATATYPE_INT;
-        case PYTYPE_FLOAT:
-            return DATATYPE_FLOAT;
-        case PYTYPE_STRING:
-            return DATATYPE_STRING;
-        case PYTYPE_BOOL:
-            return DATATYPE_BOOL;
-        case PYTYPE_LIST:
-            return DATATYPE_LIST;
+        case PYTYPE_NONE: {
+            static const SourceString NONE = {.data = "void*", .length = 4};
+            return NONE;
+        }
+        case PYTYPE_INT: {
+            static const SourceString INT = {
+                .data = DATATYPE_INT, .length = sizeof(DATATYPE_INT) - 1};
+            return INT;
+        }
+        case PYTYPE_FLOAT: {
+            static const SourceString FLOAT = {
+                .data = DATATYPE_FLOAT, .length = sizeof(DATATYPE_FLOAT) - 1};
+            return FLOAT;
+        }
+        case PYTYPE_STRING: {
+            static const SourceString STRING = {
+                .data = DATATYPE_STRING, .length = sizeof(DATATYPE_STRING) - 1};
+            return STRING;
+        }
+        case PYTYPE_BOOL: {
+            static const SourceString BOOL = {
+                .data = DATATYPE_BOOL, .length = sizeof(DATATYPE_BOOL) - 1};
+            return BOOL;
+        }
+        case PYTYPE_LIST: {
+            static const SourceString LIST = {
+                .data = DATATYPE_LIST, .length = sizeof(DATATYPE_LIST) - 1};
+            return LIST;
+        }
         case PYTYPE_TUPLE:
             UNIMPLEMENTED("tuple to c syntax unimplemented");
             break;
-        case PYTYPE_DICT:
-            return DATATYPE_DICT;
-        case PYTYPE_OBJECT: {
-            return sb_build(sb, info.cls->ns_ident.data, "*", NULL).data;
+        case PYTYPE_DICT: {
+            static const SourceString DICT = {
+                .data = DATATYPE_DICT, .length = sizeof(DATATYPE_DICT) - 1};
+            return DICT;
         }
-        case PYTYPE_ITER:
-            return DATATYPE_ITER;
+        case PYTYPE_OBJECT:
+            return sb_build(sb, info.cls->ns_ident.data, "*", NULL);
+        case PYTYPE_FUNCTION:
+            return sb_build(
+                sb,
+                type_info_to_c_syntax(sb, info.sig->return_type),
+                " (*)(",
+                type_infos_to_comma_separated_c_syntax(
+                    sb, info.sig->types, info.sig->params_count
+                ),
+                ")",
+                NULL
+            );
+        case PYTYPE_ITER: {
+            static const SourceString ITER = {
+                .data = DATATYPE_ITER, .length = sizeof(DATATYPE_ITER) - 1};
+            return ITER;
+        }
         default: {
             char buf[1024];
             render_type_info_human_readable(info, buf, 1024);
@@ -342,6 +419,15 @@ sb_start_new_buffer(StringBuilder* sb)
     sb->remaining = STRING_BUILDER_BUFFER_SIZE;
 }
 
+static void
+sb_inherit_buffer(StringBuilder* sb, char* buf)
+{
+    sb->buffers_count++;
+    sb->buffers = realloc(sb->buffers, sizeof(char*) * sb->buffers_count);
+    if (!sb->buffers) out_of_memory();
+    sb->buffers[sb->buffers_count - 1] = buf;
+}
+
 StringBuilder
 sb_init()
 {
@@ -399,6 +485,40 @@ sb_build(StringBuilder* sb, ...)
     va_end(strings);
 
     return (SourceString){.data = start, .length = length};
+}
+
+SourceString
+sb_join_ss(StringBuilder* sb, SourceString* strs, size_t count, const char* delimiter)
+{
+    if (count == 0) return (SourceString){.data = "", .length = 0};
+    size_t delim_length = strlen(delimiter);
+    size_t required = 1 + delim_length * (count - 1);
+    for (size_t i = 0; i < count; i++) required += strs[i].length;
+
+    char* buf;
+    if (sb->remaining < required) {
+        buf = malloc(required);
+        if (!buf) out_of_memory();
+        sb_inherit_buffer(sb, buf);
+    }
+    else {
+        buf = sb->write;
+        sb->remaining -= required;
+        sb->write += required;
+    }
+
+    char* write = buf;
+    for (size_t i = 0; i < count; i++) {
+        if (i > 0) {
+            memcpy(write, delimiter, delim_length);
+            write += delim_length;
+        }
+        memcpy(write, strs[i].data, strs[i].length);
+        write += strs[i].length;
+    }
+    *write = '\0';
+
+    return (SourceString){.data = buf, .length = required};
 }
 
 static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {

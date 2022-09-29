@@ -1108,6 +1108,35 @@ parse_type_hint(Parser* parser)
     TypeInfo info = {.type = type, .cls = (type == PYTYPE_OBJECT) ? cls : NULL};
 
     switch (type) {
+        case PYTYPE_FUNCTION: {
+            expect_token_type(parser, TOK_OPEN_SQUARE);
+
+            info.sig = arena_alloc(parser->arena, sizeof(Signature));
+
+            expect_token_type(parser, TOK_OPEN_SQUARE);
+            TypeInfoVector params_vec = typing_vector_init(parser->arena);
+            while (peek_next_token(parser).type != TOK_CLOSE_SQUARE) {
+                if (params_vec.count > 0) expect_token_type(parser, TOK_COMMA);
+                typing_vector_append(&params_vec, parse_type_hint(parser));
+            }
+            info.sig->types = typing_vector_finalize(&params_vec);
+            info.sig->params_count = params_vec.count;
+            discard_next_token(parser);  // CLOSE_SQUARE for params
+            expect_token_type(parser, TOK_COMMA);
+
+            info.sig->return_type = parse_type_hint(parser);
+            Token close_sq = get_next_token(parser);
+            if (close_sq.type != TOK_CLOSE_SQUARE) {
+                syntax_error(
+                    *parser->scanner->index,
+                    *close_sq.loc,
+                    0,
+                    "returning multiple values from functions is not currently "
+                    "implemented"
+                );
+            }
+            return info;
+        }
         case PYTYPE_TUPLE: {
             info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
             TypeInfoVector vec = typing_vector_init(parser->arena);

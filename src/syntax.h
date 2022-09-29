@@ -19,6 +19,7 @@ typedef struct LexicalScope LexicalScope;
 typedef struct TypeInfo TypeInfo;
 typedef struct Variable Variable;
 typedef struct ClassStatement ClassStatement;
+typedef struct Signature Signature;
 
 typedef enum {
     PYTYPE_UNTYPED,
@@ -33,6 +34,7 @@ typedef enum {
     PYTYPE_BOOL,
     PYTYPE_SLICE,
     PYTYPE_ITER,
+    PYTYPE_FUNCTION,
     PYTYPE_DICT_ITEMS,
     PYTYPE_COUNT,
 } PythonType;
@@ -46,6 +48,10 @@ struct TypeInfo {
     PythonType type;
     union {
         ClassStatement* cls;
+        // NOTE: sig->defaults and sig->params may be NULL
+        // when accessing a signature from TypeInfo because
+        // it may derive from a type hint
+        Signature* sig;
         TypeInfoInner* inner;
     };
 };
@@ -209,14 +215,14 @@ typedef struct {
     Block body;
 } WithStatement;
 
-typedef struct {
+struct Signature {
     size_t params_count;
     SourceString* params;
     TypeInfo* types;
     size_t defaults_count;
     Expression** defaults;
     TypeInfo return_type;
-} Signature;
+};
 
 typedef struct {
     SourceString name;

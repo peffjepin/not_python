@@ -324,6 +324,12 @@ PythonType
 cstr_to_python_type(char* cstr)
 {
     switch (cstr[0]) {
+        case 'F':
+            if (strcmp(cstr, "Function") == 0) return PYTYPE_FUNCTION;
+            return PYTYPE_OBJECT;
+        case 'C':
+            if (strcmp(cstr, "Callable") == 0) return PYTYPE_FUNCTION;
+            return PYTYPE_OBJECT;
         case 'N':
             if (strcmp(cstr, "None") == 0) return PYTYPE_NONE;
             return PYTYPE_OBJECT;
