@@ -1,0 +1,16 @@
+def fn1() -> str:
+    return "hello"
+
+
+def fn2() -> str:
+    return "world"
+
+
+def fn3() -> str:
+    return "!"
+
+
+l: List[Function[[], str]] = [fn1, fn2, fn3]
+
+for fn in l:
+    print(fn())

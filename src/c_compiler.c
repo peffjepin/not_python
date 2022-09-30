@@ -129,6 +129,13 @@ set_assignment_type_info(
         }
     }
     else {
+        if (assignment->variable.type_info.type == PYTYPE_UNTYPED &&
+            type_info.type == PYTYPE_FUNCTION && type_info.sig->params)
+            type_error(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "function references must have their type annotated"
+            );
         assignment->variable.type_info = type_info;
     }
 }
@@ -2269,16 +2276,8 @@ render_expression_assignment(
     C_Compiler* compiler, C_Assignment* assignment, Expression* expr
 )
 {
-    bool untyped = assignment->variable.type_info.type == PYTYPE_UNTYPED;
-
     if (expr->operations_count <= 1) {
         render_simple_expression(compiler, assignment, expr);
-        if (untyped && assignment->variable.type_info.type == PYTYPE_FUNCTION)
-            type_error(
-                compiler->file_index,
-                compiler->current_stmt_location,
-                "function references must have their type annotated"
-            );
         return;
     }
 
@@ -2451,12 +2450,6 @@ render_expression_assignment(
         );
         update_rendered_operation_memory(&operation_renders, this_assignment, operation);
     }
-    if (untyped && assignment->variable.type_info.type == PYTYPE_FUNCTION)
-        type_error(
-            compiler->file_index,
-            compiler->current_stmt_location,
-            "function references must have their type annotated"
-        );
 }
 
 static void

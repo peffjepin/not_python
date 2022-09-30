@@ -76,11 +76,13 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
             *buffer++ = ']';
             *buffer++ = ',';
             *buffer++ = ' ';
-            remaining -= 2;
+            remaining -= 3;
         }
-        remaining -= write_type_info_into_buffer_human_readable(
+        size_t written = write_type_info_into_buffer_human_readable(
             info.sig->return_type, buffer, remaining
         );
+        remaining -= written;
+        buffer += written;
         if (remaining > 0) {
             *buffer++ = ']';
             remaining -= 1;
@@ -97,15 +99,18 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
                 *buffer++ = ' ';
                 remaining -= 2;
             }
-            remaining -= write_type_info_into_buffer_human_readable(
+            size_t written = write_type_info_into_buffer_human_readable(
                 info.inner->types[i], buffer, remaining
             );
+            remaining -= written;
+            buffer += written;
         }
         if (remaining > 1) {
             *buffer++ = ']';
             remaining--;
         }
     }
+    *buffer = '\0';
     return start - remaining;
 }
 

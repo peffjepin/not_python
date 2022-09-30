@@ -44,6 +44,17 @@ compare_inner_type(TypeInfoInner* inner1, TypeInfoInner* inner2)
     return true;
 }
 
+static bool
+compare_signatures(Signature sig1, Signature sig2)
+{
+    if (sig1.params_count != sig2.params_count) return false;
+    if (!compare_types(sig1.return_type, sig2.return_type)) return false;
+    for (size_t i = 0; i < sig1.params_count; i++) {
+        if (!compare_types(sig1.types[i], sig2.types[i])) return false;
+    }
+    return true;
+}
+
 bool
 compare_types(TypeInfo type1, TypeInfo type2)
 {
@@ -57,6 +68,8 @@ compare_types(TypeInfo type1, TypeInfo type2)
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
         case PYTYPE_OBJECT:
             return outer_equal && (SOURCESTRING_EQ(type1.cls->name, type2.cls->name));
+        case PYTYPE_FUNCTION:
+            return outer_equal && compare_signatures(*type1.sig, *type2.sig);
         default:
             return outer_equal;
     }
