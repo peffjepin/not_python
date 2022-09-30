@@ -1,19 +1,19 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT function_call1_x;
+PyInt function_call1_x;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYINT function_call1_my_func();
+PyInt function_call1_my_func();
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYINT function_call1_my_func() {
-PYINT NP_var0;
+PyInt function_call1_my_func() {
+PyInt NP_var0;
 NP_var0 = 1;
 return NP_var0;
 }

@@ -1,25 +1,25 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PYINT value;} object_op_assignment_A;
+typedef struct {PyInt value;} object_op_assignment_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 object_op_assignment_A* object_op_assignment_a;
-PYINT NP_var4;
+PyInt NP_var4;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* self, PYINT other);
+object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* self, PyInt other);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* self, PYINT other) {
+object_op_assignment_A* object_op_assignment_A___iadd__(object_op_assignment_A* self, PyInt other) {
 object_op_assignment_A* NP_var0;
 NP_var0 = self;
-PYINT NP_var1;
+PyInt NP_var1;
 NP_var1 = other;
-PYINT NP_var2;
+PyInt NP_var2;
 NP_var2 = NP_var0->value;
 NP_var0->value = NP_var2+NP_var1;
 object_op_assignment_A* NP_var3;

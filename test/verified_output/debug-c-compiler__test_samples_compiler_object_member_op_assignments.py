@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PYINT value;} object_member_op_assignments_A;
+typedef struct {PyInt value;} object_member_op_assignments_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 object_member_op_assignments_A* object_member_op_assignments_a;
 object_member_op_assignments_A* NP_var3;
-PYINT NP_var4;
-PYINT NP_var5;
+PyInt NP_var4;
+PyInt NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 void* object_member_op_assignments_A___init__(object_member_op_assignments_A* self);
@@ -19,9 +19,9 @@ void* object_member_op_assignments_A___init__(object_member_op_assignments_A* se
 void* object_member_op_assignments_A___init__(object_member_op_assignments_A* self) {
 object_member_op_assignments_A* NP_var0;
 NP_var0 = self;
-PYINT NP_var1;
+PyInt NP_var1;
 NP_var1 = 1;
-PYINT NP_var2;
+PyInt NP_var2;
 NP_var2 = NP_var0->value;
 NP_var0->value = NP_var2+NP_var1;
 return NULL;

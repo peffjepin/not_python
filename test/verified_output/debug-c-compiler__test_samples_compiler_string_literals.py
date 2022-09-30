@@ -1,15 +1,15 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 {.data="string1", .length=7},
 {.data="string2", .length=7}};
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYSTRING string_literals_string1;
-PYSTRING string_literals_string2;
-PYSTRING string_literals_string2_2;
+PyString string_literals_string1;
+PyString string_literals_string2;
+PyString string_literals_string2_2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 

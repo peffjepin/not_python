@@ -1456,7 +1456,7 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __iter__ to return type: `Iterator` (general iterable "
+                    "expecting __iter__ to return type: `PyIter` (general iterable "
                     "interface not yet implemented)"
                 );
             if (sig.params_count != 1)

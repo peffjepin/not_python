@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT NP_var0;
-PYLIST list_sort_l;
-PYLIST NP_var2;
-PYLIST NP_var4;
-PYBOOL NP_var5;
+PyInt NP_var0;
+PyList* list_sort_l;
+PyList* NP_var2;
+PyList* NP_var4;
+PyBool NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -19,17 +19,17 @@ PYBOOL NP_var5;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 NP_var0 = 1;
-list_sort_l = LIST_INIT(PYINT);
-LIST_APPEND(list_sort_l, PYINT, NP_var0);
+list_sort_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
+list_append(list_sort_l, &NP_var0);
 NP_var0 = 2;
-LIST_APPEND(list_sort_l, PYINT, NP_var0);
+list_append(list_sort_l, &NP_var0);
 NP_var0 = 3;
-LIST_APPEND(list_sort_l, PYINT, NP_var0);
+list_append(list_sort_l, &NP_var0);
 NP_var2 = list_sort_l;
-LIST_SORT(NP_var2, pyint_sort_fn, pyint_sort_fn_rev, false);
+list_sort(NP_var2, false);
 NP_var4 = list_sort_l;
 NP_var5 = true;
-LIST_SORT(NP_var4, pyint_sort_fn, pyint_sort_fn_rev, NP_var5);
+list_sort(NP_var4, NP_var5);
 }
 
 // MAIN FUNCTION COMPILER SECTION

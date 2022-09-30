@@ -1,20 +1,20 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 {.data="hello", .length=5}};
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYSTRING (*fnref_fnref)(PYSTRING);
-PYSTRING NP_var1;
+PyString (*fnref_fnref)(PyString);
+PyString NP_var1;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void* fnref_my_function(PYSTRING value);
+void* fnref_my_function(PyString value);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void* fnref_my_function(PYSTRING value) {
-PYSTRING NP_var0;
+void* fnref_my_function(PyString value) {
+PyString NP_var0;
 NP_var0 = value;
 builtin_print(1, NP_var0);
 return NULL;

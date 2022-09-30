@@ -1,14 +1,14 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT untyped_top_level_assignment_x;
-PYFLOAT untyped_top_level_assignment_y;
-PYFLOAT untyped_top_level_assignment_z;
+PyInt untyped_top_level_assignment_x;
+PyFloat untyped_top_level_assignment_y;
+PyFloat untyped_top_level_assignment_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 

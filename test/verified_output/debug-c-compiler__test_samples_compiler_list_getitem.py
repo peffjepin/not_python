@@ -1,15 +1,15 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT NP_var0;
-PYLIST list_getitem_l;
-PYINT NP_var1;
-PYINT list_getitem_x;
+PyInt NP_var0;
+PyList* list_getitem_l;
+PyInt NP_var1;
+PyInt list_getitem_x;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -18,14 +18,14 @@ PYINT list_getitem_x;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 NP_var0 = 1;
-list_getitem_l = LIST_INIT(PYINT);
-LIST_APPEND(list_getitem_l, PYINT, NP_var0);
+list_getitem_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
+list_append(list_getitem_l, &NP_var0);
 NP_var0 = 2;
-LIST_APPEND(list_getitem_l, PYINT, NP_var0);
+list_append(list_getitem_l, &NP_var0);
 NP_var0 = 3;
-LIST_APPEND(list_getitem_l, PYINT, NP_var0);
+list_append(list_getitem_l, &NP_var0);
 NP_var1 = 0;
-LIST_GET_ITEM(list_getitem_l, PYINT, NP_var1, list_getitem_x);
+list_get_item(list_getitem_l, NP_var1, &list_getitem_x);
 }
 
 // MAIN FUNCTION COMPILER SECTION

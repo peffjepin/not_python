@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT NP_var0;
-PYLIST list_index_l;
-PYLIST NP_var2;
-PYINT NP_var3;
-PYINT list_index_i;
+PyInt NP_var0;
+PyList* list_index_l;
+PyList* NP_var2;
+PyInt NP_var3;
+PyInt list_index_i;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -19,11 +19,11 @@ PYINT list_index_i;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 NP_var0 = 1;
-list_index_l = LIST_INIT(PYINT);
-LIST_APPEND(list_index_l, PYINT, NP_var0);
+list_index_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
+list_append(list_index_l, &NP_var0);
 NP_var2 = list_index_l;
 NP_var3 = 1;
-LIST_INDEX(NP_var2, PYINT, int_eq, NP_var3, list_index_i);
+list_index_i = list_index(NP_var2, &NP_var3);
 }
 
 // MAIN FUNCTION COMPILER SECTION

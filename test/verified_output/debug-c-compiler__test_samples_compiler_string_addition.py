@@ -1,15 +1,15 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 {.data="Hello,", .length=6},
 {.data=" World.", .length=7}};
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYSTRING string_addition_a;
-PYSTRING string_addition_b;
-PYSTRING string_addition_c;
+PyString string_addition_a;
+PyString string_addition_b;
+PyString string_addition_c;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 

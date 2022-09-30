@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PYINT x;PYINT y;} default_object_str_A;
+typedef struct {PyInt x;PyInt y;} default_object_str_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 default_object_str_A* NP_var0;
-PYSTRING NP_var2;
-PYSTRING NP_var3;
-PYSTRING NP_var1;
+PyString NP_var2;
+PyString NP_var3;
+PyString NP_var1;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 

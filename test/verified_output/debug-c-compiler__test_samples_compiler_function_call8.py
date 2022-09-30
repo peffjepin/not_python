@@ -1,22 +1,22 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYFLOAT NP_var2;
-PYINT NP_var1;
-PYFLOAT function_call8_z;
+PyFloat NP_var2;
+PyInt NP_var1;
+PyFloat function_call8_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYFLOAT function_call8_my_function(PYINT x, PYFLOAT y);
+PyFloat function_call8_my_function(PyInt x, PyFloat y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYFLOAT function_call8_my_function(PYINT x, PYFLOAT y) {
-PYFLOAT NP_var0;
-NP_var0 = (PYFLOAT)x/y;
+PyFloat function_call8_my_function(PyInt x, PyFloat y) {
+PyFloat NP_var0;
+NP_var0 = (PyFloat)x/y;
 return NP_var0;
 }
 

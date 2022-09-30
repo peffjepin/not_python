@@ -1,27 +1,27 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYFLOAT NP_var5;
-PYFLOAT NP_var6;
-PYFLOAT NP_var1;
-PYFLOAT NP_var7;
-PYFLOAT NP_var8;
-PYFLOAT NP_var2;
-PYFLOAT NP_var3;
-PYFLOAT NP_var4;
-PYFLOAT function_call3_z;
+PyFloat NP_var5;
+PyFloat NP_var6;
+PyFloat NP_var1;
+PyFloat NP_var7;
+PyFloat NP_var8;
+PyFloat NP_var2;
+PyFloat NP_var3;
+PyFloat NP_var4;
+PyFloat function_call3_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PYFLOAT function_call3_my_func(PYFLOAT x, PYFLOAT y);
+PyFloat function_call3_my_func(PyFloat x, PyFloat y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PYFLOAT function_call3_my_func(PYFLOAT x, PYFLOAT y) {
-PYFLOAT NP_var0;
+PyFloat function_call3_my_func(PyFloat x, PyFloat y) {
+PyFloat NP_var0;
 NP_var0 = x+y;
 return NP_var0;
 }
@@ -35,7 +35,7 @@ NP_var7 = 2.0;
 NP_var8 = 3.0;
 NP_var2 = function_call3_my_func(NP_var7, NP_var8);
 NP_var3 = 2*NP_var1;
-NP_var4 = (PYFLOAT)3/NP_var2;
+NP_var4 = (PyFloat)3/NP_var2;
 function_call3_z = NP_var1+NP_var4;
 }
 

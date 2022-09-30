@@ -36,7 +36,7 @@ type_info_human_readable(TypeInfo info)
         case PYTYPE_SLICE:
             return "slice";
         case PYTYPE_ITER:
-            return "Iterator";
+            return "Iter";
         case PYTYPE_DICT_ITEMS:
             return "DictItems";
         case PYTYPE_UNTYPED:
@@ -290,7 +290,7 @@ str_hm_grow(StringHashmap* hm)
         hm->capacity = 16;
     else
         hm->capacity *= 2;
-    hm->elements = realloc(hm->elements, sizeof(StringView) * hm->capacity);
+    hm->elements = realloc(hm->elements, sizeof(PyString) * hm->capacity);
     hm->lookup = realloc(hm->lookup, sizeof(int) * 2 * hm->capacity);
     if (!hm->elements || !hm->lookup) out_of_memory();
     memset(hm->lookup, -1, sizeof(int) * 2 * hm->capacity);
@@ -543,11 +543,7 @@ sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
         rtval = REVERSE_SORT_CMP_TABLE[type_info.type];
     else
         rtval = SORT_CMP_TABLE[type_info.type];
-    if (!rtval) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: sorting comparison function not implemented\n");
-        exit(1);
-    }
+    if (!rtval) return "NULL";
     return rtval;
 }
 
@@ -569,11 +565,7 @@ const char*
 voidptr_cmp_for_type_info(TypeInfo type_info)
 {
     const char* cmp_for_type = VOIDPTR_CMP_TABLE[type_info.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
+    if (!cmp_for_type) return "NULL";
     return cmp_for_type;
 }
 
@@ -581,11 +573,7 @@ const char*
 cmp_for_type_info(TypeInfo type_info)
 {
     const char* cmp_for_type = CMP_TABLE[type_info.type];
-    if (!cmp_for_type) {
-        // TODO: error message
-        fprintf(stderr, "ERROR: comparison function not implemented\n");
-        exit(1);
-    }
+    if (!cmp_for_type) return "NULL";
     return cmp_for_type;
 }
 

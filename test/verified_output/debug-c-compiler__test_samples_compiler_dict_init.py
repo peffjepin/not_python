@@ -1,14 +1,14 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYINT NP_var0;
-PYINT NP_var1;
-PYDICT dict_init_d;
+PyInt NP_var0;
+PyInt NP_var1;
+PyDict* dict_init_d;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -18,7 +18,7 @@ PYDICT dict_init_d;
 static void init_module(void) {
 NP_var0 = 1;
 NP_var1 = 2;
-dict_init_d = DICT_INIT(PYINT, PYINT, void_int_eq);
+dict_init_d = DICT_INIT(PyInt, PyInt, void_int_eq);
 dict_set_item(dict_init_d, &NP_var0, &NP_var1);
 }
 

@@ -1,12 +1,12 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PYSTRING NOT_PYTHON_STRING_CONSTANTS[] = {
+PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PYLIST init_empty_list2_l;
+PyList* init_empty_list2_l;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -14,7 +14,7 @@ PYLIST init_empty_list2_l;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-init_empty_list2_l = LIST_INIT(PYINT);
+init_empty_list2_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
 }
 
 // MAIN FUNCTION COMPILER SECTION

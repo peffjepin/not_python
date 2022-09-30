@@ -5,13 +5,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PYINT long long int
-#define PYFLOAT double
-#define PYSTRING StringView
-#define PYBOOL bool
-#define PYLIST List*
-#define PYDICT Dict*
-#define PYITER Iterator
+typedef int64_t PyInt;
+typedef double PyFloat;
+typedef bool PyBool;
+typedef uint8_t PyByte;
 
 typedef enum {
     MEMORY_ERROR = 1u << 0,
@@ -46,33 +43,18 @@ void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);
 void np_free(void* ptr);
 
-typedef struct {
-    char* data;
-    size_t offset;
-    size_t length;
-} StringView;
+PyBool int_eq(PyInt int1, PyInt int2);
+PyBool float_eq(PyFloat float1, PyFloat float2);
+PyBool bool_eq(PyBool bool1, PyBool bool2);
 
-PYBOOL int_eq(PYINT int1, PYINT int2);
-PYBOOL float_eq(PYFLOAT float1, PYFLOAT float2);
-PYBOOL bool_eq(PYBOOL bool1, PYBOOL bool2);
+typedef PyBool (*PyCompareFunction)(const void*, const void*);
 
-PYBOOL void_int_eq(void* int1, void* int2);
-PYBOOL void_float_eq(void* float1, void* float2);
-PYBOOL void_bool_eq(void* bool1, void* bool2);
-PYBOOL void_str_eq(void* str1, void* str2);
+PyBool void_int_eq(void* int1, void* int2);
+PyBool void_float_eq(void* float1, void* float2);
+PyBool void_bool_eq(void* bool1, void* bool2);
+PyBool void_str_eq(void* str1, void* str2);
 
-PYSTRING str_add(PYSTRING str1, PYSTRING str2);
-PYSTRING str_fmt(const char* fmt, ...);
-PYBOOL str_eq(PYSTRING str1, PYSTRING str2);
-PYBOOL str_gt(PYSTRING str1, PYSTRING str2);
-PYBOOL str_gte(PYSTRING str1, PYSTRING str2);
-PYBOOL str_lt(PYSTRING str1, PYSTRING str2);
-PYBOOL str_lte(PYSTRING str1, PYSTRING str2);
-
-PYSTRING np_int_to_str(PYINT num);
-PYSTRING np_float_to_str(PYFLOAT num);
-PYSTRING np_bool_to_str(PYBOOL value);
-char* np_str_to_cstr(PYSTRING str);
+typedef int (*PySortFunction)(const void*, const void*);
 
 int pyint_sort_fn(const void*, const void*);
 int pyfloat_sort_fn(const void*, const void*);
@@ -84,11 +66,30 @@ int pybool_sort_fn_rev(const void*, const void*);
 int ptstr_sort_fn_rev(const void*, const void*);
 
 typedef struct {
-    void* (*next)(void* iter);
-    void* iter;
-} Iterator;
+    char* data;
+    size_t offset;
+    size_t length;
+} PyString;
+
+PyString str_add(PyString str1, PyString str2);
+PyString str_fmt(const char* fmt, ...);
+PyBool str_eq(PyString str1, PyString str2);
+PyBool str_gt(PyString str1, PyString str2);
+PyBool str_gte(PyString str1, PyString str2);
+PyBool str_lt(PyString str1, PyString str2);
+PyBool str_lte(PyString str1, PyString str2);
+
+PyString np_int_to_str(PyInt num);
+PyString np_float_to_str(PyFloat num);
+PyString np_bool_to_str(PyBool value);
+char* np_str_to_cstr(PyString str);
 
 typedef void* (*ITER_NEXT_FN)(void* iter);
+
+typedef struct {
+    ITER_NEXT_FN next;
+    void* iter;
+} PyIter;
 
 #define DICT_MIN_CAPACITY 10
 #define DICT_LUT_FACTOR 2
@@ -109,33 +110,34 @@ typedef struct {
     size_t tombstone_count;
     size_t capacity;
     size_t lut_capacity;
-    uint8_t* data;
+    PyByte* data;
     int* lut;
-} Dict;
+} PyDict;
 
 typedef struct {
     void* key;
     void* val;
 } DictItem;
 
-Iterator dict_iter_keys(Dict* dict);
-Iterator dict_iter_vals(Dict* dict);
-Iterator dict_iter_items(Dict* dict);
+PyIter dict_iter_keys(PyDict* dict);
+PyIter dict_iter_vals(PyDict* dict);
+PyIter dict_iter_items(PyDict* dict);
 
-Dict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
-Dict* dict_copy(Dict* other);
-void dict_clear(Dict* dict);
-void dict_set_item(Dict* dict, void* key, void* val);
-void* dict_get_val(Dict* dict, void* key);
-void* dict_pop_val(Dict* dict, void* key);
-void dict_update(Dict* dict, Dict* other);
-void dict_del(Dict* dict, void* key);
+PyDict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
+PyDict* dict_copy(PyDict* other);
+void dict_clear(PyDict* dict);
+void dict_set_item(PyDict* dict, void* key, void* val);
+void dict_get_val(PyDict* dict, void* key, void* out);
+void dict_pop_val(PyDict* dict, void* key, void* out);
+void dict_update(PyDict* dict, PyDict* other);
+void dict_del(PyDict* dict, void* key);
 
 #define DICT_INIT(key_type, val_type, cmp)                                               \
     dict_init(sizeof(key_type), sizeof(val_type), cmp);
 
+// TODO: handle this in the compiler
 #define DICT_ITER_KEYS(dict, key_type, it, iter_var)                                     \
-    Iterator iter_var = dict_iter_keys(dict);                                            \
+    PyIter iter_var = dict_iter_keys(dict);                                              \
     key_type it;                                                                         \
     void* __##it;                                                                        \
     while (                                                                              \
@@ -144,115 +146,45 @@ void dict_del(Dict* dict, void* key);
          __##it)                                                                         \
     )
 
-// TODO: use uint8_t* directly instead of casting to uint8_t to do pointer arithmetic
 typedef struct {
-    size_t count;
-    size_t capacity;
+    PyInt count;
+    PyInt capacity;
     size_t element_size;
-    void* data;
-} List;
+    PySortFunction sort_fn;
+    PySortFunction rev_sort_fn;
+    PyCompareFunction cmp_fn;
+    PyByte* data;
+} PyList;
 
-List* list_add(List* list1, List* list2);
-void list_clear(List* list);
-List* list_copy(List* list);
-void list_extend(List* list, List* other);
-void list_del(List* list, PYINT index);
-void list_grow(List* list);
-void list_reverse(List* list);
-void list_sort(List* list, int (*cmp_fn)(const void*, const void*));
-List* np_internal_list_init(size_t elem_size);
-void np_internal_list_prepare_insert(List* list, PYINT index);
+PyList* list_init(
+    size_t elem_size,
+    PySortFunction sort_fn,
+    PySortFunction rev_sort_fn,
+    PyCompareFunction cmp_fn
+);
+PyList* list_add(PyList* list1, PyList* list2);
+void list_clear(PyList* list);
+PyList* list_copy(PyList* list);
+void list_extend(PyList* list, PyList* other);
+void list_del(PyList* list, PyInt index);
+void list_grow(PyList* list);
+void list_reverse(PyList* list);
+void list_sort(PyList* list, PyBool reverse);
+void list_get_item(PyList* list, PyInt index, void* out);
+void list_set_item(PyList* list, PyInt index, void* item);
+void list_append(PyList* list, void* item);
+void list_pop(PyList* list, PyInt index, void* out);
+PyInt list_index(PyList* list, void* item);
+void list_remove(PyList* list, void* item);
+PyInt list_count(PyList* list, void* item);
+void list_insert(PyList* list, PyInt index, void* item);
+
+#define LIST_INIT(type, sort, rev_sort, cmp) list_init(sizeof(type), sort, rev_sort, cmp)
 
 #define LIST_MIN_CAPACITY 10
 #define LIST_SHRINK_THRESHOLD 0.35
 #define LIST_SHRINK_FACTOR 0.5
 #define LIST_GROW_FACTOR 2
-
-#define LIST_GET_ITEM(list, type, index, var)                                            \
-    do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
-        if (NP_i < 0 || NP_i >= list->count)                                             \
-            index_error();                                                               \
-        else                                                                             \
-            var = ((type*)list->data)[NP_i];                                             \
-    } while (0)
-
-#define LIST_SET_ITEM(list, type, index, item)                                           \
-    do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
-        if (NP_i < 0 || NP_i >= list->count)                                             \
-            index_error();                                                               \
-        else                                                                             \
-            ((type*)list->data)[NP_i] = item;                                            \
-    } while (0)
-
-#define LIST_APPEND(list, type, item)                                                    \
-    ((type*)list->data)[list->count++] = item;                                           \
-    if (list->count == list->capacity) list_grow(list)
-
-#define LIST_POP(list, type, index, var)                                                 \
-    do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
-        if (NP_i < 0 || NP_i >= list->count)                                             \
-            index_error();                                                               \
-        else {                                                                           \
-            var = ((type*)list->data)[NP_i];                                             \
-            list_del(list, NP_i);                                                        \
-        }                                                                                \
-    } while (0)
-
-#define LIST_INDEX(list, type, cmp, item, var)                                           \
-    do {                                                                                 \
-        bool found = false;                                                              \
-        for (size_t NP_i = 0; NP_i < list->count; NP_i++) {                              \
-            if (cmp(item, ((type*)list->data)[NP_i])) {                                  \
-                var = (PYINT)NP_i;                                                       \
-                found = true;                                                            \
-                break;                                                                   \
-            }                                                                            \
-        }                                                                                \
-        if (!found) value_error();                                                       \
-    } while (0)
-
-#define LIST_REMOVE(list, type, cmp, item)                                               \
-    do {                                                                                 \
-        PYINT NP_index;                                                                  \
-        LIST_INDEX(list, type, cmp, item, NP_index);                                     \
-        list_del(list, NP_index);                                                        \
-    } while (0)
-
-#define LIST_INIT(type) np_internal_list_init(sizeof(type))
-
-#define LIST_FOR_EACH(list, type, it, idx)                                               \
-    size_t idx = 0;                                                                      \
-    for (it = ((type*)list->data)[idx]; idx < list->count;                               \
-         it = (++idx == list->count) ? it : ((type*)list->data)[idx])
-
-#define C_EQUALITY_TEST(a, b) (a) == (b)
-
-#define LIST_COUNT(list, type, cmp, item, count)                                         \
-    do {                                                                                 \
-        count = 0;                                                                       \
-        type NP_count_it;                                                                \
-        LIST_FOR_EACH(list, type, NP_count_it, NP_count_idx)                             \
-        {                                                                                \
-            if (cmp(item, NP_count_it)) count++;                                         \
-        }                                                                                \
-    } while (0)
-
-#define LIST_INSERT(list, type, index, item)                                             \
-    do {                                                                                 \
-        PYINT NP_i = (index < 0) ? list->count + index : index;                          \
-        if (NP_i < 0 || NP_i >= list->count) index_error();                              \
-        np_internal_list_prepare_insert(list, NP_i);                                     \
-        LIST_SET_ITEM(list, type, index, item);                                          \
-    } while (0)
-
-#define LIST_SORT(list, normal_cmp, reversed_cmp, reversed)                              \
-    if (reversed)                                                                        \
-        list_sort(list, reversed_cmp);                                                   \
-    else                                                                                 \
-        list_sort(list, normal_cmp)
 
 void builtin_print(size_t argc, ...);
 

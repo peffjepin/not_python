@@ -223,19 +223,28 @@ render_empty_enclosure(
 )
 {
     switch (operand.enclosure->type) {
-        case ENCLOSURE_LIST:
+        case ENCLOSURE_LIST: {
+            TypeInfo list_content_type =
+                enclosure_assignment->variable.type_info.inner->types[0];
+            const char* rev_sort = sort_cmp_for_type_info(list_content_type, true);
+            const char* norm_sort = sort_cmp_for_type_info(list_content_type, false);
+            const char* cmp = voidptr_cmp_for_type_info(list_content_type);
             prepare_c_assignment_for_rendering(compiler, enclosure_assignment);
             write_many_to_section(
                 enclosure_assignment->section,
                 "LIST_INIT(",
-                type_info_to_c_syntax(
-                    &compiler->sb,
-                    enclosure_assignment->variable.type_info.inner->types[0]
-                ),
+                type_info_to_c_syntax(&compiler->sb, list_content_type),
+                ", (PySortFunction)",
+                norm_sort,
+                ", (PySortFunction)",
+                rev_sort,
+                ", (PyCompareFunction)",
+                cmp,
                 ");\n",
                 NULL
             );
             break;
+        }
         case ENCLOSURE_DICT:
             prepare_c_assignment_for_rendering(compiler, enclosure_assignment);
             TypeInfo key_type = enclosure_assignment->variable.type_info.inner->types[0];
@@ -297,13 +306,9 @@ render_list_literal(
     for (;;) {
         write_many_to_section(
             enclosure_assignment->section,
-            "LIST_APPEND(",
+            "list_append(",
             enclosure_assignment->variable.compiled_name,
-            ", ",
-            type_info_to_c_syntax(
-                &compiler->sb, expression_assignment.variable.type_info
-            ),
-            ", ",
+            ", &",
             expression_assignment.variable.compiled_name,
             ");\n",
             NULL
@@ -699,7 +704,7 @@ render_builtin_print(C_Compiler* compiler, CompilerSection* section, Arguments* 
         initial_assignments[0].section = section;
         initial_assignments[0].variable.type_info.type = PYTYPE_STRING;
         prepare_c_assignment_for_rendering(compiler, initial_assignments);
-        write_to_section(section, "(PYSTRING){.data=\"\", .length=0};\n");
+        write_to_section(section, "(PyString){.data=\"\", .length=0};\n");
     }
     else {
         for (size_t i = 0; i < args->values_count; i++) {
@@ -776,11 +781,9 @@ render_list_append(
 
     write_many_to_section(
         assignment->section,
-        "LIST_APPEND(",
+        "list_append(",
         list_assignment->variable.compiled_name,
-        ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
+        ", &",
         item_assignment.variable.compiled_name,
         ");\n",
         NULL
@@ -841,11 +844,9 @@ render_list_count(
     Arguments* args
 )
 {
-    TypeInfo list_content_type = list_assignment->variable.type_info.inner->types[0];
-    const char* cmp_func = cmp_for_type_info(list_content_type);
-
     expect_arg_count(compiler, "list.count", args, 1);
 
+    TypeInfo list_content_type = list_assignment->variable.type_info.inner->types[0];
     C_Assignment item_assignment = {
         .section = assignment->section, .variable.type_info = list_content_type};
     GENERATE_UNIQUE_VAR_NAME(compiler, item_assignment.variable);
@@ -858,18 +859,13 @@ render_list_count(
         assignment->variable.declared = true;
     }
 
+    prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
         assignment->section,
-        "LIST_COUNT(",
+        "list_count(",
         list_assignment->variable.compiled_name,
-        ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
-        cmp_func,
-        ", ",
+        ", &",
         item_assignment.variable.compiled_name,
-        ", ",
-        assignment->variable.compiled_name,
         ");\n",
         NULL
     );
@@ -917,7 +913,6 @@ render_list_index(
     expect_arg_count(compiler, "list.index", args, 1);
 
     TypeInfo list_content_type = list_assignment->variable.type_info.inner->types[0];
-    const char* cmp = cmp_for_type_info(list_content_type);
 
     C_Assignment item_assignment = {
         .section = assignment->section, .variable.type_info = list_content_type};
@@ -931,24 +926,18 @@ render_list_index(
         // TODO: maybe trying to call this without assigning it is just an error.
         GENERATE_UNIQUE_VAR_NAME(compiler, assignment->variable);
     }
-
     if (!assignment->variable.declared) {
         declare_variable(compiler, return_type, assignment->variable.compiled_name);
         assignment->variable.declared = true;
     }
 
+    prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
         assignment->section,
-        "LIST_INDEX(",
+        "list_index(",
         list_assignment->variable.compiled_name,
-        ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
-        cmp,
-        ", ",
+        ", &",
         item_assignment.variable.compiled_name,
-        ", ",
-        assignment->variable.compiled_name,
         ");\n",
         NULL
     );
@@ -980,13 +969,11 @@ render_list_insert(
 
     write_many_to_section(
         assignment->section,
-        "LIST_INSERT(",
+        "list_insert(",
         list_assignment->variable.compiled_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
         index_assignment.variable.compiled_name,
-        ", ",
+        ", &",
         item_assignment.variable.compiled_name,
         ");\n",
         NULL
@@ -1031,13 +1018,11 @@ render_list_pop(
 
     write_many_to_section(
         assignment->section,
-        "LIST_POP(",
+        "list_pop(",
         list_assignment->variable.compiled_name,
         ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
         index_assignment.variable.compiled_name,
-        ", ",
+        ", &",
         assignment->variable.compiled_name,
         ");\n",
         NULL
@@ -1055,7 +1040,6 @@ render_list_remove(
     expect_arg_count(compiler, "list.remove", args, 1);
 
     TypeInfo list_content_type = list_assignment->variable.type_info.inner->types[0];
-    const char* cmp = cmp_for_type_info(list_content_type);
 
     C_Assignment item_assignment = {
         .section = assignment->section, .variable.type_info = list_content_type};
@@ -1067,13 +1051,9 @@ render_list_remove(
 
     write_many_to_section(
         assignment->section,
-        "LIST_REMOVE(",
+        "list_remove(",
         list_assignment->variable.compiled_name,
-        ", ",
-        type_info_to_c_syntax(&compiler->sb, list_content_type),
-        ", ",
-        cmp,
-        ", ",
+        ", &",
         item_assignment.variable.compiled_name,
         ");\n",
         NULL
@@ -1135,10 +1115,6 @@ render_list_sort(
     TypeInfo return_type = {.type = PYTYPE_NONE};
     set_assignment_type_info(compiler, assignment, return_type);
 
-    TypeInfo list_content_type = list_assignment->variable.type_info.inner->types[0];
-    const char* rev_cmp = sort_cmp_for_type_info(list_content_type, true);
-    const char* norm_cmp = sort_cmp_for_type_info(list_content_type, false);
-
     C_Assignment reversed_assignment = {
         .section = assignment->section, .variable.type_info.type = PYTYPE_BOOL};
     if (args->values_count > 0) {
@@ -1151,12 +1127,8 @@ render_list_sort(
 
     write_many_to_section(
         assignment->section,
-        "LIST_SORT(",
+        "list_sort(",
         list_assignment->variable.compiled_name,
-        ", ",
-        norm_cmp,
-        ", ",
-        rev_cmp,
         ", ",
         reversed_assignment.variable.compiled_name,
         ");\n",
@@ -1373,6 +1345,10 @@ render_dict_pop(
 {
     TypeInfo return_type = dict_assignment->variable.type_info.inner->types[1];
     set_assignment_type_info(compiler, assignment, return_type);
+    if (!assignment->variable.declared) {
+        declare_variable(compiler, return_type, assignment->variable.compiled_name);
+        assignment->variable.declared = true;
+    }
 
     // TODO: implement default value
     expect_arg_count(compiler, "dict.pop", args, 1);
@@ -1383,15 +1359,14 @@ render_dict_pop(
     GENERATE_UNIQUE_VAR_NAME(compiler, key_assignment.variable);
     render_expression_assignment(compiler, &key_assignment, args->values[0]);
 
-    prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
         assignment->section,
-        "*(",
-        type_info_to_c_syntax(&compiler->sb, return_type),
-        "*)dict_pop_val(",
+        "dict_pop_val(",
         dict_assignment->variable.compiled_name,
         ", &",
         key_assignment.variable.compiled_name,
+        ", &",
+        assignment->variable.compiled_name,
         ");\n",
         NULL
     );
@@ -1704,10 +1679,10 @@ render_operation(
             prepare_c_assignment_for_rendering(compiler, assignment);
             write_many_to_section(
                 assignment->section,
-                (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                (types[0].type == PYTYPE_INT) ? "(PyFloat)" : "",
                 operand_reprs[0],
                 (char*)op_to_cstr(op_type),
-                (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                (types[1].type == PYTYPE_INT) ? "(PyFloat)" : "",
                 operand_reprs[1],
                 ";\n",
                 NULL
@@ -1717,11 +1692,11 @@ render_operation(
             prepare_c_assignment_for_rendering(compiler, assignment);
             write_many_to_section(
                 assignment->section,
-                "(PYINT)(",
-                (types[0].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                "(PyInt)(",
+                (types[0].type == PYTYPE_INT) ? "(PyFloat)" : "",
                 operand_reprs[0],
                 "/",
-                (types[1].type == PYTYPE_INT) ? "(PYFLOAT)" : "",
+                (types[1].type == PYTYPE_INT) ? "(PyFloat)" : "",
                 operand_reprs[1],
                 ");\n",
                 NULL
@@ -1758,7 +1733,7 @@ render_operation(
             prepare_c_assignment_for_rendering(compiler, assignment);
             write_many_to_section(
                 assignment->section,
-                (assignment->variable.type_info.type == PYTYPE_INT) ? "(PYINT)" : "",
+                (assignment->variable.type_info.type == PYTYPE_INT) ? "(PyInt)" : "",
                 "pow(",
                 operand_reprs[0],
                 ", ",
@@ -1846,8 +1821,6 @@ render_operation(
             if (types[0].type == PYTYPE_LIST) {
                 if (types[1].type == PYTYPE_SLICE)
                     UNIMPLEMENTED("list slicing unimplemented");
-                const char* dest_type_c_syntax =
-                    type_info_to_c_syntax(&compiler->sb, types[0].inner->types[0]);
                 if (!assignment->variable.declared) {
                     declare_variable(
                         compiler,
@@ -1858,13 +1831,11 @@ render_operation(
                 }
                 write_many_to_section(
                     assignment->section,
-                    "LIST_GET_ITEM(",
+                    "list_get_item(",
                     operand_reprs[0],
                     ", ",
-                    dest_type_c_syntax,
-                    ", ",
                     operand_reprs[1],
-                    ", ",
+                    ", &",
                     assignment->variable.compiled_name,
                     ");\n",
                     NULL
@@ -1872,16 +1843,22 @@ render_operation(
                 return;
             }
             else if (types[0].type == PYTYPE_DICT) {
-                prepare_c_assignment_for_rendering(compiler, assignment);
+                if (!assignment->variable.declared) {
+                    declare_variable(
+                        compiler,
+                        types[0].inner->types[1],
+                        assignment->variable.compiled_name
+                    );
+                    assignment->variable.declared = true;
+                }
                 write_many_to_section(
                     assignment->section,
-                    "*(",
-                    type_info_to_c_syntax(&compiler->sb, types[0].inner->types[1]),
-                    "*)",
                     "dict_get_val(",
                     operand_reprs[0],
                     ", &",
                     operand_reprs[1],
+                    ", &",
+                    assignment->variable.compiled_name,
                     ");\n",
                     NULL
                 );
@@ -2623,17 +2600,14 @@ render_list_set_item(
     char* val_variable
 )
 {
+    (void)compiler;
     write_many_to_section(
         list_assignment.section,
-        "LIST_SET_ITEM(",
+        "list_set_item(",
         list_assignment.variable.compiled_name,
         ", ",
-        type_info_to_c_syntax(
-            &compiler->sb, list_assignment.variable.type_info.inner->types[0]
-        ),
-        ", ",
         idx_variable,
-        ", ",
+        ", &",
         val_variable,
         ");\n",
         NULL
@@ -3122,15 +3096,16 @@ render_list_for_each_head(
     WRITE_UNIQUE_VAR_NAME(compiler, index_variable);
     write_many_to_section(
         section,
-        "LIST_FOR_EACH(",
+        "for(size_t i=0;",
+        " i < ",
         iterable.variable.compiled_name,
-        ", ",
-        type_info_to_c_syntax(&compiler->sb, iterable.variable.type_info.inner->types[0]),
-        ", ",
+        "->count ",
+        "&& (list_get_item(",
+        iterable.variable.compiled_name,
+        ", i, &",
         it_ident,
-        ", ",
-        index_variable,
-        ")\n",
+        "), 1);"
+        "i++)\n",
         NULL
     );
 
