@@ -279,6 +279,8 @@ typedef enum {
     STMT_ANNOTATION,
     STMT_RETURN,
     STMT_ASSERT,
+    STMT_BREAK,
+    STMT_CONTINUE,
     STMT_EOF,
 } StatementKind;
 

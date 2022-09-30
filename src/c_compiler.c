@@ -3646,6 +3646,12 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
             compile_return_statement(compiler, section_or_null, stmt->return_expr);
             break;
         }
+        case STMT_BREAK:
+            write_to_section(section, "break;\n");
+            break;
+        case STMT_CONTINUE:
+            write_to_section(section, "continue;\n");
+            break;
         case NULL_STMT:
             break;
         default:

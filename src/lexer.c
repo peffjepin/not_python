@@ -2308,6 +2308,16 @@ parse_statement(Parser* parser)
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
+            case KW_BREAK:
+                // TODO: make sure that we're currently parsing some kind of loop
+                discard_next_token(parser);
+                stmt->kind = STMT_BREAK;
+                return stmt;
+            case KW_CONTINUE:
+                // TODO: make sure that we're currently parsing some kind of loop
+                discard_next_token(parser);
+                stmt->kind = STMT_CONTINUE;
+                return stmt;
             case KW_RETURN: {
                 discard_next_token(parser);
                 stmt->kind = STMT_RETURN;

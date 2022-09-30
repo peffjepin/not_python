@@ -38,6 +38,7 @@ clean:
 	-rm -rf codegen
 	-rm -rf backup
 	-rm -rf npc_build
+	-rm -rf testdir
 	-rm test_symbol_hashmap
 	-rm npc
 	-rm testmain
