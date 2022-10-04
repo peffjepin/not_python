@@ -671,6 +671,8 @@ resolve_from_scopes(TypeChecker* tc, SourceString identifier)
                 UNIMPLEMENTED("resolve class type from scope");
             case SYM_FUNCTION:
                 return (TypeInfo){.type = PYTYPE_FUNCTION, .sig = &sym->func->sig};
+            case SYM_MEMBER:
+                UNREACHABLE();
         }
     }
     return (TypeInfo){.type = PYTYPE_UNTYPED};

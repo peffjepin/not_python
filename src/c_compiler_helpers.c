@@ -590,11 +590,13 @@ source_string_to_exception_type_string(FileIndex index, Location loc, SourceStri
     static const SourceString IndexError = {.data = "IndexError", .length = 10};
     static const SourceString KeyError = {.data = "KeyError", .length = 8};
     static const SourceString ValueError = {.data = "ValueError", .length = 10};
+    static const SourceString AssertionError = {.data = "AssertionError", .length = 14};
 
     if (SOURCESTRING_EQ(str, MemoryError)) return "MEMORY_ERROR";
     if (SOURCESTRING_EQ(str, IndexError)) return "INDEX_ERROR";
     if (SOURCESTRING_EQ(str, ValueError)) return "VALUE_ERROR";
     if (SOURCESTRING_EQ(str, KeyError)) return "KEY_ERROR";
+    if (SOURCESTRING_EQ(str, AssertionError)) return "ASSERTION_ERROR";
     unspecified_errorf(index, loc, "unrecognized exception type `%s`", str.data);
     UNREACHABLE();
 }

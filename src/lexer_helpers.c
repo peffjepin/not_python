@@ -159,6 +159,9 @@ tq_discard(TokenQueue* tq)
     tq->head++;
 }
 
+#define INDENT_TOP(stack) stack->values[stack->count - 1]
+#define INDENT_PUT(stack, indent) stack->values[stack->count++] = indent
+
 char*
 indent_check(IndentationStack* stack, Location loc, bool begin_block)
 {
@@ -169,17 +172,17 @@ indent_check(IndentationStack* stack, Location loc, bool begin_block)
             return "the top level of a file should not be indented";
         }
         else
-            stack->values[stack->count++] = loc.col;
+            INDENT_PUT(stack, loc.col);
     }
     // indentation unchanged
-    else if (stack->values[stack->count - 1] == loc.col)
+    else if (INDENT_TOP(stack) == loc.col)
         return NULL;
     // indentation went down
-    else if (stack->values[stack->count - 1] > loc.col) {
+    else if (INDENT_TOP(stack) > loc.col) {
         assert(stack->count > 1 && "indentation stack corrupted");
         for (int i = stack->count - 2; i >= 1; i--) {
             if (stack->values[i] == loc.col) {
-                stack->count = i;
+                stack->count = i + 1;
                 return NULL;
             }
             if (stack->values[i] < loc.col) return "inconsistent indentation";
@@ -190,7 +193,7 @@ indent_check(IndentationStack* stack, Location loc, bool begin_block)
         if (stack->count == INDENTATION_MAX)
             return "max indenation level (" INDENTATION_MAX_STR ") exceeded";
         if (!begin_block) return "unexpected indentation";
-        stack->values[stack->count++] = loc.col;
+        INDENT_PUT(stack, loc.col);
     }
 
     return NULL;

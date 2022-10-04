@@ -463,8 +463,10 @@ parse_iterable_identifiers(Parser* parser)
             case TOK_IDENTIFIER: {
                 SemiScopedVariable* var =
                     arena_alloc(parser->arena, sizeof(SemiScopedVariable));
-                var->identifier = token.value;
-                Symbol sym = {.kind = SYM_SEMI_SCOPED, .semi_scoped = var};
+                Symbol sym = {
+                    .kind = SYM_SEMI_SCOPED,
+                    .semi_scoped = var,
+                    .identifier = token.value};
                 symbol_hm_put(&scope->hm, sym);
                 ItIdentifier identifier = {.kind = IT_ID, .name = token.value};
                 itid_vector_append(&vec, identifier);
@@ -2067,11 +2069,11 @@ parse_function_statement(Parser* parser, Location loc)
     fn_scope->func = func;
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-        local_var->identifier = sig.params[i];
         local_var->ns_ident = sig.params[i];  // function locals don't need name mangling
         local_var->type = sig.types[i];
         local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
+        local_sym.identifier = sig.params[i];
         symbol_hm_put(&fn_scope->hm, local_sym);
     }
 
@@ -2082,7 +2084,7 @@ parse_function_statement(Parser* parser, Location loc)
     scope_stack_pop(&parser->scope_stack);
     symbol_hm_finalize(&fn_scope->hm);
 
-    Symbol sym = {.kind = SYM_FUNCTION, .func = func};
+    Symbol sym = {.kind = SYM_FUNCTION, .func = func, .identifier = func->name};
     if (parent_scope->kind == SCOPE_CLASS) {
         namespace_method(parser, func, parent_scope->cls);
         // if function is part of the python object model validate it's signature and
@@ -2129,6 +2131,7 @@ init_class_statement(Parser* parser, SourceString name)
     parser->current_class_members_capacity =
         parser->current_class_members_bytes / sizeof(AnnotationStatement);
     Symbol sym = {.kind = SYM_CLASS, .cls = cls};
+    sym.identifier = cls->name;
     symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
     scope_stack_push(&parser->scope_stack, cls->scope);
     return cls;
@@ -2179,6 +2182,10 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
         AnnotationStatement annotation = parser->current_class_members[i];
         cls->sig.params[i] = annotation.identifier;
         cls->sig.types[i] = annotation.type;
+        Symbol sym = {.kind = SYM_MEMBER, .member_type = &cls->sig.types[i]};
+        sym.identifier = annotation.identifier;
+        symbol_hm_put(&cls->scope->hm, sym);
+
         if (annotation.initial)
             cls->sig.defaults[cls->sig.defaults_count++] = annotation.initial;
     }
@@ -2192,8 +2199,7 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
     parser->current_class_members_bytes = 0;
     parser->current_class_members = NULL;
 
-    LexicalScope* scope = scope_stack_pop(&parser->scope_stack);
-    symbol_hm_finalize(&scope->hm);
+    scope_stack_pop(&parser->scope_stack);
 }
 
 static ClassStatement*
@@ -2224,18 +2230,17 @@ parse_class_statement(Parser* parser, unsigned int indent)
 }
 
 static void
-namespace_variable(Parser* parser, Variable* variable)
+namespace_variable(Parser* parser, Variable* variable, SourceString identifier)
 {
-    variable->ns_ident.length =
-        variable->identifier.length + parser->file_namespace_length;
+    variable->ns_ident.length = identifier.length + parser->file_namespace_length;
     variable->ns_ident.data = arena_alloc(parser->arena, variable->ns_ident.length + 1);
     memcpy(
         variable->ns_ident.data, parser->file_namespace, parser->file_namespace_length
     );
     memcpy(
         variable->ns_ident.data + parser->file_namespace_length,
-        variable->identifier.data,
-        variable->identifier.length
+        identifier.data,
+        identifier.length
     );
 }
 
@@ -2250,10 +2255,12 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
     if (assignment->op_type == OPERATOR_ASSIGNMENT && assign_to->operations_count == 0) {
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
-        var->identifier = assign_to->operands[0].token.value;
         var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
-        namespace_variable(parser, var);
-        Symbol sym = {.kind = SYM_VARIABLE, .variable = var};
+        Symbol sym = {
+            .kind = SYM_VARIABLE,
+            .variable = var,
+            .identifier = assign_to->operands[0].token.value};
+        namespace_variable(parser, var, sym.identifier);
         symbol_hm_put(&scope->hm, sym);
     }
     return assignment;
@@ -2286,9 +2293,9 @@ parse_annotation_statement(Parser* parser, Location loc, SourceString identifier
         Symbol sym = {
             .kind = SYM_VARIABLE,
             .variable = arena_alloc(parser->arena, sizeof(Variable))};
-        sym.variable->identifier = identifier;
+        sym.identifier = identifier;
         sym.variable->type = annotation->type;
-        namespace_variable(parser, sym.variable);
+        namespace_variable(parser, sym.variable, sym.identifier);
         symbol_hm_put(&scope->hm, sym);
     }
     return annotation;

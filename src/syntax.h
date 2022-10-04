@@ -308,7 +308,6 @@ struct Statement {
 // it lives here for now
 
 struct Variable {
-    SourceString identifier;
     SourceString ns_ident;
     TypeInfo type;
     bool declared;
@@ -324,16 +323,17 @@ struct Variable {
 // This struct is to allow for this behavior while a standard variable
 // is defined only once and when it's type is determined it is immutable.
 typedef struct {
-    SourceString identifier;
     SourceString current_id;
     TypeInfo type;
     bool directly_in_scope;  // type is immutable while directly in scope
 } SemiScopedVariable;
 
 typedef struct {
-    enum { SYM_VARIABLE, SYM_SEMI_SCOPED, SYM_FUNCTION, SYM_CLASS } kind;
+    enum { SYM_VARIABLE, SYM_SEMI_SCOPED, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER } kind;
+    SourceString identifier;
     union {
         Variable* variable;
+        TypeInfo* member_type;
         SemiScopedVariable* semi_scoped;
         FunctionStatement* func;
         ClassStatement* cls;

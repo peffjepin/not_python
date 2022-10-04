@@ -594,24 +594,29 @@ print_symbol(Symbol sym, int indent)
 {
     switch (sym.kind) {
         case SYM_VARIABLE:
-            indent_printf("%s\n", sym.variable->identifier.data);
+            indent_printf("%s\n", sym.identifier.data);
             break;
         case SYM_SEMI_SCOPED:
-            indent_printf("%s\n", sym.semi_scoped->identifier.data);
+            indent_printf("%s\n", sym.identifier.data);
             break;
         case SYM_FUNCTION:
-            indent_printf("%s:\n", sym.func->name.data);
+            indent_printf("%s:\n", sym.identifier.data);
             for (size_t i = 0; i < sym.func->scope->hm.elements_count; i++) {
                 Symbol inner = sym.func->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);
             }
             break;
         case SYM_CLASS:
-            indent_printf("%s:\n", sym.cls->name.data);
+            indent_printf("%s:\n", sym.identifier.data);
             for (size_t i = 0; i < sym.cls->scope->hm.elements_count; i++) {
                 Symbol inner = sym.cls->scope->hm.elements[i];
                 print_symbol(inner, indent + 4);
             }
+            break;
+        case SYM_MEMBER:
+            indent_printf(
+                "%s: %s\n", sym.identifier.data, render_type_info(*sym.member_type).data
+            );
             break;
     }
 }

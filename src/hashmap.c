@@ -9,22 +9,6 @@
 
 #define LOOKUP_CAPACITY_ELEMENTS_CAPACITY_RATIO 2
 
-static SourceString
-symbol_to_key(Symbol sym)
-{
-    switch (sym.kind) {
-        case SYM_CLASS:
-            return sym.cls->name;
-        case SYM_FUNCTION:
-            return sym.func->name;
-        case SYM_VARIABLE:
-            return sym.variable->identifier;
-        case SYM_SEMI_SCOPED:
-            return sym.semi_scoped->identifier;
-    }
-    UNREACHABLE();
-}
-
 static void rehash(SymbolHashmap* hm);
 
 /*
@@ -71,7 +55,7 @@ symbol_hm_init(Arena* arena)
 static SourceString
 key_at(SymbolHashmap* hm, size_t probe)
 {
-    return symbol_to_key(hm->elements[hm->lookup_table[probe]]);
+    return hm->elements[hm->lookup_table[probe]].identifier;
 }
 
 static bool
@@ -101,7 +85,7 @@ static void
 rehash(SymbolHashmap* hm)
 {
     for (size_t i = 0; i < hm->elements_count; i++) {
-        SourceString key = symbol_to_key(hm->elements[i]);
+        SourceString key = hm->elements[i].identifier;
         hm_lookup_insert(hm, i, key);
     }
 }
@@ -118,7 +102,7 @@ symbol_hm_put(SymbolHashmap* hm, Symbol element)
         layout_hm_memory(hm);
     }
     size_t element_index = hm->elements_count;
-    if (hm_lookup_insert(hm, element_index, symbol_to_key(element))) {
+    if (hm_lookup_insert(hm, element_index, element.identifier)) {
         // for now we're only tracking the first occurence of a symbol within a scope
         hm->elements[hm->elements_count++] = element;
     }
@@ -139,7 +123,7 @@ symbol_hm_get(SymbolHashmap* hm, SourceString identifier)
             return NULL;
         }
         Symbol* element = hm->elements + element_index;
-        if (SOURCESTRING_EQ(symbol_to_key(*element), identifier)) {
+        if (SOURCESTRING_EQ(element->identifier, identifier)) {
             return element;
         }
         if (probe == hm->lookup_capacity - 1)

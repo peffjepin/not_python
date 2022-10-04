@@ -90,6 +90,17 @@ static void declare_variable(C_Compiler* compiler, TypeInfo type, char* identifi
 
 #define STRING_CONSTANTS_TABLE_NAME "NOT_PYTHON_STRING_CONSTANTS"
 
+static Symbol*
+get_symbol(C_Compiler* compiler, SourceString ident)
+{
+    // TODO: need to treat globals/locals differently in the furute
+    LexicalScope* locals = scope_stack_peek(&compiler->scope_stack);
+    Symbol* sym = symbol_hm_get(&locals->hm, ident);
+    if (sym) return sym;
+    sym = symbol_hm_get(&compiler->top_level_scope->hm, ident);
+    return sym;
+}
+
 static void
 set_assignment_type_info(
     C_Compiler* compiler, C_Assignment* assignment, TypeInfo type_info
@@ -130,7 +141,8 @@ set_assignment_type_info(
     }
     else {
         if (assignment->variable.type_info.type == PYTYPE_UNTYPED &&
-            type_info.type == PYTYPE_FUNCTION && type_info.sig->params)
+            assignment->variable.source_name && type_info.type == PYTYPE_FUNCTION &&
+            type_info.sig->params)
             type_error(
                 compiler->file_index,
                 compiler->current_stmt_location,
@@ -166,8 +178,7 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         static const SourceString NONE_STR = {.data = "None", .length = 4};
         if (SOURCESTRING_EQ(operand.token.value, NONE_STR)) return "NULL";
         // TODO: should consider a way to avoid this lookup because it happens often
-        LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
-        Symbol* sym = symbol_hm_get(&scope->hm, operand.token.value);
+        Symbol* sym = get_symbol(compiler, operand.token.value);
         switch (sym->kind) {
             case SYM_SEMI_SCOPED:
                 return sym->semi_scoped->current_id.data;
@@ -177,6 +188,8 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
                 return sym->func->ns_ident.data;
             case SYM_CLASS:
                 return sym->cls->ns_ident.data;
+            case SYM_MEMBER:
+                UNREACHABLE();
         }
         UNREACHABLE();
     }
@@ -1542,7 +1555,7 @@ render_builtin(
         name_errorf(
             compiler->file_index,
             compiler->current_operation_location,
-            "function not implemented: %s",
+            "function not found: %s",
             fn_identifier
         );
     }
@@ -2082,10 +2095,17 @@ get_class_member_type_info(
     C_Compiler* compiler, ClassStatement* clsdef, SourceString member_name
 )
 {
-    for (size_t i = 0; i < clsdef->sig.params_count; i++) {
-        if (SOURCESTRING_EQ(member_name, clsdef->sig.params[i]))
-            return clsdef->sig.types[i];
+    Symbol* sym = symbol_hm_get(&clsdef->scope->hm, member_name);
+    if (!sym) goto error;
+    switch (sym->kind) {
+        case SYM_MEMBER:
+            return *sym->member_type;
+        case SYM_FUNCTION:
+            return (TypeInfo){.type = PYTYPE_FUNCTION, .sig = &sym->func->sig};
+        default:
+            goto error;
     }
+error:
     name_errorf(
         compiler->file_index,
         compiler->current_stmt_location,
@@ -2123,14 +2143,10 @@ render_call_from_operands(
     C_Compiler* compiler, C_Assignment* assignment, Operand left, Operand right
 )
 {
-    Symbol* sym =
-        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, left.token.value);
+    Symbol* sym = get_symbol(compiler, left.token.value);
     if (!sym) {
-        sym = symbol_hm_get(&compiler->top_level_scope->hm, left.token.value);
-        if (!sym) {
-            render_builtin(compiler, assignment, left.token.value.data, right.args);
-            return;
-        }
+        render_builtin(compiler, assignment, left.token.value.data, right.args);
+        return;
     }
 
     C_Variable fn_ident_variable = {0};
@@ -2139,12 +2155,12 @@ render_call_from_operands(
             render_object_creation(compiler, assignment, sym->cls, right.args);
             return;
         case SYM_SEMI_SCOPED:
-            fn_ident_variable.source_name = sym->semi_scoped->identifier.data;
+            fn_ident_variable.source_name = sym->identifier.data;
             fn_ident_variable.compiled_name = sym->semi_scoped->current_id.data;
             fn_ident_variable.type_info = sym->semi_scoped->type;
             break;
         case SYM_VARIABLE:
-            fn_ident_variable.source_name = sym->variable->identifier.data;
+            fn_ident_variable.source_name = sym->identifier.data;
             fn_ident_variable.compiled_name = sym->variable->ns_ident.data;
             fn_ident_variable.type_info = sym->variable->type;
             break;
@@ -2154,6 +2170,8 @@ render_call_from_operands(
             fn_ident_variable.type_info.sig = &sym->func->sig;
             fn_ident_variable.type_info.type = PYTYPE_FUNCTION;
             break;
+        case SYM_MEMBER:
+            UNREACHABLE();
     }
     render_call_operation(compiler, assignment, fn_ident_variable, right.args);
 }
@@ -2330,7 +2348,11 @@ render_expression_assignment(
             }
             if (left_assignment.variable.type_info.type == PYTYPE_LIST) {
                 if (i == expr->operations_count - 1) {
-                    UNIMPLEMENTED("function references are not currently implemented");
+                    type_error(
+                        compiler->file_index,
+                        compiler->current_operation_location,
+                        "builtin list methods cannot be referenced"
+                    );
                 }
                 if (++i == expr->operations_count - 1) this_assignment = assignment;
                 Operation next_operation = expr->operations[i];
@@ -2360,7 +2382,11 @@ render_expression_assignment(
             }
             else if (left_assignment.variable.type_info.type == PYTYPE_DICT) {
                 if (i == expr->operations_count - 1) {
-                    UNIMPLEMENTED("function references are not currently implemented");
+                    type_error(
+                        compiler->file_index,
+                        compiler->current_operation_location,
+                        "builtin dict methods cannot be referenced"
+                    );
                 }
                 if (++i == expr->operations_count - 1) this_assignment = assignment;
                 Operation next_operation = expr->operations[i];
@@ -2903,8 +2929,7 @@ static void
 compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
     SourceString identifier = stmt->assignment->storage->operands[0].token.value;
-    Symbol* sym =
-        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
+    Symbol* sym = get_symbol(compiler, identifier);
 
     TypeInfo* symtype;
     C_Assignment assignment = {.section = section, .loc = &stmt->loc};
@@ -2912,14 +2937,14 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
         assignment.variable.compiled_name = sym->variable->ns_ident.data;
-        assignment.variable.source_name = sym->variable->identifier.data;
+        assignment.variable.source_name = sym->identifier.data;
         assignment.variable.declared = sym->variable->declared;
         assignment.variable.type_info = *symtype;
     }
     else if (sym->kind == SYM_SEMI_SCOPED) {
         symtype = &sym->semi_scoped->type;
         assignment.variable.compiled_name = sym->semi_scoped->current_id.data;
-        assignment.variable.source_name = sym->semi_scoped->identifier.data;
+        assignment.variable.source_name = sym->identifier.data;
         assignment.variable.declared = true;
         assignment.variable.type_info = *symtype;
     }
@@ -2938,8 +2963,7 @@ compile_simple_op_assignment(
 )
 {
     SourceString identifier = stmt->assignment->storage->operands[0].token.value;
-    Symbol* sym =
-        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, identifier);
+    Symbol* sym = get_symbol(compiler, identifier);
     Operator op_type = OP_ASSIGNMENT_TO_OP_TABLE[stmt->assignment->op_type];
 
     TypeInfo* symtype;
@@ -2948,14 +2972,14 @@ compile_simple_op_assignment(
     if (sym->kind == SYM_VARIABLE) {
         symtype = &sym->variable->type;
         assignment.variable.compiled_name = sym->variable->ns_ident.data;
-        assignment.variable.source_name = sym->variable->identifier.data;
+        assignment.variable.source_name = sym->identifier.data;
         assignment.variable.type_info = *symtype;
         assignment.variable.declared = true;
     }
     else {
         symtype = &sym->semi_scoped->type;
         assignment.variable.compiled_name = sym->semi_scoped->current_id.data;
-        assignment.variable.source_name = sym->semi_scoped->identifier.data;
+        assignment.variable.source_name = sym->identifier.data;
         assignment.variable.type_info = *symtype;
         assignment.variable.declared = true;
     }
@@ -2995,8 +3019,7 @@ compile_assignment(C_Compiler* compiler, CompilerSection* section, Statement* st
 static void
 compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* stmt)
 {
-    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
-    Symbol* sym = symbol_hm_get(&scope->hm, stmt->annotation->identifier);
+    Symbol* sym = get_symbol(compiler, stmt->annotation->identifier);
 
     if (sym->kind != SYM_VARIABLE)
         syntax_error(compiler->file_index, stmt->loc, 0, "unexpected annotation");
@@ -3010,7 +3033,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
             .loc = &stmt->loc,
             .section = section,
             .variable.type_info = stmt->annotation->type,
-            .variable.source_name = sym->variable->identifier.data,
+            .variable.source_name = sym->identifier.data,
             .variable.compiled_name = sym->variable->ns_ident.data,
             .variable.declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
@@ -3044,8 +3067,7 @@ init_semi_scoped_variable(
     C_Compiler* compiler, SourceString identifier, TypeInfo type_info
 )
 {
-    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
-    Symbol* sym = symbol_hm_get(&scope->hm, identifier);
+    Symbol* sym = get_symbol(compiler, identifier);
     if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident.data;
     if (!sym->semi_scoped->current_id.data) {
         sym->semi_scoped->current_id.data =
@@ -3062,8 +3084,7 @@ init_semi_scoped_variable(
 static void
 release_semi_scoped_variable(C_Compiler* compiler, SourceString identifier)
 {
-    LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
-    Symbol* sym = symbol_hm_get(&scope->hm, identifier);
+    Symbol* sym = get_symbol(compiler, identifier);
     sym->semi_scoped->directly_in_scope = false;
 }
 

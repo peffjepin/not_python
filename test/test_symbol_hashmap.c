@@ -8,7 +8,7 @@
 static void
 assert_elems_eq(Symbol* elem1, Symbol* elem2)
 {
-    assert(SOURCESTRING_EQ(elem1->variable->identifier, elem2->variable->identifier));
+    assert(SOURCESTRING_EQ(elem1->identifier, elem2->identifier));
     assert(elem1->kind == elem2->kind);
 }
 
@@ -16,8 +16,7 @@ static Symbol
 make_test_symbol(char* ident)
 {
     Variable* sp = malloc(sizeof(Variable));
-    sp->identifier.data = ident;
-    return (Symbol){.kind = SYM_VARIABLE, .variable = sp};
+    return (Symbol){.kind = SYM_VARIABLE, .variable = sp, .identifier = ident};
 }
 
 static void
@@ -34,9 +33,9 @@ test_basic_put_get(void)
     symbol_hm_put(&hm, elem2);
     symbol_hm_put(&hm, elem3);
 
-    assert_elems_eq(&elem1, symbol_hm_get(&hm, elem1.variable->identifier));
-    assert_elems_eq(&elem2, symbol_hm_get(&hm, elem2.variable->identifier));
-    assert_elems_eq(&elem3, symbol_hm_get(&hm, elem3.variable->identifier));
+    assert_elems_eq(&elem1, symbol_hm_get(&hm, elem1.identifier));
+    assert_elems_eq(&elem2, symbol_hm_get(&hm, elem2.identifier));
+    assert_elems_eq(&elem3, symbol_hm_get(&hm, elem3.identifier));
 
     arena_free(arena);
 }
@@ -56,9 +55,9 @@ test_get_after_finalization(void)
     symbol_hm_put(&hm, elem3);
     symbol_hm_finalize(&hm);
 
-    assert_elems_eq(&elem1, symbol_hm_get(&hm, elem1.variable->identifier));
-    assert_elems_eq(&elem2, symbol_hm_get(&hm, elem2.variable->identifier));
-    assert_elems_eq(&elem3, symbol_hm_get(&hm, elem3.variable->identifier));
+    assert_elems_eq(&elem1, symbol_hm_get(&hm, elem1.identifier));
+    assert_elems_eq(&elem2, symbol_hm_get(&hm, elem2.identifier));
+    assert_elems_eq(&elem3, symbol_hm_get(&hm, elem3.identifier));
 
     arena_free(arena);
 }
@@ -80,7 +79,7 @@ test_put_get_after_growing(void)
     assert(hm.elements_capacity > (size_t)count);
 
     for (int i = 0; i < count; i++) {
-        assert_elems_eq(elems + i, symbol_hm_get(&hm, elems[i].variable->identifier));
+        assert_elems_eq(elems + i, symbol_hm_get(&hm, elems[i].identifier));
     }
 
     arena_free(arena);
@@ -104,7 +103,7 @@ test_get_after_growing_and_finalizing(void)
     symbol_hm_finalize(&hm);
 
     for (int i = 0; i < count; i++) {
-        assert_elems_eq(elems + i, symbol_hm_get(&hm, elems[i].variable->identifier));
+        assert_elems_eq(elems + i, symbol_hm_get(&hm, elems[i].identifier));
     }
 
     arena_free(arena);
