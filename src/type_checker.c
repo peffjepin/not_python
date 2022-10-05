@@ -14,24 +14,24 @@ resolve_literal_type(Token token)
 {
     switch (token.type) {
         case TOK_STRING:
-            return (TypeInfo){.type = PYTYPE_STRING};
+            return (TypeInfo){.type = NPTYPE_STRING};
         case TOK_NUMBER: {
             for (size_t i = 0;; i++) {
                 // TODO: this could be handled in the scanner
                 char c = token.value.data[i];
-                if (c == '\0') return (TypeInfo){.type = PYTYPE_INT};
-                if (c == '.' || c == 'f') return (TypeInfo){.type = PYTYPE_FLOAT};
+                if (c == '\0') return (TypeInfo){.type = NPTYPE_INT};
+                if (c == '.' || c == 'f') return (TypeInfo){.type = NPTYPE_FLOAT};
             }
-            return (TypeInfo){.type = PYTYPE_INT};
+            return (TypeInfo){.type = NPTYPE_INT};
         }
         case TOK_KEYWORD:
             if (token.kw == KW_TRUE || token.kw == KW_FALSE)
-                return (TypeInfo){.type = PYTYPE_BOOL};
+                return (TypeInfo){.type = NPTYPE_BOOL};
             break;
         default:
             break;
     }
-    return (TypeInfo){.type = PYTYPE_UNTYPED};
+    return (TypeInfo){.type = NPTYPE_UNTYPED};
 }
 
 static bool
@@ -60,15 +60,15 @@ compare_types(TypeInfo type1, TypeInfo type2)
 {
     bool outer_equal = type1.type == type2.type;
     switch (type1.type) {
-        case PYTYPE_LIST:
+        case NPTYPE_LIST:
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
-        case PYTYPE_TUPLE:
+        case NPTYPE_TUPLE:
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
-        case PYTYPE_DICT:
+        case NPTYPE_DICT:
             return outer_equal && compare_inner_type(type1.inner, type2.inner);
-        case PYTYPE_OBJECT:
+        case NPTYPE_OBJECT:
             return outer_equal && (SOURCESTRING_EQ(type1.cls->name, type2.cls->name));
-        case PYTYPE_FUNCTION:
+        case NPTYPE_FUNCTION:
             return outer_equal && compare_signatures(*type1.sig, *type2.sig);
         default:
             return outer_equal;
@@ -79,59 +79,59 @@ compare_types(TypeInfo type1, TypeInfo type2)
 static bool
 is_number(TypeInfo type)
 {
-    return (type.type == PYTYPE_INT || type.type == PYTYPE_FLOAT);
+    return (type.type == NPTYPE_INT || type.type == NPTYPE_FLOAT);
 }
 
 #define TYPE_INFO_UNTYPED                                                                \
     {                                                                                    \
-        .type = PYTYPE_UNTYPED                                                           \
+        .type = NPTYPE_UNTYPED                                                           \
     }
 #define TYPE_INFO_FLOAT                                                                  \
     {                                                                                    \
-        .type = PYTYPE_FLOAT                                                             \
+        .type = NPTYPE_FLOAT                                                             \
     }
 #define TYPE_INFO_INT                                                                    \
     {                                                                                    \
-        .type = PYTYPE_INT                                                               \
+        .type = NPTYPE_INT                                                               \
     }
 #define TYPE_INFO_NONE                                                                   \
     {                                                                                    \
-        .type = PYTYPE_NONE                                                              \
+        .type = NPTYPE_NONE                                                              \
     }
 #define TYPE_INFO_STRING                                                                 \
     {                                                                                    \
-        .type = PYTYPE_STRING                                                            \
+        .type = NPTYPE_STRING                                                            \
     }
 #define TYPE_INFO_LIST                                                                   \
     {                                                                                    \
-        .type = PYTYPE_LIST                                                              \
+        .type = NPTYPE_LIST                                                              \
     }
 #define TYPE_INFO_DICT                                                                   \
     {                                                                                    \
-        .type = PYTYPE_DICT                                                              \
+        .type = NPTYPE_DICT                                                              \
     }
 #define TYPE_INFO_TUPLE                                                                  \
     {                                                                                    \
-        .type = PYTYPE_TUPLE                                                             \
+        .type = NPTYPE_TUPLE                                                             \
     }
 #define TYPE_INFO_OBJECT                                                                 \
     {                                                                                    \
-        .type = PYTYPE_OBJECT                                                            \
+        .type = NPTYPE_OBJECT                                                            \
     }
 #define TYPE_INFO_BOOL                                                                   \
     {                                                                                    \
-        .type = PYTYPE_BOOL                                                              \
+        .type = NPTYPE_BOOL                                                              \
     }
 #define TYPE_INFO_SLICE                                                                  \
     {                                                                                    \
-        .type = PYTYPE_SLICE                                                             \
+        .type = NPTYPE_SLICE                                                             \
     }
 
-static const bool TYPE_USES_SPECIAL_RESOLUTION_RULES[PYTYPE_COUNT] = {
-    [PYTYPE_LIST] = true,
-    [PYTYPE_DICT] = true,
-    [PYTYPE_OBJECT] = true,
-    [PYTYPE_TUPLE] = true,
+static const bool TYPE_USES_SPECIAL_RESOLUTION_RULES[NPTYPE_COUNT] = {
+    [NPTYPE_LIST] = true,
+    [NPTYPE_DICT] = true,
+    [NPTYPE_OBJECT] = true,
+    [NPTYPE_TUPLE] = true,
 };
 
 static const bool SPECIAL_OPERATOR_RULES[OPERATORS_MAX] = {
@@ -150,256 +150,256 @@ static const bool SPECIAL_OPERATOR_RULES[OPERATORS_MAX] = {
 };
 
 static const TypeInfo
-    OPERATION_TYPE_RESOLUTION_TABLE[OPERATORS_MAX][PYTYPE_COUNT][PYTYPE_COUNT] = {
+    OPERATION_TYPE_RESOLUTION_TABLE[OPERATORS_MAX][NPTYPE_COUNT][NPTYPE_COUNT] = {
         [OPERATOR_PLUS] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_STRING,
+                        [NPTYPE_STRING] = TYPE_INFO_STRING,
                     },
             },
         [OPERATOR_MINUS] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_MULT] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_STRING] = TYPE_INFO_STRING,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_STRING] = TYPE_INFO_STRING,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_STRING,
+                        [NPTYPE_INT] = TYPE_INFO_STRING,
                     },
             },
         [OPERATOR_DIV] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_MOD] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_POW] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_FLOAT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_FLOORDIV] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_INT,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
-                        [PYTYPE_FLOAT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_INT,
                     },
             },
         [OPERATOR_EQUAL] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_BOOL] =
+                [NPTYPE_BOOL] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_NOT_EQUAL] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_BOOL] =
+                [NPTYPE_BOOL] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
-                        [PYTYPE_BOOL] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_BOOL] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_GREATER] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_LESS] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_GREATER_EQUAL] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_LESS_EQUAL] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_FLOAT] =
+                [NPTYPE_FLOAT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_BOOL,
-                        [PYTYPE_FLOAT] = TYPE_INFO_BOOL,
+                        [NPTYPE_INT] = TYPE_INFO_BOOL,
+                        [NPTYPE_FLOAT] = TYPE_INFO_BOOL,
                     },
-                [PYTYPE_STRING] =
+                [NPTYPE_STRING] =
                     {
-                        [PYTYPE_STRING] = TYPE_INFO_BOOL,
+                        [NPTYPE_STRING] = TYPE_INFO_BOOL,
                     },
             },
         [OPERATOR_BITWISE_AND] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
             },
         [OPERATOR_BITWISE_OR] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
             },
         [OPERATOR_BITWISE_XOR] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
             },
         [OPERATOR_LSHIFT] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
             },
         [OPERATOR_RSHIFT] =
             {
-                [PYTYPE_INT] =
+                [NPTYPE_INT] =
                     {
-                        [PYTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_INT,
                     },
             },
 };
@@ -408,19 +408,19 @@ static TypeInfo
 resolve_membership(TypeInfo left, TypeInfo right)
 {
     switch (right.type) {
-        case PYTYPE_STRING:
-            if (left.type == PYTYPE_STRING) return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_LIST:
+        case NPTYPE_STRING:
+            if (left.type == NPTYPE_STRING) return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_LIST:
             if (compare_types(left, right.inner->types[0]))
-                return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_DICT:
+                return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_DICT:
             if (compare_types(left, right.inner->types[0]))
-                return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+                return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
         default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
     }
 }
 
@@ -428,34 +428,34 @@ static TypeInfo
 resolve_identity(TypeInfo left, TypeInfo right)
 {
     switch (left.type) {
-        case PYTYPE_LIST:
-            if (compare_types(left, right)) return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_DICT:
-            if (compare_types(left, right)) return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_OBJECT:
-            if (compare_types(left, right)) return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_BOOL:
-            if (compare_types(left, right)) return (TypeInfo){.type = PYTYPE_BOOL};
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+        case NPTYPE_LIST:
+            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_DICT:
+            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_OBJECT:
+            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_BOOL:
+            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
         default:
-            return (TypeInfo){.type = PYTYPE_UNTYPED};
+            return (TypeInfo){.type = NPTYPE_UNTYPED};
     }
 }
 
 static TypeInfo
 resolve_negative(TypeInfo right)
 {
-    if (!is_number(right)) return (TypeInfo){.type = PYTYPE_UNTYPED};
+    if (!is_number(right)) return (TypeInfo){.type = NPTYPE_UNTYPED};
     return right;
 }
 
 static TypeInfo
 resolve_bitwise_not(TypeInfo right)
 {
-    if (right.type != PYTYPE_INT) return (TypeInfo){.type = PYTYPE_UNTYPED};
+    if (right.type != NPTYPE_INT) return (TypeInfo){.type = NPTYPE_UNTYPED};
     return right;
 }
 
@@ -463,16 +463,16 @@ static TypeInfo
 resolve_get_item(TypeInfo left, TypeInfo right)
 {
     switch (left.type) {
-        case PYTYPE_LIST:
-            if (right.type == PYTYPE_SLICE)
+        case NPTYPE_LIST:
+            if (right.type == NPTYPE_SLICE)
                 return left;
-            else if (right.type == PYTYPE_INT)
+            else if (right.type == NPTYPE_INT)
                 return left.inner->types[0];
             else
-                return (TypeInfo){.type = PYTYPE_UNTYPED};
-        case PYTYPE_DICT:
+                return (TypeInfo){.type = NPTYPE_UNTYPED};
+        case NPTYPE_DICT:
             if (!compare_types(left.inner->types[0], right))
-                return (TypeInfo){.type = PYTYPE_UNTYPED};
+                return (TypeInfo){.type = NPTYPE_UNTYPED};
             else
                 return left.inner->types[1];
         default:
@@ -488,7 +488,7 @@ resolve_list_ops(TypeInfo list, TypeInfo other, Operator op)
             if (!compare_types(list, other)) goto error;
             return list;
         case OPERATOR_MULT:
-            if (other.type != PYTYPE_INT) goto error;
+            if (other.type != NPTYPE_INT) goto error;
             return list;
         case OPERATOR_EQUAL:
             if (!compare_types(list, other)) goto error;
@@ -570,7 +570,7 @@ find_object_op_function(
     *is_rop = false;
 
     ObjectModel om = OP_TO_OM_TABLE[op];
-    if (om != NOT_IN_OBJECT_MODEL && left.type == PYTYPE_OBJECT) {
+    if (om != NOT_IN_OBJECT_MODEL && left.type == NPTYPE_OBJECT) {
         FunctionStatement* fndef = left.cls->object_model_methods[om];
         if (fndef && *is_unary) return fndef;
         if (fndef && compare_types(fndef->sig.types[1], right)) return fndef;
@@ -580,7 +580,7 @@ find_object_op_function(
 
     *is_rop = true;
     om = OP_TO_ROM_TABLE[op];
-    if (om != NOT_IN_OBJECT_MODEL && right.type == PYTYPE_OBJECT) {
+    if (om != NOT_IN_OBJECT_MODEL && right.type == NPTYPE_OBJECT) {
         FunctionStatement* fndef = right.cls->object_model_methods[om];
         if (fndef && compare_types(fndef->sig.types[1], left)) return fndef;
     }
@@ -591,32 +591,32 @@ find_object_op_function(
 TypeInfo
 resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
 {
-    if (left.type == PYTYPE_UNTYPED || right.type == PYTYPE_UNTYPED)
+    if (left.type == NPTYPE_UNTYPED || right.type == NPTYPE_UNTYPED)
         return (TypeInfo)TYPE_INFO_UNTYPED;
     if (SPECIAL_OPERATOR_RULES[op]) goto special_ops;
     if (!TYPE_USES_SPECIAL_RESOLUTION_RULES[left.type] &&
         !TYPE_USES_SPECIAL_RESOLUTION_RULES[right.type]) {
         return OPERATION_TYPE_RESOLUTION_TABLE[op][left.type][right.type];
     }
-    if (left.type == PYTYPE_OBJECT || right.type == PYTYPE_OBJECT)
+    if (left.type == NPTYPE_OBJECT || right.type == NPTYPE_OBJECT)
         assert(0 && "object type resolution should not use this function");
     else {
         switch (left.type) {
-            case PYTYPE_LIST:
+            case NPTYPE_LIST:
                 return resolve_list_ops(left, right, op);
-            case PYTYPE_DICT:
+            case NPTYPE_DICT:
                 return resolve_dict_ops(left, right, op);
-            case PYTYPE_TUPLE:
+            case NPTYPE_TUPLE:
                 return resolve_tuple_ops(left, right, op);
             default:
                 break;
         }
         switch (right.type) {
-            case PYTYPE_LIST:
+            case NPTYPE_LIST:
                 return resolve_list_ops(right, left, op);
-            case PYTYPE_DICT:
+            case NPTYPE_DICT:
                 return resolve_dict_ops(right, left, op);
-            case PYTYPE_TUPLE:
+            case NPTYPE_TUPLE:
                 return resolve_tuple_ops(right, left, op);
             default:
                 UNREACHABLE();
@@ -637,11 +637,11 @@ special_ops:
         case OPERATOR_BITWISE_NOT:
             return resolve_bitwise_not(right);
         case OPERATOR_LOGICAL_AND:
-            return (TypeInfo){.type = PYTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_BOOL};
         case OPERATOR_LOGICAL_OR:
-            return (TypeInfo){.type = PYTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_BOOL};
         case OPERATOR_LOGICAL_NOT:
-            return (TypeInfo){.type = PYTYPE_BOOL};
+            return (TypeInfo){.type = NPTYPE_BOOL};
         case OPERATOR_GET_ITEM:
             return resolve_get_item(left, right);
         default:
@@ -670,12 +670,12 @@ resolve_from_scopes(TypeChecker* tc, SourceString identifier)
             case SYM_CLASS:
                 UNIMPLEMENTED("resolve class type from scope");
             case SYM_FUNCTION:
-                return (TypeInfo){.type = PYTYPE_FUNCTION, .sig = &sym->func->sig};
+                return (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &sym->func->sig};
             case SYM_MEMBER:
                 UNREACHABLE();
         }
     }
-    return (TypeInfo){.type = PYTYPE_UNTYPED};
+    return (TypeInfo){.type = NPTYPE_UNTYPED};
 }
 
 TypeInfo
@@ -692,7 +692,7 @@ resolve_operand_type(TypeChecker* tc, Operand operand)
             if (operand.token.type == TOK_IDENTIFIER) {
                 // TODO: should investigate why this isn't a keyword
                 if (strcmp(operand.token.value.data, "None") == 0)
-                    return (TypeInfo){.type = PYTYPE_NONE};
+                    return (TypeInfo){.type = NPTYPE_NONE};
                 return resolve_from_scopes(tc, operand.token.value);
             }
             return resolve_literal_type(operand.token);

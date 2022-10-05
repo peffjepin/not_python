@@ -1,14 +1,14 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyList* list_append_l;
-PyList* NP_var1;
-PyInt NP_var2;
+NpList* list_append_l;
+NpList* NP_var1;
+NpInt NP_var2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -16,10 +16,10 @@ PyInt NP_var2;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-list_append_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
+list_append_l = LIST_INIT(NpInt, (NpSortFunction)np_int_sort_fn, (NpSortFunction)np_int_sort_fn_rev, (NpCompareFunction)np_void_int_eq);
 NP_var1 = list_append_l;
 NP_var2 = 1;
-list_append(NP_var1, &NP_var2);
+np_list_append(NP_var1, &NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -5,10 +5,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef int64_t PyInt;
-typedef double PyFloat;
-typedef bool PyBool;
-typedef uint8_t PyByte;
+typedef int64_t NpInt;
+typedef double NpFloat;
+typedef bool NpBool;
+typedef uint8_t NpByte;
 
 typedef enum {
     MEMORY_ERROR = 1u << 0,
@@ -43,53 +43,53 @@ void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);
 void np_free(void* ptr);
 
-PyBool int_eq(PyInt int1, PyInt int2);
-PyBool float_eq(PyFloat float1, PyFloat float2);
-PyBool bool_eq(PyBool bool1, PyBool bool2);
+NpBool np_int_eq(NpInt int1, NpInt int2);
+NpBool np_float_eq(NpFloat float1, NpFloat float2);
+NpBool np_bool_eq(NpBool bool1, NpBool bool2);
 
-typedef PyBool (*PyCompareFunction)(const void*, const void*);
+typedef NpBool (*NpCompareFunction)(const void*, const void*);
 
-PyBool void_int_eq(void* int1, void* int2);
-PyBool void_float_eq(void* float1, void* float2);
-PyBool void_bool_eq(void* bool1, void* bool2);
-PyBool void_str_eq(void* str1, void* str2);
+NpBool np_void_int_eq(void* int1, void* int2);
+NpBool np_void_float_eq(void* float1, void* float2);
+NpBool np_void_bool_eq(void* bool1, void* bool2);
+NpBool np_void_str_eq(void* str1, void* str2);
 
-typedef int (*PySortFunction)(const void*, const void*);
+typedef int (*NpSortFunction)(const void*, const void*);
 
-int pyint_sort_fn(const void*, const void*);
-int pyfloat_sort_fn(const void*, const void*);
-int pybool_sort_fn(const void*, const void*);
-int ptstr_sort_fn(const void*, const void*);
-int pyint_sort_fn_rev(const void*, const void*);
-int pyfloat_sort_fn_rev(const void*, const void*);
-int pybool_sort_fn_rev(const void*, const void*);
-int ptstr_sort_fn_rev(const void*, const void*);
+int np_int_sort_fn(const void*, const void*);
+int np_float_sort_fn(const void*, const void*);
+int np_bool_sort_fn(const void*, const void*);
+int np_str_sort_fn(const void*, const void*);
+int np_int_sort_fn_rev(const void*, const void*);
+int np_float_sort_fn_rev(const void*, const void*);
+int np_bool_sort_fn_rev(const void*, const void*);
+int np_str_sort_fn_rev(const void*, const void*);
 
 typedef struct {
     char* data;
     size_t offset;
     size_t length;
-} PyString;
+} NpString;
 
-PyString str_add(PyString str1, PyString str2);
-PyString str_fmt(const char* fmt, ...);
-PyBool str_eq(PyString str1, PyString str2);
-PyBool str_gt(PyString str1, PyString str2);
-PyBool str_gte(PyString str1, PyString str2);
-PyBool str_lt(PyString str1, PyString str2);
-PyBool str_lte(PyString str1, PyString str2);
+NpString np_str_add(NpString str1, NpString str2);
+NpString np_str_fmt(const char* fmt, ...);
+NpBool np_str_eq(NpString str1, NpString str2);
+NpBool np_str_gt(NpString str1, NpString str2);
+NpBool np_str_gte(NpString str1, NpString str2);
+NpBool np_str_lt(NpString str1, NpString str2);
+NpBool np_str_lte(NpString str1, NpString str2);
 
-PyString np_int_to_str(PyInt num);
-PyString np_float_to_str(PyFloat num);
-PyString np_bool_to_str(PyBool value);
-char* np_str_to_cstr(PyString str);
+NpString np_int_to_str(NpInt num);
+NpString np_float_to_str(NpFloat num);
+NpString np_bool_to_str(NpBool value);
+char* np_str_to_cstr(NpString str);
 
-typedef void* (*ITER_NEXT_FN)(void* iter);
+typedef void* (*NpIterNextFunc)(void* iter);
 
 typedef struct {
-    ITER_NEXT_FN next;
+    NpIterNextFunc next;
     void* iter;
-} PyIter;
+} NpIter;
 
 #define DICT_MIN_CAPACITY 10
 #define DICT_LUT_FACTOR 2
@@ -97,10 +97,10 @@ typedef struct {
 #define DICT_SHRINK_THRESHOLD 0.35
 #define DICT_SHRINK_FACTOR 0.5
 
-typedef bool (*DICT_KEYCMP_FUNCTION)(void* key1, void* key2);
+typedef bool (*NpDictKeyCmpFunc)(void* key1, void* key2);
 
 typedef struct {
-    DICT_KEYCMP_FUNCTION keycmp;
+    NpDictKeyCmpFunc keycmp;
     size_t key_size;
     size_t val_size;
     size_t item_size;
@@ -110,34 +110,34 @@ typedef struct {
     size_t tombstone_count;
     size_t capacity;
     size_t lut_capacity;
-    PyByte* data;
+    NpByte* data;
     int* lut;
-} PyDict;
+} NpDict;
 
 typedef struct {
     void* key;
     void* val;
 } DictItem;
 
-PyIter dict_iter_keys(PyDict* dict);
-PyIter dict_iter_vals(PyDict* dict);
-PyIter dict_iter_items(PyDict* dict);
+NpIter np_dict_iter_keys(NpDict* dict);
+NpIter np_dict_iter_vals(NpDict* dict);
+NpIter np_dict_iter_items(NpDict* dict);
 
-PyDict* dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp);
-PyDict* dict_copy(PyDict* other);
-void dict_clear(PyDict* dict);
-void dict_set_item(PyDict* dict, void* key, void* val);
-void dict_get_val(PyDict* dict, void* key, void* out);
-void dict_pop_val(PyDict* dict, void* key, void* out);
-void dict_update(PyDict* dict, PyDict* other);
-void dict_del(PyDict* dict, void* key);
+NpDict* np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp);
+NpDict* np_dict_copy(NpDict* other);
+void np_dict_clear(NpDict* dict);
+void np_dict_set_item(NpDict* dict, void* key, void* val);
+void np_dict_get_val(NpDict* dict, void* key, void* out);
+void np_dict_pop_val(NpDict* dict, void* key, void* out);
+void np_dict_update(NpDict* dict, NpDict* other);
+void np_dict_del(NpDict* dict, void* key);
 
 #define DICT_INIT(key_type, val_type, cmp)                                               \
-    dict_init(sizeof(key_type), sizeof(val_type), cmp);
+    np_dict_init(sizeof(key_type), sizeof(val_type), cmp);
 
 // TODO: handle this in the compiler
 #define DICT_ITER_KEYS(dict, key_type, it, iter_var)                                     \
-    PyIter iter_var = dict_iter_keys(dict);                                              \
+    NpIter iter_var = np_dict_iter_keys(dict);                                           \
     key_type it;                                                                         \
     void* __##it;                                                                        \
     while (                                                                              \
@@ -147,39 +147,40 @@ void dict_del(PyDict* dict, void* key);
     )
 
 typedef struct {
-    PyInt count;
-    PyInt capacity;
+    NpInt count;
+    NpInt capacity;
     size_t element_size;
-    PySortFunction sort_fn;
-    PySortFunction rev_sort_fn;
-    PyCompareFunction cmp_fn;
-    PyByte* data;
-} PyList;
+    NpSortFunction sort_fn;
+    NpSortFunction rev_sort_fn;
+    NpCompareFunction cmp_fn;
+    NpByte* data;
+} NpList;
 
-PyList* list_init(
+NpList* np_list_init(
     size_t elem_size,
-    PySortFunction sort_fn,
-    PySortFunction rev_sort_fn,
-    PyCompareFunction cmp_fn
+    NpSortFunction sort_fn,
+    NpSortFunction rev_sort_fn,
+    NpCompareFunction cmp_fn
 );
-PyList* list_add(PyList* list1, PyList* list2);
-void list_clear(PyList* list);
-PyList* list_copy(PyList* list);
-void list_extend(PyList* list, PyList* other);
-void list_del(PyList* list, PyInt index);
-void list_grow(PyList* list);
-void list_reverse(PyList* list);
-void list_sort(PyList* list, PyBool reverse);
-void list_get_item(PyList* list, PyInt index, void* out);
-void list_set_item(PyList* list, PyInt index, void* item);
-void list_append(PyList* list, void* item);
-void list_pop(PyList* list, PyInt index, void* out);
-PyInt list_index(PyList* list, void* item);
-void list_remove(PyList* list, void* item);
-PyInt list_count(PyList* list, void* item);
-void list_insert(PyList* list, PyInt index, void* item);
+NpList* np_list_add(NpList* list1, NpList* list2);
+void np_list_clear(NpList* list);
+NpList* np_list_copy(NpList* list);
+void np_list_extend(NpList* list, NpList* other);
+void np_list_del(NpList* list, NpInt index);
+void np_list_grow(NpList* list);
+void np_list_reverse(NpList* list);
+void np_list_sort(NpList* list, NpBool reverse);
+void np_list_get_item(NpList* list, NpInt index, void* out);
+void np_list_set_item(NpList* list, NpInt index, void* item);
+void np_list_append(NpList* list, void* item);
+void np_list_pop(NpList* list, NpInt index, void* out);
+NpInt np_list_index(NpList* list, void* item);
+void np_list_remove(NpList* list, void* item);
+NpInt np_list_count(NpList* list, void* item);
+void np_list_insert(NpList* list, NpInt index, void* item);
 
-#define LIST_INIT(type, sort, rev_sort, cmp) list_init(sizeof(type), sort, rev_sort, cmp)
+#define LIST_INIT(type, sort, rev_sort, cmp)                                             \
+    np_list_init(sizeof(type), sort, rev_sort, cmp)
 
 #define LIST_MIN_CAPACITY 10
 #define LIST_SHRINK_THRESHOLD 0.35

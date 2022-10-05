@@ -13,33 +13,33 @@ static const char*
 type_info_human_readable(TypeInfo info)
 {
     switch (info.type) {
-        case PYTYPE_NONE:
+        case NPTYPE_NONE:
             return "None";
-        case PYTYPE_INT:
+        case NPTYPE_INT:
             return "int";
-        case PYTYPE_FLOAT:
+        case NPTYPE_FLOAT:
             return "float";
-        case PYTYPE_STRING:
+        case NPTYPE_STRING:
             return "str";
-        case PYTYPE_LIST:
+        case NPTYPE_LIST:
             return "List";
-        case PYTYPE_TUPLE:
+        case NPTYPE_TUPLE:
             return "Tuple";
-        case PYTYPE_DICT:
+        case NPTYPE_DICT:
             return "Dict";
-        case PYTYPE_FUNCTION:
+        case NPTYPE_FUNCTION:
             return "Function";
-        case PYTYPE_OBJECT:
+        case NPTYPE_OBJECT:
             return info.cls->name.data;
-        case PYTYPE_BOOL:
+        case NPTYPE_BOOL:
             return "bool";
-        case PYTYPE_SLICE:
+        case NPTYPE_SLICE:
             return "slice";
-        case PYTYPE_ITER:
+        case NPTYPE_ITER:
             return "Iter";
-        case PYTYPE_DICT_ITEMS:
+        case NPTYPE_DICT_ITEMS:
             return "DictItems";
-        case PYTYPE_UNTYPED:
+        case NPTYPE_UNTYPED:
             return "ERROR: UNTYPED";
         default:
             UNREACHABLE();
@@ -56,7 +56,7 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
         *buffer++ = *outer++;
         remaining--;
     }
-    if (info.type == PYTYPE_FUNCTION) {
+    if (info.type == NPTYPE_FUNCTION) {
         if (remaining > 2) {
             *buffer++ = '[';
             *buffer++ = '[';
@@ -88,7 +88,7 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
             remaining -= 1;
         }
     }
-    else if (info.type != PYTYPE_OBJECT && info.inner) {
+    else if (info.type != NPTYPE_OBJECT && info.inner) {
         if (remaining > 1) {
             *buffer++ = '[';
             remaining--;
@@ -137,49 +137,49 @@ SourceString
 type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info)
 {
     switch (info.type) {
-        case PYTYPE_UNTYPED:
+        case NPTYPE_UNTYPED:
             UNTYPED_ERROR();
             break;
-        case PYTYPE_NONE: {
+        case NPTYPE_NONE: {
             static const SourceString NONE = {.data = "void*", .length = 4};
             return NONE;
         }
-        case PYTYPE_INT: {
+        case NPTYPE_INT: {
             static const SourceString INT = {
                 .data = DATATYPE_INT, .length = sizeof(DATATYPE_INT) - 1};
             return INT;
         }
-        case PYTYPE_FLOAT: {
+        case NPTYPE_FLOAT: {
             static const SourceString FLOAT = {
                 .data = DATATYPE_FLOAT, .length = sizeof(DATATYPE_FLOAT) - 1};
             return FLOAT;
         }
-        case PYTYPE_STRING: {
+        case NPTYPE_STRING: {
             static const SourceString STRING = {
                 .data = DATATYPE_STRING, .length = sizeof(DATATYPE_STRING) - 1};
             return STRING;
         }
-        case PYTYPE_BOOL: {
+        case NPTYPE_BOOL: {
             static const SourceString BOOL = {
                 .data = DATATYPE_BOOL, .length = sizeof(DATATYPE_BOOL) - 1};
             return BOOL;
         }
-        case PYTYPE_LIST: {
+        case NPTYPE_LIST: {
             static const SourceString LIST = {
                 .data = DATATYPE_LIST, .length = sizeof(DATATYPE_LIST) - 1};
             return LIST;
         }
-        case PYTYPE_TUPLE:
+        case NPTYPE_TUPLE:
             UNIMPLEMENTED("tuple to c syntax unimplemented");
             break;
-        case PYTYPE_DICT: {
+        case NPTYPE_DICT: {
             static const SourceString DICT = {
                 .data = DATATYPE_DICT, .length = sizeof(DATATYPE_DICT) - 1};
             return DICT;
         }
-        case PYTYPE_OBJECT:
+        case NPTYPE_OBJECT:
             return sb_build(sb, info.cls->ns_ident.data, "*", NULL);
-        case PYTYPE_FUNCTION:
+        case NPTYPE_FUNCTION:
             return sb_build(
                 sb,
                 type_info_to_c_syntax(sb, info.sig->return_type),
@@ -190,7 +190,7 @@ type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info)
                 ")",
                 NULL
             );
-        case PYTYPE_ITER: {
+        case NPTYPE_ITER: {
             static const SourceString ITER = {
                 .data = DATATYPE_ITER, .length = sizeof(DATATYPE_ITER) - 1};
             return ITER;
@@ -295,7 +295,7 @@ str_hm_grow(StringHashmap* hm)
         hm->capacity = 16;
     else
         hm->capacity *= 2;
-    hm->elements = realloc(hm->elements, sizeof(PyString) * hm->capacity);
+    hm->elements = realloc(hm->elements, sizeof(NpString) * hm->capacity);
     hm->lookup = realloc(hm->lookup, sizeof(int) * 2 * hm->capacity);
     if (!hm->elements || !hm->lookup) out_of_memory();
     memset(hm->lookup, -1, sizeof(int) * 2 * hm->capacity);
@@ -526,18 +526,18 @@ sb_join_ss(StringBuilder* sb, SourceString* strs, size_t count, const char* deli
     return (SourceString){.data = buf, .length = required};
 }
 
-static const char* SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn",
-    [PYTYPE_BOOL] = "pybool_sort_fn",
-    [PYTYPE_STRING] = "ptstr_sort_fn",
+static const char* SORT_CMP_TABLE[NPTYPE_COUNT] = {
+    [NPTYPE_INT] = "np_int_sort_fn",
+    [NPTYPE_FLOAT] = "np_float_sort_fn",
+    [NPTYPE_BOOL] = "np_bool_sort_fn",
+    [NPTYPE_STRING] = "np_str_sort_fn",
 };
 
-static const char* REVERSE_SORT_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "pyint_sort_fn_rev",
-    [PYTYPE_FLOAT] = "pyfloat_sort_fn_rev",
-    [PYTYPE_BOOL] = "pybool_sort_fn_rev",
-    [PYTYPE_STRING] = "ptstr_sort_fn_rev",
+static const char* REVERSE_SORT_CMP_TABLE[NPTYPE_COUNT] = {
+    [NPTYPE_INT] = "np_int_sort_fn_rev",
+    [NPTYPE_FLOAT] = "np_float_sort_fn_rev",
+    [NPTYPE_BOOL] = "np_bool_sort_fn_rev",
+    [NPTYPE_STRING] = "np_str_sort_fn_rev",
 };
 
 const char*
@@ -552,18 +552,18 @@ sort_cmp_for_type_info(TypeInfo type_info, bool reversed)
     return rtval;
 }
 
-static const char* VOIDPTR_CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "void_int_eq",
-    [PYTYPE_FLOAT] = "void_float_eq",
-    [PYTYPE_BOOL] = "void_bool_eq",
-    [PYTYPE_STRING] = "void_str_eq",
+static const char* VOIDPTR_CMP_TABLE[NPTYPE_COUNT] = {
+    [NPTYPE_INT] = "np_void_int_eq",
+    [NPTYPE_FLOAT] = "np_void_float_eq",
+    [NPTYPE_BOOL] = "np_void_bool_eq",
+    [NPTYPE_STRING] = "np_void_str_eq",
 };
 
-static const char* CMP_TABLE[PYTYPE_COUNT] = {
-    [PYTYPE_INT] = "int_eq",
-    [PYTYPE_FLOAT] = "float_eq",
-    [PYTYPE_BOOL] = "bool_eq",
-    [PYTYPE_STRING] = "str_eq",
+static const char* CMP_TABLE[NPTYPE_COUNT] = {
+    [NPTYPE_INT] = "np_int_eq",
+    [NPTYPE_FLOAT] = "np_float_eq",
+    [NPTYPE_BOOL] = "np_bool_eq",
+    [NPTYPE_STRING] = "np_str_eq",
 };
 
 const char*

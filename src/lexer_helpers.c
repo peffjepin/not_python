@@ -323,42 +323,42 @@ et_to_expr(ExpressionTable* et)
     return expr;
 }
 
-PythonType
+NpthonType
 cstr_to_python_type(char* cstr)
 {
     switch (cstr[0]) {
         case 'F':
-            if (strcmp(cstr, "Function") == 0) return PYTYPE_FUNCTION;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "Function") == 0) return NPTYPE_FUNCTION;
+            return NPTYPE_OBJECT;
         case 'C':
-            if (strcmp(cstr, "Callable") == 0) return PYTYPE_FUNCTION;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "Callable") == 0) return NPTYPE_FUNCTION;
+            return NPTYPE_OBJECT;
         case 'N':
-            if (strcmp(cstr, "None") == 0) return PYTYPE_NONE;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "None") == 0) return NPTYPE_NONE;
+            return NPTYPE_OBJECT;
         case 'L':
-            if (strcmp(cstr, "List") == 0) return PYTYPE_LIST;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "List") == 0) return NPTYPE_LIST;
+            return NPTYPE_OBJECT;
         case 'D':
-            if (strcmp(cstr, "Dict") == 0) return PYTYPE_DICT;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "Dict") == 0) return NPTYPE_DICT;
+            return NPTYPE_OBJECT;
         case 'T':
-            if (strcmp(cstr, "Tuple") == 0) return PYTYPE_TUPLE;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "Tuple") == 0) return NPTYPE_TUPLE;
+            return NPTYPE_OBJECT;
         case 'i':
-            if (strcmp(cstr, "int") == 0) return PYTYPE_INT;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "int") == 0) return NPTYPE_INT;
+            return NPTYPE_OBJECT;
         case 'f':
-            if (strcmp(cstr, "float") == 0) return PYTYPE_FLOAT;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "float") == 0) return NPTYPE_FLOAT;
+            return NPTYPE_OBJECT;
         case 's':
-            if (strcmp(cstr, "str") == 0) return PYTYPE_STRING;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "str") == 0) return NPTYPE_STRING;
+            return NPTYPE_OBJECT;
         case 'b':
-            if (strcmp(cstr, "bool") == 0) return PYTYPE_BOOL;
-            return PYTYPE_OBJECT;
+            if (strcmp(cstr, "bool") == 0) return NPTYPE_BOOL;
+            return NPTYPE_OBJECT;
         default:
-            return PYTYPE_OBJECT;
+            return NPTYPE_OBJECT;
     }
     UNREACHABLE();
 }

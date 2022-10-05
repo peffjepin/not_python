@@ -1,15 +1,15 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 {.data="Hello,", .length=6},
 {.data=" World.", .length=7}};
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyString string_addition_a;
-PyString string_addition_b;
-PyString string_addition_c;
+NpString string_addition_a;
+NpString string_addition_b;
+NpString string_addition_c;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -19,7 +19,7 @@ PyString string_addition_c;
 static void init_module(void) {
 string_addition_a = NOT_PYTHON_STRING_CONSTANTS[0];
 string_addition_b = NOT_PYTHON_STRING_CONSTANTS[1];
-string_addition_c = str_add(string_addition_a, string_addition_b);
+string_addition_c = np_str_add(string_addition_a, string_addition_b);
 }
 
 // MAIN FUNCTION COMPILER SECTION

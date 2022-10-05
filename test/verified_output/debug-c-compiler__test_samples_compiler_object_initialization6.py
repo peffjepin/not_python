@@ -1,10 +1,10 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PyInt x;PyInt y;} object_initialization6_A;
+typedef struct {NpInt x;NpInt y;} object_initialization6_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 object_initialization6_A* object_initialization6_a;

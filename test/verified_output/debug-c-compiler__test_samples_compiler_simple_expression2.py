@@ -1,15 +1,15 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyFloat simple_expression2_x;
-PyFloat simple_expression2_y;
-PyFloat NP_var0;
-PyFloat simple_expression2_z;
+NpFloat simple_expression2_x;
+NpFloat simple_expression2_y;
+NpFloat NP_var0;
+NpFloat simple_expression2_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 

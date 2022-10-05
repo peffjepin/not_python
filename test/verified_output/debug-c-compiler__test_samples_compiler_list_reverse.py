@@ -1,14 +1,14 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyInt NP_var0;
-PyList* list_reverse_l;
-PyList* NP_var2;
+NpInt NP_var0;
+NpList* list_reverse_l;
+NpList* NP_var2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -17,14 +17,14 @@ PyList* NP_var2;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 NP_var0 = 1;
-list_reverse_l = LIST_INIT(PyInt, (PySortFunction)pyint_sort_fn, (PySortFunction)pyint_sort_fn_rev, (PyCompareFunction)void_int_eq);
-list_append(list_reverse_l, &NP_var0);
+list_reverse_l = LIST_INIT(NpInt, (NpSortFunction)np_int_sort_fn, (NpSortFunction)np_int_sort_fn_rev, (NpCompareFunction)np_void_int_eq);
+np_list_append(list_reverse_l, &NP_var0);
 NP_var0 = 2;
-list_append(list_reverse_l, &NP_var0);
+np_list_append(list_reverse_l, &NP_var0);
 NP_var0 = 3;
-list_append(list_reverse_l, &NP_var0);
+np_list_append(list_reverse_l, &NP_var0);
 NP_var2 = list_reverse_l;
-list_reverse(NP_var2);
+np_list_reverse(NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -1092,9 +1092,9 @@ static TypeInfo
 parse_type_hint(Parser* parser)
 {
     Token ident_token = expect_token_type(parser, TOK_IDENTIFIER);
-    PythonType type = cstr_to_python_type(ident_token.value.data);
+    NpthonType type = cstr_to_python_type(ident_token.value.data);
     ClassStatement* cls = NULL;
-    if (type == PYTYPE_OBJECT) {
+    if (type == NPTYPE_OBJECT) {
         Symbol* sym =
             symbol_hm_get(&parser->scope_stack.scopes[0]->hm, ident_token.value);
         if (!sym || sym->kind != SYM_CLASS) {
@@ -1107,10 +1107,10 @@ parse_type_hint(Parser* parser)
         }
         cls = sym->cls;
     }
-    TypeInfo info = {.type = type, .cls = (type == PYTYPE_OBJECT) ? cls : NULL};
+    TypeInfo info = {.type = type, .cls = (type == NPTYPE_OBJECT) ? cls : NULL};
 
     switch (type) {
-        case PYTYPE_FUNCTION: {
+        case NPTYPE_FUNCTION: {
             expect_token_type(parser, TOK_OPEN_SQUARE);
 
             info.sig = arena_alloc(parser->arena, sizeof(Signature));
@@ -1139,7 +1139,7 @@ parse_type_hint(Parser* parser)
             }
             return info;
         }
-        case PYTYPE_TUPLE: {
+        case NPTYPE_TUPLE: {
             info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
             TypeInfoVector vec = typing_vector_init(parser->arena);
             expect_token_type(parser, TOK_OPEN_SQUARE);
@@ -1153,7 +1153,7 @@ parse_type_hint(Parser* parser)
             info.inner->count = vec.count;
             return info;
         }
-        case PYTYPE_LIST: {
+        case NPTYPE_LIST: {
             info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
             TypeInfoVector vec = typing_vector_init(parser->arena);
             expect_token_type(parser, TOK_OPEN_SQUARE);
@@ -1163,7 +1163,7 @@ parse_type_hint(Parser* parser)
             info.inner->count = vec.count;
             return info;
         }
-        case PYTYPE_DICT: {
+        case NPTYPE_DICT: {
             info.inner = arena_alloc(parser->arena, sizeof(TypeInfoInner));
             TypeInfoVector vec = typing_vector_init(parser->arena);
             expect_token_type(parser, TOK_OPEN_SQUARE);
@@ -1385,7 +1385,7 @@ validate_object_model_signature(
 
     switch (om) {
         case OBJECT_MODEL_BOOL:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1393,7 +1393,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_INIT:
-            if (sig.return_type.type != PYTYPE_NONE)
+            if (sig.return_type.type != NPTYPE_NONE)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1401,7 +1401,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_STR:
-            if (sig.return_type.type != PYTYPE_STRING)
+            if (sig.return_type.type != NPTYPE_STRING)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1415,7 +1415,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_REPR:
-            if (sig.return_type.type != PYTYPE_STRING)
+            if (sig.return_type.type != NPTYPE_STRING)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1454,11 +1454,11 @@ validate_object_model_signature(
             break;
         case OBJECT_MODEL_ITER:
             // TODO: some general iterable interface
-            if (sig.return_type.type != PYTYPE_ITER)
+            if (sig.return_type.type != NPTYPE_ITER)
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __iter__ to return type: `PyIter` (general iterable "
+                    "expecting __iter__ to return type: `NpIter` (general iterable "
                     "interface not yet implemented)"
                 );
             if (sig.params_count != 1)
@@ -1471,7 +1471,7 @@ validate_object_model_signature(
         case OBJECT_MODEL_NEXT:
             UNIMPLEMENTED("__next__ is not currently implemented");
         case OBJECT_MODEL_LEN:
-            if (sig.return_type.type != PYTYPE_INT)
+            if (sig.return_type.type != NPTYPE_INT)
                 type_error(
                     *parser->scanner->index, loc, "expecting __len__ to return type `int`"
                 );
@@ -1491,7 +1491,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_HASH:
-            if (sig.return_type.type != PYTYPE_INT)
+            if (sig.return_type.type != NPTYPE_INT)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1507,7 +1507,7 @@ validate_object_model_signature(
         case OBJECT_MODEL_CALL:
             break;
         case OBJECT_MODEL_LT:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1521,7 +1521,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_LE:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1535,7 +1535,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_EQ:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1549,7 +1549,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_NE:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1563,7 +1563,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_GT:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1577,7 +1577,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_GE:
-            if (sig.return_type.type != PYTYPE_BOOL)
+            if (sig.return_type.type != NPTYPE_BOOL)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1911,7 +1911,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_INT:
-            if (sig.return_type.type != PYTYPE_INT)
+            if (sig.return_type.type != NPTYPE_INT)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1925,7 +1925,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_FLOAT:
-            if (sig.return_type.type != PYTYPE_FLOAT)
+            if (sig.return_type.type != NPTYPE_FLOAT)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -2018,7 +2018,7 @@ parse_function_statement(Parser* parser, Location loc)
             );
         }
         str_vector_append(&params, self_token.value);
-        TypeInfo typing = {.type = PYTYPE_OBJECT, .cls = parent_scope->cls};
+        TypeInfo typing = {.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
         typing_vector_append(&types, typing);
     }
 
@@ -2047,7 +2047,7 @@ parse_function_statement(Parser* parser, Location loc)
     }
     discard_next_token(parser);  // close parens
 
-    TypeInfo return_type = {.type = PYTYPE_NONE};
+    TypeInfo return_type = {.type = NPTYPE_NONE};
     if (peek_next_token(parser).type == TOK_ARROW) {
         discard_next_token(parser);
         return_type = parse_type_hint(parser);
@@ -2175,7 +2175,7 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
     cls->sig.defaults = arena_alloc(
         parser->arena, sizeof(Expression*) * parser->current_class_members_defaults_count
     );
-    cls->sig.return_type.type = PYTYPE_OBJECT;
+    cls->sig.return_type.type = NPTYPE_OBJECT;
     cls->sig.return_type.cls = cls;
 
     for (size_t i = 0; i < parser->current_class_members_count; i++) {
@@ -2255,7 +2255,7 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
     if (assignment->op_type == OPERATOR_ASSIGNMENT && assign_to->operations_count == 0) {
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
-        var->type = (TypeInfo){.type = PYTYPE_UNTYPED};
+        var->type = (TypeInfo){.type = NPTYPE_UNTYPED};
         Symbol sym = {
             .kind = SYM_VARIABLE,
             .variable = var,

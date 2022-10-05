@@ -1,18 +1,18 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyInt NP_var0;
-PyInt NP_var1;
-PyDict* dict_get_item_d;
-PyInt NP_var2;
-PyInt dict_get_item_x;
-PyInt NP_var3;
-PyInt dict_get_item_y;
+NpInt NP_var0;
+NpInt NP_var1;
+NpDict* dict_get_item_d;
+NpInt NP_var2;
+NpInt dict_get_item_x;
+NpInt NP_var3;
+NpInt dict_get_item_y;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -22,15 +22,15 @@ PyInt dict_get_item_y;
 static void init_module(void) {
 NP_var0 = 1;
 NP_var1 = 2;
-dict_get_item_d = DICT_INIT(PyInt, PyInt, void_int_eq);
-dict_set_item(dict_get_item_d, &NP_var0, &NP_var1);
+dict_get_item_d = DICT_INIT(NpInt, NpInt, np_void_int_eq);
+np_dict_set_item(dict_get_item_d, &NP_var0, &NP_var1);
 NP_var0 = 3;
 NP_var1 = 4;
-dict_set_item(dict_get_item_d, &NP_var0, &NP_var1);
+np_dict_set_item(dict_get_item_d, &NP_var0, &NP_var1);
 NP_var2 = 1;
-dict_get_val(dict_get_item_d, &NP_var2, &dict_get_item_x);
+np_dict_get_val(dict_get_item_d, &NP_var2, &dict_get_item_x);
 NP_var3 = 3;
-dict_get_val(dict_get_item_d, &NP_var3, &dict_get_item_y);
+np_dict_get_val(dict_get_item_d, &NP_var3, &dict_get_item_y);
 }
 
 // MAIN FUNCTION COMPILER SECTION

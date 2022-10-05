@@ -22,22 +22,22 @@ typedef struct ClassStatement ClassStatement;
 typedef struct Signature Signature;
 
 typedef enum {
-    PYTYPE_UNTYPED,
-    PYTYPE_NONE,
-    PYTYPE_INT,
-    PYTYPE_FLOAT,
-    PYTYPE_STRING,
-    PYTYPE_LIST,
-    PYTYPE_TUPLE,
-    PYTYPE_DICT,
-    PYTYPE_OBJECT,
-    PYTYPE_BOOL,
-    PYTYPE_SLICE,
-    PYTYPE_ITER,
-    PYTYPE_FUNCTION,
-    PYTYPE_DICT_ITEMS,
-    PYTYPE_COUNT,
-} PythonType;
+    NPTYPE_UNTYPED,
+    NPTYPE_NONE,
+    NPTYPE_INT,
+    NPTYPE_FLOAT,
+    NPTYPE_STRING,
+    NPTYPE_LIST,
+    NPTYPE_TUPLE,
+    NPTYPE_DICT,
+    NPTYPE_OBJECT,
+    NPTYPE_BOOL,
+    NPTYPE_SLICE,
+    NPTYPE_ITER,
+    NPTYPE_FUNCTION,
+    NPTYPE_DICT_ITEMS,
+    NPTYPE_COUNT,
+} NpthonType;
 
 typedef struct {
     size_t count;
@@ -45,7 +45,7 @@ typedef struct {
 } TypeInfoInner;
 
 struct TypeInfo {
-    PythonType type;
+    NpthonType type;
     union {
         ClassStatement* cls;
         // NOTE: sig->defaults and sig->params may be NULL

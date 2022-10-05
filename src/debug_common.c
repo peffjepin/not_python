@@ -334,22 +334,22 @@ render_type_info(TypeInfo info)
 {
     StringBuffer str = {0};
     switch (info.type) {
-        case PYTYPE_UNTYPED:
+        case NPTYPE_UNTYPED:
             str_concat_cstr(&str, "Untyped");
             break;
-        case PYTYPE_NONE:
+        case NPTYPE_NONE:
             str_concat_cstr(&str, "None");
             break;
-        case PYTYPE_INT:
+        case NPTYPE_INT:
             str_concat_cstr(&str, "int");
             break;
-        case PYTYPE_FLOAT:
+        case NPTYPE_FLOAT:
             str_concat_cstr(&str, "float");
             break;
-        case PYTYPE_STRING:
+        case NPTYPE_STRING:
             str_concat_cstr(&str, "str");
             break;
-        case PYTYPE_FUNCTION:
+        case NPTYPE_FUNCTION:
             str_concat_cstr(&str, "Function[[");
             for (size_t i = 0; i < info.sig->params_count; i++) {
                 if (i > 0) str_concat_cstr(&str, ", ");
@@ -359,19 +359,19 @@ render_type_info(TypeInfo info)
             str_concat_cstr(&str, render_type_info(info.sig->return_type).data);
             str_concat_cstr(&str, "]");
             break;
-        case PYTYPE_LIST:
+        case NPTYPE_LIST:
             str_concat_cstr(&str, "List");
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);
             break;
-        case PYTYPE_DICT:
+        case NPTYPE_DICT:
             str_concat_cstr(&str, "Dict");
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);
             break;
-        case PYTYPE_TUPLE:
+        case NPTYPE_TUPLE:
             str_concat_cstr(&str, "Tuple");
             str_concat_cstr(&str, render_inner_type_info(info.inner).data);
             break;
-        case PYTYPE_OBJECT:
+        case NPTYPE_OBJECT:
             str_concat_cstr(&str, info.cls->name.data);
             break;
         default:

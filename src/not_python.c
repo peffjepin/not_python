@@ -51,8 +51,8 @@ get_exception(void)
 
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
 
-PyBool
-str_eq(PyString str1, PyString str2)
+NpBool
+np_str_eq(NpString str1, NpString str2)
 {
     if (str1.length != str2.length) return false;
     for (size_t i = 0; i < str1.length; i++) {
@@ -61,8 +61,8 @@ str_eq(PyString str1, PyString str2)
     return true;
 }
 
-PyBool
-str_gt(PyString str1, PyString str2)
+NpBool
+np_str_gt(NpString str1, NpString str2)
 {
     if (str1.length == 0) return false;
 
@@ -76,8 +76,8 @@ str_gt(PyString str1, PyString str2)
     return str1.length > str2.length;
 }
 
-PyBool
-str_gte(PyString str1, PyString str2)
+NpBool
+np_str_gte(NpString str1, NpString str2)
 {
     if (str1.length == 0) return str2.length == 0;
 
@@ -91,8 +91,8 @@ str_gte(PyString str1, PyString str2)
     return str1.length >= str2.length;
 }
 
-PyBool
-str_lt(PyString str1, PyString str2)
+NpBool
+np_str_lt(NpString str1, NpString str2)
 {
     if (str1.length == 0) return str2.length > 0;
 
@@ -106,8 +106,8 @@ str_lt(PyString str1, PyString str2)
     return str1.length < str2.length;
 }
 
-PyBool
-str_lte(PyString str1, PyString str2)
+NpBool
+np_str_lte(NpString str1, NpString str2)
 {
     if (str1.length == 0) return true;
 
@@ -121,10 +121,10 @@ str_lte(PyString str1, PyString str2)
     return str1.length <= str2.length;
 }
 
-PyString
-str_add(PyString str1, PyString str2)
+NpString
+np_str_add(NpString str1, NpString str2)
 {
-    PyString str = {
+    NpString str = {
         .data = np_alloc(str1.length + str2.length + 1),
         .length = str1.length + str2.length};
     memcpy(str.data, str1.data + str1.offset, str1.length);
@@ -132,15 +132,15 @@ str_add(PyString str1, PyString str2)
     return str;
 }
 
-PyString
-str_fmt(const char* fmt, ...)
+NpString
+np_str_fmt(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
     size_t required_length = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
 
-    PyString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
 
     va_start(args, fmt);
     vsnprintf(str.data, required_length + 1, fmt, args);
@@ -150,7 +150,7 @@ str_fmt(const char* fmt, ...)
 }
 
 char*
-np_str_to_cstr(PyString str)
+np_str_to_cstr(NpString str)
 {
     if (str.data[str.offset + str.length] == '\0') {
         return str.data + str.offset;
@@ -160,29 +160,29 @@ np_str_to_cstr(PyString str)
     return cstr;
 }
 
-PyString
-np_int_to_str(PyInt num)
+NpString
+np_int_to_str(NpInt num)
 {
     size_t required_length = snprintf(NULL, 0, "%li", num);
-    PyString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
     snprintf(str.data, required_length + 1, "%li", num);
     return str;
 }
 
-PyString
-np_float_to_str(PyFloat num)
+NpString
+np_float_to_str(NpFloat num)
 {
     size_t required_length = snprintf(NULL, 0, "%f", num);
-    PyString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
     snprintf(str.data, required_length + 1, "%f", num);
     return str;
 }
 
-const PyString true_str = {.data = "True", .length = 4};
-const PyString false_str = {.data = "False", .length = 5};
+const NpString true_str = {.data = "True", .length = 4};
+const NpString false_str = {.data = "False", .length = 5};
 
-PyString
-np_bool_to_str(PyBool value)
+NpString
+np_bool_to_str(NpBool value)
 {
     return (value) ? true_str : false_str;
 }
@@ -195,7 +195,7 @@ builtin_print(size_t argc, ...)
 
     for (size_t i = 0; i < argc; i++) {
         if (i > 0) fprintf(stdout, " ");
-        PyString str = va_arg(vargs, PyString);
+        NpString str = va_arg(vargs, NpString);
         fprintf(stdout, "%.*s", (int)str.length, str.data + str.offset);
     }
 
@@ -214,15 +214,15 @@ builtin_print(size_t argc, ...)
 #define LIST_BOUNDS(list, wrapped_index)                                                 \
     if ((wrapped_index) < 0 || (wrapped_index) >= (list)->count) index_error()
 
-PyList*
-list_init(
+NpList*
+np_list_init(
     size_t elem_size,
-    PySortFunction sort_fn,
-    PySortFunction rev_sort_fn,
-    PyCompareFunction cmp_fn
+    NpSortFunction sort_fn,
+    NpSortFunction rev_sort_fn,
+    NpCompareFunction cmp_fn
 )
 {
-    PyList* list = np_alloc(sizeof(PyList));
+    NpList* list = np_alloc(sizeof(NpList));
     list->cmp_fn = cmp_fn;
     list->sort_fn = sort_fn;
     list->rev_sort_fn = rev_sort_fn;
@@ -233,28 +233,28 @@ list_init(
     return list;
 }
 
-PyList*
-list_add(PyList* list1, PyList* list2)
+NpList*
+np_list_add(NpList* list1, NpList* list2)
 {
     // TODO: it would be better to allocate a large enough list to begin with and copy
     // into it.
-    PyList* new_list = list_copy(list1);
-    list_extend(new_list, list2);
+    NpList* new_list = np_list_copy(list1);
+    np_list_extend(new_list, list2);
     return new_list;
 }
 
 void
-list_clear(PyList* list)
+np_list_clear(NpList* list)
 {
     list->count = 0;
     list->capacity = LIST_MIN_CAPACITY;
     list->data = np_realloc(list->data, list->element_size * list->capacity);
 }
 
-PyList*
-list_copy(PyList* list)
+NpList*
+np_list_copy(NpList* list)
 {
-    PyList* new_list = np_alloc(sizeof(PyList));
+    NpList* new_list = np_alloc(sizeof(NpList));
     new_list->count = list->count;
     new_list->capacity = list->capacity;
     new_list->element_size = list->element_size;
@@ -265,9 +265,9 @@ list_copy(PyList* list)
 }
 
 void
-list_extend(PyList* list, PyList* other)
+np_list_extend(NpList* list, NpList* other)
 {
-    PyInt required_capacity = list->count + other->count + 1;
+    NpInt required_capacity = list->count + other->count + 1;
     if (list->capacity < required_capacity)
         np_realloc(list->data, list->element_size * required_capacity);
     memcpy(
@@ -279,7 +279,7 @@ list_extend(PyList* list, PyList* other)
 }
 
 void
-list_shrink(PyList* list)
+np_list_shrink(NpList* list)
 {
     if (list->capacity == LIST_MIN_CAPACITY) return;
     size_t new_capacity = list->capacity * LIST_SHRINK_FACTOR;
@@ -289,7 +289,7 @@ list_shrink(PyList* list)
 }
 
 void
-list_del(PyList* list, PyInt index)
+np_list_del(NpList* list, NpInt index)
 {
     // assume bounds checking has already occured
     memmove(
@@ -298,23 +298,23 @@ list_del(PyList* list, PyInt index)
         list->element_size * (list->count - index + 1)
     );
     list->count -= 1;
-    if (list->count <= list->capacity * LIST_SHRINK_THRESHOLD) list_shrink(list);
+    if (list->count <= list->capacity * LIST_SHRINK_THRESHOLD) np_list_shrink(list);
 }
 
 void
-list_grow(PyList* list)
+np_list_grow(NpList* list)
 {
     list->capacity *= 2;
     list->data = np_realloc(list->data, list->element_size * list->capacity);
 }
 
 void
-list_reverse(PyList* list)
+np_list_reverse(NpList* list)
 {
-    PyByte tmp[list->element_size];
-    for (PyInt i = 0; i < list->count / 2; i++) {
-        PyByte* left = LIST_ELEMENT(list, i);
-        PyByte* right = LIST_ELEMENT(list, list->count - 1 - i);
+    NpByte tmp[list->element_size];
+    for (NpInt i = 0; i < list->count / 2; i++) {
+        NpByte* left = LIST_ELEMENT(list, i);
+        NpByte* right = LIST_ELEMENT(list, list->count - 1 - i);
         memcpy(tmp, right, list->element_size);
         memcpy(right, left, list->element_size);
         memcpy(left, tmp, list->element_size);
@@ -322,7 +322,7 @@ list_reverse(PyList* list)
 }
 
 void
-list_get_item(PyList* list, PyInt index, void* out)
+np_list_get_item(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
@@ -330,7 +330,7 @@ list_get_item(PyList* list, PyInt index, void* out)
 }
 
 void
-list_set_item(PyList* list, PyInt index, void* item)
+np_list_set_item(NpList* list, NpInt index, void* item)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
@@ -338,29 +338,29 @@ list_set_item(PyList* list, PyInt index, void* item)
 }
 
 void
-list_append(PyList* list, void* item)
+np_list_append(NpList* list, void* item)
 {
-    PyInt index = list->count++;
+    NpInt index = list->count++;
     LIST_COPY_FROM_ITEM(list, index, item);
-    if (list->count == list->capacity) list_grow(list);
+    if (list->count == list->capacity) np_list_grow(list);
 }
 
 void
-list_pop(PyList* list, PyInt index, void* out)
+np_list_pop(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
     LIST_COPY_TO_OUT(list, index, out);
-    list_del(list, index);
+    np_list_del(list, index);
 }
 
-PyInt
-list_index(PyList* list, void* item)
+NpInt
+np_list_index(NpList* list, void* item)
 {
-    PyInt location = -1;
-    for (PyInt index = 0; index < list->count; index++) {
+    NpInt location = -1;
+    for (NpInt index = 0; index < list->count; index++) {
         if (list->cmp_fn(item, LIST_ELEMENT(list, index))) {
-            location = (PyInt)index;
+            location = (NpInt)index;
         }
     }
     if (location < 0) value_error();
@@ -368,28 +368,28 @@ list_index(PyList* list, void* item)
 }
 
 void
-list_remove(PyList* list, void* item)
+np_list_remove(NpList* list, void* item)
 {
-    PyInt index = list_index(list, item);
-    list_del(list, index);
+    NpInt index = np_list_index(list, item);
+    np_list_del(list, index);
 }
 
-PyInt
-list_count(PyList* list, void* item)
+NpInt
+np_list_count(NpList* list, void* item)
 {
-    PyInt count = 0;
-    for (PyInt i = 0; i < list->count; i++) {
+    NpInt count = 0;
+    for (NpInt i = 0; i < list->count; i++) {
         if (list->cmp_fn(LIST_ELEMENT(list, i), item)) count++;
     }
     return count;
 }
 
 void
-list_insert(PyList* list, PyInt index, void* item)
+np_list_insert(NpList* list, NpInt index, void* item)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
-    if (list->count == list->capacity - 1) list_grow(list);
+    if (list->count == list->capacity - 1) np_list_grow(list);
 
     list->count += 1;
     memmove(
@@ -401,125 +401,125 @@ list_insert(PyList* list, PyInt index, void* item)
 }
 
 void
-list_sort(PyList* list, PyBool reverse)
+np_list_sort(NpList* list, NpBool reverse)
 {
-    PySortFunction fn = (reverse) ? list->rev_sort_fn : list->sort_fn;
+    NpSortFunction fn = (reverse) ? list->rev_sort_fn : list->sort_fn;
     // TODO: better exception here
     if (!fn) value_error();
     qsort(list->data, list->count, list->element_size, fn);
 }
 
 int
-pyint_sort_fn(const void* elem1, const void* elem2)
+np_int_sort_fn(const void* elem1, const void* elem2)
 {
-    if (*(PyInt*)elem1 < *(PyInt*)elem2) return -1;
-    if (*(PyInt*)elem1 > *(PyInt*)elem2) return 1;
+    if (*(NpInt*)elem1 < *(NpInt*)elem2) return -1;
+    if (*(NpInt*)elem1 > *(NpInt*)elem2) return 1;
     return 0;
 }
 
 int
-pyfloat_sort_fn(const void* elem1, const void* elem2)
+np_float_sort_fn(const void* elem1, const void* elem2)
 {
-    if (*(PyFloat*)elem1 < *(PyFloat*)elem2) return -1;
-    if (*(PyFloat*)elem1 > *(PyFloat*)elem2) return 1;
+    if (*(NpFloat*)elem1 < *(NpFloat*)elem2) return -1;
+    if (*(NpFloat*)elem1 > *(NpFloat*)elem2) return 1;
     return 0;
 }
 
 int
-pybool_sort_fn(const void* elem1, const void* elem2)
+np_bool_sort_fn(const void* elem1, const void* elem2)
 {
-    if (*(PyBool*)elem1 < *(PyBool*)elem2) return -1;
-    if (*(PyBool*)elem1 > *(PyBool*)elem2) return 1;
+    if (*(NpBool*)elem1 < *(NpBool*)elem2) return -1;
+    if (*(NpBool*)elem1 > *(NpBool*)elem2) return 1;
     return 0;
 }
 
 int
-ptstr_sort_fn(const void* elem1, const void* elem2)
+np_str_sort_fn(const void* elem1, const void* elem2)
 {
-    if (str_lt(*(PyString*)elem1, *(PyString*)elem2)) return -1;
-    if (str_gt(*(PyString*)elem1, *(PyString*)elem2)) return 1;
+    if (np_str_lt(*(NpString*)elem1, *(NpString*)elem2)) return -1;
+    if (np_str_gt(*(NpString*)elem1, *(NpString*)elem2)) return 1;
     return 0;
 }
 
 int
-pyint_sort_fn_rev(const void* elem1, const void* elem2)
+np_int_sort_fn_rev(const void* elem1, const void* elem2)
 {
-    if (*(PyInt*)elem1 < *(PyInt*)elem2) return 1;
-    if (*(PyInt*)elem1 > *(PyInt*)elem2) return -1;
+    if (*(NpInt*)elem1 < *(NpInt*)elem2) return 1;
+    if (*(NpInt*)elem1 > *(NpInt*)elem2) return -1;
     return 0;
 }
 
 int
 pyfloat_sort_fn_rev(const void* elem1, const void* elem2)
 {
-    if (*(PyFloat*)elem1 < *(PyFloat*)elem2) return 1;
-    if (*(PyFloat*)elem1 > *(PyFloat*)elem2) return -1;
+    if (*(NpFloat*)elem1 < *(NpFloat*)elem2) return 1;
+    if (*(NpFloat*)elem1 > *(NpFloat*)elem2) return -1;
     return 0;
 }
 
 int
-pybool_sort_fn_rev(const void* elem1, const void* elem2)
+np_bool_sort_fn_rev(const void* elem1, const void* elem2)
 {
-    if (*(PyBool*)elem1 < *(PyBool*)elem2) return 1;
-    if (*(PyBool*)elem1 > *(PyBool*)elem2) return -1;
+    if (*(NpBool*)elem1 < *(NpBool*)elem2) return 1;
+    if (*(NpBool*)elem1 > *(NpBool*)elem2) return -1;
     return 0;
 }
 
 int
-ptstr_sort_fn_rev(const void* elem1, const void* elem2)
+np_str_sort_fn_rev(const void* elem1, const void* elem2)
 {
-    if (str_lt(*(PyString*)elem1, *(PyString*)elem2)) return 1;
-    if (str_gt(*(PyString*)elem1, *(PyString*)elem2)) return -1;
+    if (np_str_lt(*(NpString*)elem1, *(NpString*)elem2)) return 1;
+    if (np_str_gt(*(NpString*)elem1, *(NpString*)elem2)) return -1;
     return 0;
 }
 
-PyBool
-int_eq(PyInt int1, PyInt int2)
+NpBool
+np_int_eq(NpInt int1, NpInt int2)
 {
     return int1 == int2;
 }
-PyBool
-float_eq(PyFloat float1, PyFloat float2)
+NpBool
+np_float_eq(NpFloat float1, NpFloat float2)
 {
     return float1 == float2;
 }
-PyBool
-bool_eq(PyBool bool1, PyBool bool2)
+NpBool
+np_bool_eq(NpBool bool1, NpBool bool2)
 {
     return bool1 == bool2;
 }
 
-PyBool
-void_int_eq(void* int1, void* int2)
+NpBool
+np_void_int_eq(void* int1, void* int2)
 {
-    return *(PyInt*)int1 == *(PyInt*)int2;
+    return *(NpInt*)int1 == *(NpInt*)int2;
 }
-PyBool
-void_float_eq(void* float1, void* float2)
+NpBool
+np_void_float_eq(void* float1, void* float2)
 {
-    return *(PyFloat*)float1 == *(PyFloat*)float2;
+    return *(NpFloat*)float1 == *(NpFloat*)float2;
 }
-PyBool
-void_bool_eq(void* bool1, void* bool2)
+NpBool
+np_void_bool_eq(void* bool1, void* bool2)
 {
-    return *(PyBool*)bool1 == *(PyBool*)bool2;
+    return *(NpBool*)bool1 == *(NpBool*)bool2;
 }
-PyBool
-void_str_eq(void* str1, void* str2)
+NpBool
+np_void_str_eq(void* str1, void* str2)
 {
-    return str_eq(*(PyString*)str1, *(PyString*)str2);
+    return np_str_eq(*(NpString*)str1, *(NpString*)str2);
 }
 
 typedef struct {
-    PyDict* dict;
+    NpDict* dict;
     size_t yielded;
     size_t item_idx;
-} PyDictIter;
+} NpDictIter;
 
 void*
-dict_keys_next(void* iter)
+np_dict_keys_next(void* iter)
 {
-    PyDictIter* iterd = iter;
+    NpDictIter* iterd = iter;
     if (iterd->yielded == iterd->dict->count) return NULL;
     size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
     while (!iterd->dict->data[current_item_offset]) {
@@ -531,20 +531,20 @@ dict_keys_next(void* iter)
     return (void*)(iterd->dict->data + current_item_offset + iterd->dict->key_offset);
 }
 
-PyIter
-dict_iter_keys(PyDict* dict)
+NpIter
+np_dict_iter_keys(NpDict* dict)
 {
     // TODO: empty iterable is probably a bug
-    PyDictIter* iter = np_alloc(sizeof(PyDictIter));
+    NpDictIter* iter = np_alloc(sizeof(NpDictIter));
     iter->dict = dict;
-    PyIter iterd = {.next = (ITER_NEXT_FN)dict_keys_next, .iter = iter};
+    NpIter iterd = {.next = (NpIterNextFunc)np_dict_keys_next, .iter = iter};
     return iterd;
 }
 
 void*
-dict_vals_next(void* iter)
+np_dict_vals_next(void* iter)
 {
-    PyDictIter* iterd = iter;
+    NpDictIter* iterd = iter;
     if (iterd->yielded == iterd->dict->count) return NULL;
     size_t current_item_offset = iterd->item_idx * iterd->dict->item_size;
     while (!iterd->dict->data[current_item_offset]) {
@@ -556,25 +556,25 @@ dict_vals_next(void* iter)
     return (void*)(iterd->dict->data + current_item_offset + iterd->dict->val_offset);
 }
 
-PyIter
-dict_iter_vals(PyDict* dict)
+NpIter
+np_dict_iter_vals(NpDict* dict)
 {
     // TODO: empty iterable is probably a bug
-    PyDictIter* iter = np_alloc(sizeof(PyDictIter));
+    NpDictIter* iter = np_alloc(sizeof(NpDictIter));
     iter->dict = dict;
-    PyIter iterd = {.next = (ITER_NEXT_FN)dict_vals_next, .iter = iter};
+    NpIter iterd = {.next = (NpIterNextFunc)np_dict_vals_next, .iter = iter};
     return iterd;
 }
 
 typedef struct {
-    PyDict* dict;
+    NpDict* dict;
     size_t yielded;
     size_t item_idx;
     DictItem current_item;
 } DictItemsIter;
 
 void*
-dict_items_next(void* iter)
+np_dict_items_next(void* iter)
 {
     DictItemsIter* iterd = iter;
     if (iterd->yielded == iterd->dict->count) return NULL;
@@ -592,19 +592,19 @@ dict_items_next(void* iter)
     return (void*)&iterd->current_item;
 }
 
-PyIter
-dict_iter_items(PyDict* dict)
+NpIter
+np_dict_iter_items(NpDict* dict)
 {
     DictItemsIter* iter = np_alloc(sizeof(DictItemsIter));
     iter->dict = dict;
-    PyIter iterd = {.next = (ITER_NEXT_FN)dict_items_next, .iter = iter};
+    NpIter iterd = {.next = (NpIterNextFunc)np_dict_items_next, .iter = iter};
     return iterd;
 }
 
-PyDict*
-dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
+NpDict*
+np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp)
 {
-    PyDict* dict = np_alloc(sizeof(PyDict));
+    NpDict* dict = np_alloc(sizeof(NpDict));
 
     dict->keycmp = cmp;
     dict->key_size = key_size;
@@ -625,11 +625,11 @@ dict_init(size_t key_size, size_t val_size, DICT_KEYCMP_FUNCTION cmp)
     return dict;
 }
 
-PyDict*
-dict_copy(PyDict* other)
+NpDict*
+np_dict_copy(NpDict* other)
 {
-    PyDict* dict = np_alloc(sizeof(PyDict));
-    memcpy(dict, other, sizeof(PyDict));
+    NpDict* dict = np_alloc(sizeof(NpDict));
+    memcpy(dict, other, sizeof(NpDict));
 
     size_t data_bytes = dict->item_size * dict->capacity;
     size_t lut_bytes = dict->lut_capacity * sizeof(int);
@@ -642,7 +642,7 @@ dict_copy(PyDict* other)
 }
 
 void
-dict_clear(PyDict* dict)
+np_dict_clear(NpDict* dict)
 {
     np_free(dict->data);
     np_free(dict->lut);
@@ -663,7 +663,7 @@ dict_clear(PyDict* dict)
 #define DICT_KEY_AT(dict, idx) dict->data + (idx * dict->item_size) + dict->key_offset
 
 size_t
-dict_find_lut_location(PyDict* dict, void* key, int* lut_value)
+np_dict_find_lut_location(NpDict* dict, void* key, int* lut_value)
 {
     uint64_t hash = hash_bytes(key, dict->key_size);
     size_t probe = hash % dict->lut_capacity;
@@ -679,7 +679,7 @@ dict_find_lut_location(PyDict* dict, void* key, int* lut_value)
 }
 
 void
-dict_lut_rehash_item(PyDict* dict, void* key, size_t item_index)
+np_dict_lut_rehash_item(NpDict* dict, void* key, size_t item_index)
 {
     uint64_t hash = hash_bytes(key, dict->key_size);
     size_t probe = hash % dict->lut_capacity;
@@ -695,7 +695,7 @@ dict_lut_rehash_item(PyDict* dict, void* key, size_t item_index)
 }
 
 void
-dict_grow(PyDict* dict)
+np_dict_grow(NpDict* dict)
 {
     dict->capacity *= DICT_GROW_FACTOR;
     dict->lut_capacity *= DICT_GROW_FACTOR;
@@ -723,7 +723,7 @@ dict_grow(PyDict* dict)
         write += dict->item_size;
 
         // update lut
-        dict_lut_rehash_item(
+        np_dict_lut_rehash_item(
             dict, dict->data + item_offset + dict->key_offset, update_count++
         );
     }
@@ -732,7 +732,7 @@ dict_grow(PyDict* dict)
 }
 
 void
-dict_shrink(PyDict* dict)
+np_dict_shrink(NpDict* dict)
 {
     dict->capacity *= DICT_SHRINK_FACTOR;
     if (dict->capacity < DICT_MIN_CAPACITY) dict->capacity = DICT_MIN_CAPACITY;
@@ -762,7 +762,7 @@ dict_shrink(PyDict* dict)
         write += dict->item_size;
 
         // update lut
-        dict_lut_rehash_item(
+        np_dict_lut_rehash_item(
             dict, old_data + item_offset + dict->key_offset, update_count++
         );
     }
@@ -772,11 +772,11 @@ dict_shrink(PyDict* dict)
 }
 
 void
-dict_set_item(PyDict* dict, void* key, void* val)
+np_dict_set_item(NpDict* dict, void* key, void* val)
 {
-    if (DICT_FULL(dict)) dict_grow(dict);
+    if (DICT_FULL(dict)) np_dict_grow(dict);
     int lut_value;
-    size_t lut_location = dict_find_lut_location(dict, key, &lut_value);
+    size_t lut_location = np_dict_find_lut_location(dict, key, &lut_value);
 
     if (lut_value < 0) {
         // enter new item into dict
@@ -796,7 +796,7 @@ dict_set_item(PyDict* dict, void* key, void* val)
 }
 
 void
-dict_get_val(PyDict* dict, void* key, void* out)
+np_dict_get_val(NpDict* dict, void* key, void* out)
 {
     if (dict->count == 0) {
         key_error();
@@ -804,7 +804,7 @@ dict_get_val(PyDict* dict, void* key, void* out)
     }
 
     int item_index;
-    dict_find_lut_location(dict, key, &item_index);
+    np_dict_find_lut_location(dict, key, &item_index);
 
     if (item_index < 0)
         key_error();
@@ -817,7 +817,7 @@ dict_get_val(PyDict* dict, void* key, void* out)
 }
 
 void
-dict_pop_val(PyDict* dict, void* key, void* out)
+np_dict_pop_val(NpDict* dict, void* key, void* out)
 {
     if (dict->count == 0) {
         key_error();
@@ -825,7 +825,7 @@ dict_pop_val(PyDict* dict, void* key, void* out)
     }
 
     int item_index;
-    size_t lut_index = dict_find_lut_location(dict, key, &item_index);
+    size_t lut_index = np_dict_find_lut_location(dict, key, &item_index);
 
     if (item_index < 0)
         key_error();
@@ -840,33 +840,33 @@ dict_pop_val(PyDict* dict, void* key, void* out)
         dict->tombstone_count += 1;
         dict->count -= 1;
         if (DICT_EFFECTIVE_COUNT(dict) >= dict->capacity * DICT_SHRINK_THRESHOLD)
-            dict_shrink(dict);
+            np_dict_shrink(dict);
     }
 }
 
 void
-dict_del(PyDict* dict, void* key)
+np_dict_del(NpDict* dict, void* key)
 {
     if (dict->count == 0) key_error();
     int item_index;
-    size_t lut_index = dict_find_lut_location(dict, key, &item_index);
+    size_t lut_index = np_dict_find_lut_location(dict, key, &item_index);
     if (item_index < 0) key_error();
     dict->lut[lut_index] = -1;
     dict->data[dict->item_size * item_index] = 0;
     dict->tombstone_count += 1;
     dict->count -= 1;
     if (DICT_EFFECTIVE_COUNT(dict) >= dict->capacity * DICT_SHRINK_THRESHOLD)
-        dict_shrink(dict);
+        np_dict_shrink(dict);
 }
 
 void
-dict_update(PyDict* dict, PyDict* other)
+np_dict_update(NpDict* dict, NpDict* other)
 {
     size_t updated_count = 0;
     uint8_t* data = other->data;
     while (updated_count != other->count) {
         while (!data[0]) data += other->item_size;
-        dict_set_item(dict, data + other->key_offset, data + other->val_offset);
+        np_dict_set_item(dict, data + other->key_offset, data + other->val_offset);
         data += other->item_size;
         updated_count += 1;
     }

@@ -1,6 +1,6 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
@@ -8,10 +8,10 @@ PyString NOT_PYTHON_STRING_CONSTANTS[] = {
 // VARIABLE DECLARATIONS COMPILER SECTION
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-PyFloat function_function(PyInt x, PyInt y);
+NpFloat function_function(NpInt x, NpInt y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-PyFloat function_function(PyInt x, PyInt y) {
+NpFloat function_function(NpInt x, NpInt y) {
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

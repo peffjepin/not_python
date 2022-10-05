@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PyInt x;PyInt y;} default_object_str_A;
+typedef struct {NpInt x;NpInt y;} default_object_str_A;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 default_object_str_A* NP_var0;
-PyString NP_var2;
-PyString NP_var3;
-PyString NP_var1;
+NpString NP_var2;
+NpString NP_var3;
+NpString NP_var1;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -23,7 +23,7 @@ NP_var0->x = 1;
 NP_var0->y = 2;
 NP_var2 = np_int_to_str(NP_var0->x);
 NP_var3 = np_int_to_str(NP_var0->y);
-NP_var1 = str_fmt("A(x=%s, y=%s)", np_str_to_cstr(NP_var2), np_str_to_cstr(NP_var3));
+NP_var1 = np_str_fmt("A(x=%s, y=%s)", np_str_to_cstr(NP_var2), np_str_to_cstr(NP_var3));
 builtin_print(1, NP_var1);
 }
 

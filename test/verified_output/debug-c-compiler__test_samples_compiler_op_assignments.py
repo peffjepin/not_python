@@ -1,16 +1,16 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-PyInt op_assignments_x;
-PyInt NP_var0;
-PyInt NP_var1;
-PyInt NP_var2;
-PyInt NP_var3;
+NpInt op_assignments_x;
+NpInt NP_var0;
+NpInt NP_var1;
+NpInt NP_var2;
+NpInt NP_var3;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
 
@@ -26,7 +26,7 @@ op_assignments_x = op_assignments_x+NP_var1;
 NP_var2 = 2;
 op_assignments_x = op_assignments_x*NP_var2;
 NP_var3 = 2;
-op_assignments_x = (PyInt)((PyFloat)op_assignments_x/(PyFloat)NP_var3);
+op_assignments_x = (NpInt)((NpFloat)op_assignments_x/(NpFloat)NP_var3);
 }
 
 // MAIN FUNCTION COMPILER SECTION

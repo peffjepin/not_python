@@ -11,13 +11,13 @@
 // would come about when there are conflicting types, not missing types
 #define UNTYPED_ERROR() assert(0 && "COMPILER ERROR: ran into untyped variable")
 
-#define DATATYPE_INT "PyInt"
-#define DATATYPE_FLOAT "PyFloat"
-#define DATATYPE_STRING "PyString"
-#define DATATYPE_BOOL "PyBool"
-#define DATATYPE_LIST "PyList*"
-#define DATATYPE_DICT "PyDict*"
-#define DATATYPE_ITER "PyIter"
+#define DATATYPE_INT "NpInt"
+#define DATATYPE_FLOAT "NpFloat"
+#define DATATYPE_STRING "NpString"
+#define DATATYPE_BOOL "NpBool"
+#define DATATYPE_LIST "NpList*"
+#define DATATYPE_DICT "NpDict*"
+#define DATATYPE_ITER "NpIter"
 
 SourceString create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
 

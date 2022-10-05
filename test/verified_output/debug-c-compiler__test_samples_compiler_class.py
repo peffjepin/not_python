@@ -1,10 +1,10 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
-PyString NOT_PYTHON_STRING_CONSTANTS[] = {
+NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
 // STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {PyFloat x;PyFloat y;PyFloat z;} class_Vec3;
+typedef struct {NpFloat x;NpFloat y;NpFloat z;} class_Vec3;
 
 // VARIABLE DECLARATIONS COMPILER SECTION
 
