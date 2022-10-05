@@ -6,29 +6,31 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var3;
-NpInt NP_var1;
+NpFunction function_call4_my_function;
 NpInt NP_var4;
 NpInt NP_var2;
+NpInt NP_var5;
+NpInt NP_var3;
 NpInt function_call4_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-NpInt function_call4_my_function(NpInt x, NpInt y);
+NpInt NP_var0(NpInt x, NpInt y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpInt function_call4_my_function(NpInt x, NpInt y) {
-NpInt NP_var0;
-NP_var0 = x+y;
-return NP_var0;
+NpInt NP_var0(NpInt x, NpInt y) {
+NpInt NP_var1;
+NP_var1 = x+y;
+return NP_var1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var3 = 1+2;
-NP_var1 = NP_var3+3;
-NP_var4 = 4*5;
-NP_var2 = NP_var4*6;
-function_call4_z = function_call4_my_function(NP_var1, NP_var2);
+function_call4_my_function.addr = &NP_var0;
+NP_var4 = 1+2;
+NP_var2 = NP_var4+3;
+NP_var5 = 4*5;
+NP_var3 = NP_var5*6;
+function_call4_z = ((NpInt (*)(NpInt, NpInt))function_call4_my_function.addr)(NP_var2, NP_var3);
 }
 
 // MAIN FUNCTION COMPILER SECTION

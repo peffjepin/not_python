@@ -179,17 +179,11 @@ type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info)
         }
         case NPTYPE_OBJECT:
             return sb_build(sb, info.cls->ns_ident.data, "*", NULL);
-        case NPTYPE_FUNCTION:
-            return sb_build(
-                sb,
-                type_info_to_c_syntax(sb, info.sig->return_type),
-                " (*)(",
-                type_infos_to_comma_separated_c_syntax(
-                    sb, info.sig->types, info.sig->params_count
-                ),
-                ")",
-                NULL
-            );
+        case NPTYPE_FUNCTION: {
+            static const SourceString FUNC = {
+                .data = DATATYPE_FUNC, .length = sizeof(DATATYPE_FUNC) - 1};
+            return FUNC;
+        }
         case NPTYPE_ITER: {
             static const SourceString ITER = {
                 .data = DATATYPE_ITER, .length = sizeof(DATATYPE_ITER) - 1};
@@ -599,4 +593,27 @@ source_string_to_exception_type_string(FileIndex index, Location loc, SourceStri
     if (SOURCESTRING_EQ(str, AssertionError)) return "ASSERTION_ERROR";
     unspecified_errorf(index, loc, "unrecognized exception type `%s`", str.data);
     UNREACHABLE();
+}
+
+const char*
+c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
+{
+    if (cast_to.type == NPTYPE_FUNCTION) {
+        const char* c_function_typing_syntax = sb_build_cstr(
+            sb,
+            type_info_to_c_syntax(sb, cast_to.sig->return_type),
+            " (*)(",
+            type_infos_to_comma_separated_c_syntax(
+                sb, cast_to.sig->types, cast_to.sig->params_count
+            ),
+            ")",
+            NULL
+        );
+        return sb_build_cstr(
+            sb, "((", c_function_typing_syntax, ")", cast_this, ")", NULL
+        );
+    }
+    return sb_build_cstr(
+        sb, "((", type_info_to_c_syntax(sb, cast_to), ")", cast_this, ")", NULL
+    );
 }

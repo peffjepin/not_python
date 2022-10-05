@@ -18,6 +18,7 @@
 #define DATATYPE_LIST "NpList*"
 #define DATATYPE_DICT "NpDict*"
 #define DATATYPE_ITER "NpIter"
+#define DATATYPE_FUNC "NpFunction"
 
 SourceString create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
 
@@ -97,5 +98,7 @@ const char* cmp_for_type_info(TypeInfo type_info);
 const char* source_string_to_exception_type_string(
     FileIndex index, Location loc, SourceString str
 );
+
+const char* c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to);
 
 #endif

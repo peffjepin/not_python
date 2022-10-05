@@ -187,6 +187,11 @@ void np_list_insert(NpList* list, NpInt index, void* item);
 #define LIST_SHRINK_FACTOR 0.5
 #define LIST_GROW_FACTOR 2
 
+typedef struct {
+    void* addr;
+    void* closure;
+} NpFunction;
+
 void builtin_print(size_t argc, ...);
 
 #endif

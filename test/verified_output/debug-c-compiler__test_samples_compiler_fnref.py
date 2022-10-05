@@ -6,25 +6,27 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // STRUCT DECLARATIONS COMPILER SECTION
 
 // VARIABLE DECLARATIONS COMPILER SECTION
-void* (*fnref_fnref)(NpString);
-NpString NP_var1;
+NpFunction fnref_my_function;
+NpFunction fnref_fnref;
+NpString NP_var2;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void* fnref_my_function(NpString value);
+void* NP_var0(NpString value);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void* fnref_my_function(NpString value) {
-NpString NP_var0;
-NP_var0 = value;
-builtin_print(1, NP_var0);
+void* NP_var0(NpString value) {
+NpString NP_var1;
+NP_var1 = value;
+builtin_print(1, NP_var1);
 return NULL;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
+fnref_my_function.addr = &NP_var0;
 fnref_fnref = fnref_my_function;
-NP_var1 = NOT_PYTHON_STRING_CONSTANTS[0];
-fnref_fnref(NP_var1);
+NP_var2 = NOT_PYTHON_STRING_CONSTANTS[0];
+((void* (*)(NpString))fnref_fnref.addr)(NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

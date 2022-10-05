@@ -1604,15 +1604,21 @@ render_object_operation(
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
 
-    if (is_unary) {
-        write_many_to_section(
-            assignment->section, fndef->ns_ident.data, "(", operand_reprs[0], ");\n", NULL
-        );
-    }
-    else if (is_rop) {
+    // cast NpFunction variable addr member to proper c function type
+    write_to_section(
+        assignment->section,
+        (char*)c_cast(
+            &compiler->sb,
+            sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
+            (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
+        )
+    );
+    // render args inside `()`
+    if (is_unary)
+        write_many_to_section(assignment->section, "(", operand_reprs[0], ");\n", NULL);
+    else if (is_rop)
         write_many_to_section(
             assignment->section,
-            fndef->ns_ident.data,
             "(",
             operand_reprs[1],
             ", ",
@@ -1620,11 +1626,9 @@ render_object_operation(
             ");\n",
             NULL
         );
-    }
-    else {
+    else
         write_many_to_section(
             assignment->section,
-            fndef->ns_ident.data,
             "(",
             operand_reprs[0],
             ", ",
@@ -1632,7 +1636,6 @@ render_object_operation(
             ");\n",
             NULL
         );
-    }
 }
 
 static void
@@ -1960,12 +1963,23 @@ render_object_method_call(
         compiler, args, sig, fndef->name.data, intermediate_assignments
     );
 
-    // write the call statement
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
+
+    // cast NpFunction variable to a c function pointer and pass in self
     write_many_to_section(
-        assignment->section, fndef->ns_ident.data, "(", self_identifier, NULL
+        assignment->section,
+        c_cast(
+            &compiler->sb,
+            sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
+            (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
+        ),
+        "(",
+        self_identifier,
+        NULL
     );
+
+    // render arguments
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
         write_to_section(assignment->section, ", ");
         write_to_section(
@@ -1990,6 +2004,7 @@ render_object_creation(
         assignment->section, "np_alloc(sizeof(", clsdef->ns_ident.data, "));\n", NULL
     );
 
+    // use user defined __init__ method
     FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
     if (init) {
         for (size_t i = 0; i < clsdef->sig.defaults_count; i++) {
@@ -2082,8 +2097,16 @@ render_call_operation(
     // write the call statement
     set_assignment_type_info(compiler, assignment, sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_to_section(assignment->section, fn_variable.compiled_name);
-    write_to_section(assignment->section, "(");
+    write_many_to_section(
+        assignment->section,
+        c_cast(
+            &compiler->sb,
+            sb_build_cstr(&compiler->sb, fn_variable.compiled_name, ".addr", NULL),
+            fn_variable.type_info
+        ),
+        "(",
+        NULL
+    );
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
         if (arg_i > 0) write_to_section(assignment->section, ", ");
         write_to_section(assignment->section, assignments[arg_i].variable.compiled_name);
@@ -2489,6 +2512,8 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     CompilerSection* sections[2] = {
         &compiler->function_declarations, &compiler->function_definitions};
 
+    char compiled_function_name[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, compiled_function_name);
     for (size_t i = 0; i < 2; i++) {
         TypeInfo type_info = func->sig.return_type;
 
@@ -2497,7 +2522,7 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         else
             write_type_info_to_section(sections[i], &compiler->sb, type_info);
 
-        write_to_section(sections[i], func->ns_ident.data);
+        write_to_section(sections[i], compiled_function_name);
         write_to_section(sections[i], "(");
         for (size_t j = 0; j < func->sig.params_count; j++) {
             if (j > 0) write_to_section(sections[i], ", ");
@@ -2518,9 +2543,23 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     scope_stack_pop(&compiler->scope_stack);
     compiler->tc.locals = old_locals;
 
+    // TODO: avoid redundant return statement if return stmt is written already by user
     if (func->sig.return_type.type == NPTYPE_NONE)
         write_to_section(&compiler->function_definitions, "return NULL;\n");
     write_to_section(&compiler->function_definitions, "}\n");
+
+    // create NpFunction variable to represent the function in the not python runtime
+    write_many_to_section(
+        &compiler->variable_declarations, "NpFunction ", func->ns_ident.data, ";\n", NULL
+    );
+    write_many_to_section(
+        &compiler->init_module_function,
+        func->ns_ident.data,
+        ".addr = &",
+        compiled_function_name,
+        ";\n",
+        NULL
+    );
 
     compiler->current_variable_declaration_section = current_declarations_section;
 }
@@ -2579,37 +2618,14 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
 static void
 declare_variable(C_Compiler* compiler, TypeInfo type, char* identifier)
 {
-    if (type.type == NPTYPE_FUNCTION) {
-        // c function ptr declaration -> `ret_type (*ident)(param_types, ...);`
-        // type_info_to_c_syntax -> `ret_type (*)(param_types, ...);`
-        size_t off = 0;
-        char* c_syntax = type_info_to_c_syntax(&compiler->sb, type);
-        for (size_t i = 0; c_syntax[i] != ' '; i++, off++)
-            ;
-        // c_syntax[off] == ' ' now
-        off += 3;
-        char before[off + 1];
-        memcpy(before, c_syntax, off);
-        before[off] = '\0';
-        write_many_to_section(
-            compiler->current_variable_declaration_section,
-            before,
-            identifier,
-            c_syntax + off,
-            ";\n",
-            NULL
-        );
-    }
-    else {
-        write_many_to_section(
-            compiler->current_variable_declaration_section,
-            type_info_to_c_syntax(&compiler->sb, type),
-            " ",
-            identifier,
-            ";\n",
-            NULL
-        );
-    }
+    write_many_to_section(
+        compiler->current_variable_declaration_section,
+        type_info_to_c_syntax(&compiler->sb, type),
+        " ",
+        identifier,
+        ";\n",
+        NULL
+    );
 }
 
 static void
@@ -2712,9 +2728,19 @@ render_object_op_assignment(
     }
 
     prepare_c_assignment_for_rendering(compiler, &obj_assignment);
+
+    // cast NpFunction variable addr member to proper c function type
+    write_to_section(
+        obj_assignment.section,
+        (char*)c_cast(
+            &compiler->sb,
+            sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
+            (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
+        )
+    );
+    // render args between `()`
     write_many_to_section(
         obj_assignment.section,
-        fndef->ns_ident.data,
         "(",
         obj_assignment.variable.compiled_name,
         ", ",
@@ -3334,7 +3360,7 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
 {
     switch (assignment.variable.type_info.type) {
         case NPTYPE_FUNCTION:
-            return assignment.variable.compiled_name;
+            return sb_build_cstr(sb, assignment.variable.compiled_name, ".addr", NULL);
         case NPTYPE_INT:
             return assignment.variable.compiled_name;
         case NPTYPE_FLOAT:
@@ -3354,10 +3380,14 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
         case NPTYPE_OBJECT: {
             ClassStatement* clsdef = assignment.variable.type_info.cls;
             FunctionStatement* fndef = clsdef->object_model_methods[OBJECT_MODEL_BOOL];
-            if (!fndef) return "1";
+            if (!fndef) return assignment.variable.compiled_name;
             return sb_build_cstr(
                 sb,
-                fndef->ns_ident.data,
+                c_cast(
+                    sb,
+                    sb_build_cstr(sb, fndef->ns_ident.data, ".addr", NULL),
+                    (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
+                ),
                 "(",
                 assignment.variable.compiled_name,
                 ")",
