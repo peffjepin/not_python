@@ -1607,7 +1607,7 @@ render_object_operation(
     // cast NpFunction variable addr member to proper c function type
     write_to_section(
         assignment->section,
-        (char*)c_cast(
+        (char*)sb_c_cast(
             &compiler->sb,
             sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
             (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
@@ -1969,7 +1969,7 @@ render_object_method_call(
     // cast NpFunction variable to a c function pointer and pass in self
     write_many_to_section(
         assignment->section,
-        c_cast(
+        sb_c_cast(
             &compiler->sb,
             sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
             (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
@@ -2099,7 +2099,7 @@ render_call_operation(
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(
         assignment->section,
-        c_cast(
+        sb_c_cast(
             &compiler->sb,
             sb_build_cstr(&compiler->sb, fn_variable.compiled_name, ".addr", NULL),
             fn_variable.type_info
@@ -2732,7 +2732,7 @@ render_object_op_assignment(
     // cast NpFunction variable addr member to proper c function type
     write_to_section(
         obj_assignment.section,
-        (char*)c_cast(
+        (char*)sb_c_cast(
             &compiler->sb,
             sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
             (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
@@ -3137,16 +3137,13 @@ render_list_for_each_head(
     WRITE_UNIQUE_VAR_NAME(compiler, index_variable);
     write_many_to_section(
         section,
-        "for(size_t i=0;",
-        " i < ",
+        "for(size_t i=0; i < ",
         iterable.variable.compiled_name,
-        "->count ",
-        "&& (np_list_get_item(",
+        "->count && (np_list_get_item(",
         iterable.variable.compiled_name,
         ", i, &",
         it_ident,
-        "), 1);"
-        "i++)\n",
+        "), 1); i++)\n",
         NULL
     );
 
@@ -3383,7 +3380,7 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
             if (!fndef) return assignment.variable.compiled_name;
             return sb_build_cstr(
                 sb,
-                c_cast(
+                sb_c_cast(
                     sb,
                     sb_build_cstr(sb, fndef->ns_ident.data, ".addr", NULL),
                     (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
@@ -3618,8 +3615,7 @@ compile_assert(C_Compiler* compiler, CompilerSection* section, Expression* value
         section,
         "if (!",
         assignment_to_truthy(&compiler->sb, condition),
-        ") ",
-        "assertion_error(",
+        ") assertion_error(",
         line_number,
         ");\n",
         NULL

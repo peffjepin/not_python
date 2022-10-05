@@ -27,7 +27,7 @@ np_list_append(list_for_each_my_list, &NP_var0);
 NP_var0 = 3;
 np_list_append(list_for_each_my_list, &NP_var0);
 NP_var1 = list_for_each_my_list;
-for(size_t i=0; i < NP_var1->count && (np_list_get_item(NP_var1, i, &NP_var2), 1);i++)
+for(size_t i=0; i < NP_var1->count && (np_list_get_item(NP_var1, i, &NP_var2), 1); i++)
 {
 NP_var4 = NP_var2;
 NP_var5 = np_int_to_str(NP_var4);

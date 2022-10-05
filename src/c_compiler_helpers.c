@@ -596,7 +596,7 @@ source_string_to_exception_type_string(FileIndex index, Location loc, SourceStri
 }
 
 const char*
-c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
+sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
 {
     if (cast_to.type == NPTYPE_FUNCTION) {
         const char* c_function_typing_syntax = sb_build_cstr(

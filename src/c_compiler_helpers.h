@@ -82,6 +82,8 @@ SourceString sb_build(StringBuilder* sb, ...);
 SourceString sb_join_ss(
     StringBuilder* sb, SourceString* strs, size_t count, const char* delimiter
 );
+const char* sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to);
+
 #define sb_build_cstr(sb, ...) sb_build(sb, __VA_ARGS__).data
 
 void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
@@ -98,7 +100,5 @@ const char* cmp_for_type_info(TypeInfo type_info);
 const char* source_string_to_exception_type_string(
     FileIndex index, Location loc, SourceString str
 );
-
-const char* c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to);
 
 #endif
