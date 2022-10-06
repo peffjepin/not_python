@@ -20,6 +20,7 @@ typedef struct TypeInfo TypeInfo;
 typedef struct Variable Variable;
 typedef struct ClassStatement ClassStatement;
 typedef struct Signature Signature;
+typedef struct Symbol Symbol;
 
 typedef enum {
     NPTYPE_UNTYPED,
@@ -284,6 +285,7 @@ typedef enum {
     STMT_ASSERT,
     STMT_BREAK,
     STMT_CONTINUE,
+    STMT_GLOBAL,
     STMT_EOF,
 } StatementKind;
 
@@ -303,6 +305,7 @@ struct Statement {
         Expression* return_expr;
         Expression* assert_expr;
         Expression* expr;
+        SourceString* global_identifier;
     };
     Location loc;
 };
@@ -331,17 +334,17 @@ typedef struct {
     bool directly_in_scope;  // type is immutable while directly in scope
 } SemiScopedVariable;
 
-typedef struct {
+struct Symbol {
     enum { SYM_VARIABLE, SYM_SEMI_SCOPED, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER } kind;
     SourceString identifier;
     union {
         Variable* variable;
-        TypeInfo* member_type;
         SemiScopedVariable* semi_scoped;
         FunctionStatement* func;
         ClassStatement* cls;
+        TypeInfo* member_type;
     };
-} Symbol;
+};
 
 typedef struct {
     bool finalized;

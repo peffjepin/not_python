@@ -3742,6 +3742,15 @@ compile_assert(C_Compiler* compiler, CompilerSection* section, Expression* value
 }
 
 static void
+compile_global(C_Compiler* compiler, SourceString* global_identifier)
+{
+    Symbol* local =
+        symbol_hm_get(&scope_stack_peek(&compiler->scope_stack)->hm, *global_identifier);
+    Symbol* global = symbol_hm_get(&compiler->top_level_scope->hm, *global_identifier);
+    *local = *global;
+}
+
+static void
 compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statement* stmt)
 {
     compiler->current_stmt_location = stmt->loc;
@@ -3749,6 +3758,9 @@ compile_statement(C_Compiler* compiler, CompilerSection* section_or_null, Statem
         (section_or_null) ? section_or_null : &compiler->init_module_function;
 
     switch (stmt->kind) {
+        case STMT_GLOBAL:
+            compile_global(compiler, stmt->global_identifier);
+            break;
         case STMT_ASSERT:
             compile_assert(compiler, section, stmt->assert_expr);
             break;

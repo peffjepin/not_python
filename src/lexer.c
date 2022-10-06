@@ -2310,6 +2310,42 @@ parse_annotation_statement(Parser* parser, Location loc, SourceString identifier
     return annotation;
 }
 
+static SourceString*
+parse_global(Parser* parser, Location loc)
+{
+    LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
+    if (scope->kind != SCOPE_FUNCTION) {
+        syntax_error(
+            *parser->scanner->index,
+            loc,
+            0,
+            "`global` keyword must be used in the context of a function"
+        );
+    }
+
+    Token ident = expect_token_type(parser, TOK_IDENTIFIER);
+    Symbol* local_sym = symbol_hm_get(&scope->hm, ident.value);
+    if (local_sym) {
+        name_errorf(
+            *parser->scanner->index, loc, "`%s` identifier already declared as a local"
+        );
+    }
+    Symbol* global_sym = symbol_hm_get(&parser->scope_stack.scopes[0]->hm, ident.value);
+    if (!global_sym) {
+        name_errorf(
+            *parser->scanner->index, loc, "`%s` identifier not found in global scope"
+        );
+    }
+
+    expect_token_type(parser, TOK_NEWLINE);
+
+    Symbol placeholder_local = *global_sym;
+    symbol_hm_put(&scope->hm, placeholder_local);
+    SourceString* ss = arena_alloc(parser->arena, sizeof(SourceString));
+    *ss = ident.value;
+    return ss;
+}
+
 static Statement*
 parse_statement(Parser* parser)
 {
@@ -2324,6 +2360,12 @@ parse_statement(Parser* parser)
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
+            case KW_GLOBAL: {
+                discard_next_token(parser);
+                stmt->kind = STMT_GLOBAL;
+                stmt->global_identifier = parse_global(parser, stmt->loc);
+                return stmt;
+            }
             case KW_BREAK:
                 // TODO: make sure that we're currently parsing some kind of loop
                 discard_next_token(parser);
