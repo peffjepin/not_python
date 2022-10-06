@@ -2183,16 +2183,22 @@ render_getattr_operation(
     TypeInfo attr_type = get_class_member_type_info(compiler, left_type.cls, attr);
     set_assignment_type_info(compiler, assignment, attr_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
-    write_many_to_section(assignment->section, left_repr, "->", attr.data, ";\n", NULL);
 
     if (attr_type.type == NPTYPE_FUNCTION) {
+        Symbol* sym = symbol_hm_get(&left_type.cls->scope->hm, attr);
+        write_many_to_section(assignment->section, sym->func->ns_ident.data, ";\n", NULL);
         write_many_to_section(
             assignment->section,
             assignment->variable.compiled_name,
-            ".self = ",
+            ".ctx.self = ",
             left_repr,
             ";\n",
             NULL
+        );
+    }
+    else {
+        write_many_to_section(
+            assignment->section, left_repr, "->", attr.data, ";\n", NULL
         );
     }
 }
