@@ -427,22 +427,8 @@ resolve_membership(TypeInfo left, TypeInfo right)
 static TypeInfo
 resolve_identity(TypeInfo left, TypeInfo right)
 {
-    switch (left.type) {
-        case NPTYPE_LIST:
-            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
-            return (TypeInfo){.type = NPTYPE_UNTYPED};
-        case NPTYPE_DICT:
-            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
-            return (TypeInfo){.type = NPTYPE_UNTYPED};
-        case NPTYPE_OBJECT:
-            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
-            return (TypeInfo){.type = NPTYPE_UNTYPED};
-        case NPTYPE_BOOL:
-            if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
-            return (TypeInfo){.type = NPTYPE_UNTYPED};
-        default:
-            return (TypeInfo){.type = NPTYPE_UNTYPED};
-    }
+    if (compare_types(left, right)) return (TypeInfo){.type = NPTYPE_BOOL};
+    return (TypeInfo){.type = NPTYPE_UNTYPED};
 }
 
 static TypeInfo
@@ -591,9 +577,9 @@ find_object_op_function(
 TypeInfo
 resolve_operation_type(TypeInfo left, TypeInfo right, Operator op)
 {
+    if (SPECIAL_OPERATOR_RULES[op]) goto special_ops;
     if (left.type == NPTYPE_UNTYPED || right.type == NPTYPE_UNTYPED)
         return (TypeInfo)TYPE_INFO_UNTYPED;
-    if (SPECIAL_OPERATOR_RULES[op]) goto special_ops;
     if (!TYPE_USES_SPECIAL_RESOLUTION_RULES[left.type] &&
         !TYPE_USES_SPECIAL_RESOLUTION_RULES[right.type]) {
         return OPERATION_TYPE_RESOLUTION_TABLE[op][left.type][right.type];

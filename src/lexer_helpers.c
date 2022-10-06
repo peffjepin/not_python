@@ -93,8 +93,9 @@ file_namespace(Arena* arena, const char* filepath)
         if (filepath[i] == '/') last_slash = i;
     }
     char* rtval = arena_alloc(arena, 1 + last_dot - last_slash);
-    memcpy(rtval, filepath + last_slash + 1, last_dot - last_slash - 1);
-    rtval[last_dot - last_slash - 1] = '_';
+    size_t start = (last_slash) ? last_slash + 1 : 0;
+    memcpy(rtval, filepath + start, last_dot - start);
+    rtval[last_dot - start] = '_';
     return rtval;
 }
 

@@ -1562,6 +1562,68 @@ render_builtin(
     }
 }
 
+static char*
+assignment_to_truthy(C_Compiler* compiler, C_Assignment assignment)
+{
+    switch (assignment.variable.type_info.type) {
+        case NPTYPE_FUNCTION:
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, ".addr", NULL
+            );
+        case NPTYPE_INT:
+            return assignment.variable.compiled_name;
+        case NPTYPE_FLOAT:
+            return assignment.variable.compiled_name;
+        case NPTYPE_BOOL:
+            return assignment.variable.compiled_name;
+        case NPTYPE_STRING:
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, ".length", NULL
+            );
+        case NPTYPE_LIST:
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
+            );
+        case NPTYPE_DICT:
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
+            );
+        case NPTYPE_NONE:
+            return "0";
+        case NPTYPE_ITER:
+            UNIMPLEMENTED("truthy conversion unimplemented for NPTYPE_ITER");
+        case NPTYPE_OBJECT: {
+            ClassStatement* clsdef = assignment.variable.type_info.cls;
+            FunctionStatement* fndef = clsdef->object_model_methods[OBJECT_MODEL_BOOL];
+            if (!fndef) return assignment.variable.compiled_name;
+            return sb_build_cstr(
+                &compiler->sb,
+                sb_c_cast(
+                    &compiler->sb,
+                    sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
+                    (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
+                ),
+                "((NpContext){.self = ",
+                assignment.variable.compiled_name,
+                "}",
+                ")",
+                NULL
+            );
+        }
+        case NPTYPE_SLICE:
+            UNREACHABLE();
+        case NPTYPE_DICT_ITEMS:
+            UNREACHABLE();
+        case NPTYPE_UNTYPED:
+            UNREACHABLE();
+        case NPTYPE_TUPLE:
+            UNREACHABLE();
+        case NPTYPE_COUNT:
+            UNREACHABLE();
+    }
+    UNREACHABLE();
+}
+
 static void
 require_math_lib(C_Compiler* compiler)
 {
@@ -1679,6 +1741,37 @@ render_operation(
     set_assignment_type_info(compiler, assignment, type_info);
 
     switch (op_type) {
+        case OPERATOR_LOGICAL_NOT: {
+            C_Assignment operand = {
+                .section = assignment->section,
+                .variable.type_info = types[1],
+                .variable.compiled_name = operand_reprs[1],
+                .variable.declared = true};
+            prepare_c_assignment_for_rendering(compiler, assignment);
+            write_many_to_section(
+                assignment->section,
+                "(!",
+                assignment_to_truthy(compiler, operand),
+                ");\n",
+                NULL
+            );
+            return;
+        }
+        case OPERATOR_IS: {
+            prepare_c_assignment_for_rendering(compiler, assignment);
+            bool cmp_address = types[0].type == NPTYPE_STRING;
+            write_many_to_section(
+                assignment->section,
+                (cmp_address) ? "&" : "",
+                operand_reprs[0],
+                " == ",
+                (cmp_address) ? "&" : "",
+                operand_reprs[1],
+                ";\n",
+                NULL
+            );
+            return;
+        }
         case OPERATOR_PLUS:
             if (types[0].type == NPTYPE_STRING) {
                 prepare_c_assignment_for_rendering(compiler, assignment);
@@ -3429,68 +3522,6 @@ compile_for_loop(
             compile_statement(compiler, section, for_loop->body.stmts[i]);
         write_to_section(section, "}\n");
     }
-}
-
-static char*
-assignment_to_truthy(C_Compiler* compiler, C_Assignment assignment)
-{
-    switch (assignment.variable.type_info.type) {
-        case NPTYPE_FUNCTION:
-            return sb_build_cstr(
-                &compiler->sb, assignment.variable.compiled_name, ".addr", NULL
-            );
-        case NPTYPE_INT:
-            return assignment.variable.compiled_name;
-        case NPTYPE_FLOAT:
-            return assignment.variable.compiled_name;
-        case NPTYPE_BOOL:
-            return assignment.variable.compiled_name;
-        case NPTYPE_STRING:
-            return sb_build_cstr(
-                &compiler->sb, assignment.variable.compiled_name, ".length", NULL
-            );
-        case NPTYPE_LIST:
-            return sb_build_cstr(
-                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
-            );
-        case NPTYPE_DICT:
-            return sb_build_cstr(
-                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
-            );
-        case NPTYPE_NONE:
-            return "0";
-        case NPTYPE_ITER:
-            UNIMPLEMENTED("truthy conversion unimplemented for NPTYPE_ITER");
-        case NPTYPE_OBJECT: {
-            ClassStatement* clsdef = assignment.variable.type_info.cls;
-            FunctionStatement* fndef = clsdef->object_model_methods[OBJECT_MODEL_BOOL];
-            if (!fndef) return assignment.variable.compiled_name;
-            return sb_build_cstr(
-                &compiler->sb,
-                sb_c_cast(
-                    &compiler->sb,
-                    sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
-                    (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
-                ),
-                "((NpContext){.self = ",
-                assignment.variable.compiled_name,
-                "}",
-                ")",
-                NULL
-            );
-        }
-        case NPTYPE_SLICE:
-            UNREACHABLE();
-        case NPTYPE_DICT_ITEMS:
-            UNREACHABLE();
-        case NPTYPE_UNTYPED:
-            UNREACHABLE();
-        case NPTYPE_TUPLE:
-            UNREACHABLE();
-        case NPTYPE_COUNT:
-            UNREACHABLE();
-    }
-    UNREACHABLE();
 }
 
 static void
