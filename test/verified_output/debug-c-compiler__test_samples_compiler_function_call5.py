@@ -12,10 +12,10 @@ NpInt NP_var3;
 NpInt function_call5_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-NpInt NP_var0(NpInt x, NpInt y);
+NpInt NP_var0(NpContext ctx, NpInt x, NpInt y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpInt NP_var0(NpInt x, NpInt y) {
+NpInt NP_var0(NpContext ctx, NpInt x, NpInt y) {
 NpInt NP_var1;
 NP_var1 = x+y;
 return NP_var1;
@@ -26,7 +26,7 @@ static void init_module(void) {
 function_call5_my_function.addr = &NP_var0;
 NP_var2 = 2;
 NP_var3 = 3;
-function_call5_z = ((NpInt (*)(NpInt, NpInt))function_call5_my_function.addr)(NP_var2, NP_var3);
+function_call5_z = ((NpInt (*)(NpContext ctx, NpInt, NpInt))function_call5_my_function.addr)(function_call5_my_function.ctx, NP_var2, NP_var3);
 }
 
 // MAIN FUNCTION COMPILER SECTION

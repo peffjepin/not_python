@@ -187,9 +187,16 @@ void np_list_insert(NpList* list, NpInt index, void* item);
 #define LIST_SHRINK_FACTOR 0.5
 #define LIST_GROW_FACTOR 2
 
+// passed as an argument to all not python function calls
+typedef struct {
+    void* self;
+} NpContext;
+
+extern const NpContext global_context;
+
 typedef struct {
     void* addr;
-    void* closure;
+    NpContext ctx;
 } NpFunction;
 
 void builtin_print(size_t argc, ...);

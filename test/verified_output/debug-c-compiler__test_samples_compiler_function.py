@@ -9,10 +9,10 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 NpFunction function_function;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-NpFloat NP_var0(NpInt x, NpInt y);
+NpFloat NP_var0(NpContext ctx, NpInt x, NpInt y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpFloat NP_var0(NpInt x, NpInt y) {
+NpFloat NP_var0(NpContext ctx, NpInt x, NpInt y) {
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION

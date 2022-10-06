@@ -11,10 +11,10 @@ NpInt NP_var2;
 NpInt function_call2_y;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-NpInt NP_var0(NpInt x);
+NpInt NP_var0(NpContext ctx, NpInt x);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpInt NP_var0(NpInt x) {
+NpInt NP_var0(NpContext ctx, NpInt x) {
 NpInt NP_var1;
 NP_var1 = x;
 return NP_var1;
@@ -24,7 +24,7 @@ return NP_var1;
 static void init_module(void) {
 function_call2_my_func.addr = &NP_var0;
 NP_var2 = 3;
-function_call2_y = ((NpInt (*)(NpInt))function_call2_my_func.addr)(NP_var2);
+function_call2_y = ((NpInt (*)(NpContext ctx, NpInt))function_call2_my_func.addr)(function_call2_my_func.ctx, NP_var2);
 }
 
 // MAIN FUNCTION COMPILER SECTION

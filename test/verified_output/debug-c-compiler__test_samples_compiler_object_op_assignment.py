@@ -12,10 +12,11 @@ object_op_assignment_A* object_op_assignment_a;
 NpInt NP_var5;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-object_op_assignment_A* NP_var0(object_op_assignment_A* self, NpInt other);
+object_op_assignment_A* NP_var0(NpContext ctx, NpInt other);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-object_op_assignment_A* NP_var0(object_op_assignment_A* self, NpInt other) {
+object_op_assignment_A* NP_var0(NpContext ctx, NpInt other) {
+object_op_assignment_A* self = ((object_op_assignment_A*)ctx.self);
 object_op_assignment_A* NP_var1;
 NP_var1 = self;
 NpInt NP_var2;
@@ -34,7 +35,9 @@ object_op_assignment_A___iadd__.addr = &NP_var0;
 object_op_assignment_a = np_alloc(sizeof(object_op_assignment_A));
 object_op_assignment_a->value = 1;
 NP_var5 = 1;
-object_op_assignment_a = ((object_op_assignment_A* (*)(object_op_assignment_A*, NpInt))object_op_assignment_A___iadd__.addr)(object_op_assignment_a, NP_var5);
+NpContext NP_var6 = object_op_assignment_A___iadd__.ctx;
+NP_var6.self = object_op_assignment_a;
+object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext ctx, NpInt))object_op_assignment_A___iadd__.addr)(NP_var6, NP_var5);
 }
 
 // MAIN FUNCTION COMPILER SECTION

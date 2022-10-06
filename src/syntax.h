@@ -37,7 +37,7 @@ typedef enum {
     NPTYPE_FUNCTION,
     NPTYPE_DICT_ITEMS,
     NPTYPE_COUNT,
-} NpthonType;
+} NpType;
 
 typedef struct {
     size_t count;
@@ -45,7 +45,7 @@ typedef struct {
 } TypeInfoInner;
 
 struct TypeInfo {
-    NpthonType type;
+    NpType type;
     union {
         ClassStatement* cls;
         // NOTE: sig->defaults and sig->params may be NULL
@@ -228,6 +228,9 @@ typedef struct {
     SourceString name;
     SourceString ns_ident;
     Signature sig;
+    bool is_method;
+    SourceString self_param;
+    TypeInfo self_type;
     Block body;
     LexicalScope* scope;
 } FunctionStatement;

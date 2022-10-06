@@ -573,7 +573,7 @@ find_object_op_function(
     if (om != NOT_IN_OBJECT_MODEL && left.type == NPTYPE_OBJECT) {
         FunctionStatement* fndef = left.cls->object_model_methods[om];
         if (fndef && *is_unary) return fndef;
-        if (fndef && compare_types(fndef->sig.types[1], right)) return fndef;
+        if (fndef && compare_types(fndef->sig.types[0], right)) return fndef;
     }
 
     if (*is_unary) return NULL;
@@ -582,7 +582,7 @@ find_object_op_function(
     om = OP_TO_ROM_TABLE[op];
     if (om != NOT_IN_OBJECT_MODEL && right.type == NPTYPE_OBJECT) {
         FunctionStatement* fndef = right.cls->object_model_methods[om];
-        if (fndef && compare_types(fndef->sig.types[1], left)) return fndef;
+        if (fndef && compare_types(fndef->sig.types[0], left)) return fndef;
     }
 
     return NULL;

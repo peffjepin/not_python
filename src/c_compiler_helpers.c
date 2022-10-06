@@ -599,13 +599,15 @@ const char*
 sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
 {
     if (cast_to.type == NPTYPE_FUNCTION) {
+        const char* params_rendered = type_infos_to_comma_separated_c_syntax(
+            sb, cast_to.sig->types, cast_to.sig->params_count
+        );
         const char* c_function_typing_syntax = sb_build_cstr(
             sb,
             type_info_to_c_syntax(sb, cast_to.sig->return_type),
-            " (*)(",
-            type_infos_to_comma_separated_c_syntax(
-                sb, cast_to.sig->types, cast_to.sig->params_count
-            ),
+            " (*)(NpContext ctx",
+            (*params_rendered) ? ", " : "",
+            params_rendered,
             ")",
             NULL
         );

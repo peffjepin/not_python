@@ -124,6 +124,6 @@ void et_push_operation(ExpressionTable* et, Operation operation);
 void et_push_operation_type(ExpressionTable* et, Operator op_type, Location* loc);
 Expression* et_to_expr(ExpressionTable* et);
 
-NpthonType cstr_to_python_type(char* cstr);
+NpType cstr_to_python_type(char* cstr);
 
 #endif

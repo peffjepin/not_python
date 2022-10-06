@@ -18,10 +18,10 @@ NpFloat NP_var5;
 NpFloat function_call3_z;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-NpFloat NP_var0(NpFloat x, NpFloat y);
+NpFloat NP_var0(NpContext ctx, NpFloat x, NpFloat y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpFloat NP_var0(NpFloat x, NpFloat y) {
+NpFloat NP_var0(NpContext ctx, NpFloat x, NpFloat y) {
 NpFloat NP_var1;
 NP_var1 = x+y;
 return NP_var1;
@@ -32,10 +32,10 @@ static void init_module(void) {
 function_call3_my_func.addr = &NP_var0;
 NP_var6 = 1.0;
 NP_var7 = 3.0;
-NP_var2 = ((NpFloat (*)(NpFloat, NpFloat))function_call3_my_func.addr)(NP_var6, NP_var7);
+NP_var2 = ((NpFloat (*)(NpContext ctx, NpFloat, NpFloat))function_call3_my_func.addr)(function_call3_my_func.ctx, NP_var6, NP_var7);
 NP_var8 = 2.0;
 NP_var9 = 3.0;
-NP_var3 = ((NpFloat (*)(NpFloat, NpFloat))function_call3_my_func.addr)(NP_var8, NP_var9);
+NP_var3 = ((NpFloat (*)(NpContext ctx, NpFloat, NpFloat))function_call3_my_func.addr)(function_call3_my_func.ctx, NP_var8, NP_var9);
 NP_var4 = 2*NP_var2;
 NP_var5 = (NpFloat)3/NP_var3;
 function_call3_z = NP_var2+NP_var5;

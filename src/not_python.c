@@ -8,6 +8,8 @@
 
 #include "syntax.h"
 
+const NpContext global_context = {0};
+
 uint64_t current_excepts = 0;
 Exception* global_exception = NULL;
 

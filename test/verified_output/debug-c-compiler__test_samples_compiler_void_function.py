@@ -9,10 +9,10 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 NpFunction void_function_my_function;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void* NP_var0();
+void* NP_var0(NpContext ctx);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void* NP_var0() {
+void* NP_var0(NpContext ctx) {
 return NULL;
 }
 

@@ -1092,7 +1092,7 @@ static TypeInfo
 parse_type_hint(Parser* parser)
 {
     Token ident_token = expect_token_type(parser, TOK_IDENTIFIER);
-    NpthonType type = cstr_to_python_type(ident_token.value.data);
+    NpType type = cstr_to_python_type(ident_token.value.data);
     ClassStatement* cls = NULL;
     if (type == NPTYPE_OBJECT) {
         Symbol* sym =
@@ -1407,7 +1407,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __str__ to return type: `str`"
                 );
-            if (sig.params_count > 1)
+            if (sig.params_count > 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1421,7 +1421,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __repr__ to return type: `str`"
                 );
-            if (sig.params_count > 1)
+            if (sig.params_count > 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1429,7 +1429,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_GETITEM:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1437,7 +1437,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_SETITEM:
-            if (sig.params_count != 3)
+            if (sig.params_count != 2)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1445,7 +1445,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_DELITEM:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1461,7 +1461,7 @@ validate_object_model_signature(
                     "expecting __iter__ to return type: `NpIter` (general iterable "
                     "interface not yet implemented)"
                 );
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1475,7 +1475,7 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index, loc, "expecting __len__ to return type `int`"
                 );
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1483,7 +1483,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_CONTAINS:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1497,7 +1497,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __hash__ to return type: `int`"
                 );
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1513,7 +1513,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __lt__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1527,7 +1527,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __le__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1541,7 +1541,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __eq__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1555,7 +1555,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __ne__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1569,7 +1569,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __gt__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1583,7 +1583,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __ge__ to return type: `bool`"
                 );
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1591,7 +1591,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ADD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1599,7 +1599,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_SUB:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1607,7 +1607,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_MUL:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1615,7 +1615,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_TRUEDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1623,7 +1623,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_FLOORDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1631,7 +1631,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_DIVMOD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1639,7 +1639,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_MOD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1647,7 +1647,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_POW:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1655,7 +1655,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_LSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1663,7 +1663,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1671,7 +1671,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_AND:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1679,7 +1679,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_OR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1687,7 +1687,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_XOR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1695,7 +1695,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RADD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1703,7 +1703,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RSUB:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1711,7 +1711,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RMUL:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1719,7 +1719,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RTRUEDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1727,7 +1727,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RFLOORDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1735,7 +1735,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RMOD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1743,7 +1743,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RPOW:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1751,7 +1751,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RLSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1759,7 +1759,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RRSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1767,7 +1767,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RAND:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1775,7 +1775,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ROR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1783,7 +1783,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_RXOR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1791,7 +1791,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IADD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1799,7 +1799,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ISUB:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1807,7 +1807,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IMUL:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1815,7 +1815,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ITRUEDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1823,7 +1823,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IFLOORDIV:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1831,7 +1831,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IMOD:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1839,7 +1839,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IPOW:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1847,7 +1847,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ILSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1855,7 +1855,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IRSHIFT:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1863,7 +1863,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IAND:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1871,7 +1871,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IOR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1879,7 +1879,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_IXOR:
-            if (sig.params_count != 2)
+            if (sig.params_count != 1)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1887,7 +1887,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_NEG:
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1895,7 +1895,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_ABS:
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1903,7 +1903,7 @@ validate_object_model_signature(
                 );
             break;
         case OBJECT_MODEL_INVERT:
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1917,7 +1917,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __int__ to return type: `int`"
                 );
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -1931,7 +1931,7 @@ validate_object_model_signature(
                     loc,
                     "expecting __float__ to return type: `float`"
                 );
-            if (sig.params_count != 1)
+            if (sig.params_count != 0)
                 type_error(
                     *parser->scanner->index,
                     loc,
@@ -2007,7 +2007,8 @@ parse_function_statement(Parser* parser, Location loc)
     if (parent_scope->kind == SCOPE_FUNCTION || parent_scope->kind == SCOPE_METHOD)
         syntax_error(*parser->scanner->index, loc, 2, "nested functions not supported");
     else if (parent_scope->kind == SCOPE_CLASS) {
-        // parse and infer type of `self` param
+        func->is_method = true;
+        // parse name of self param
         Token self_token = get_next_token(parser);
         if (self_token.type != TOK_IDENTIFIER) {
             syntax_error(
@@ -2017,15 +2018,14 @@ parse_function_statement(Parser* parser, Location loc)
                 "expecting `self` param for method def"
             );
         }
-        str_vector_append(&params, self_token.value);
-        TypeInfo typing = {.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
-        typing_vector_append(&types, typing);
+        func->self_param = self_token.value;
+        func->self_type = (TypeInfo){.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
     }
 
     Token peek = peek_next_token(parser);
 
     while (peek.type != TOK_CLOSE_PARENS) {
-        if (params.count > 0) expect_token_type(parser, TOK_COMMA);
+        if (func->is_method || params.count > 0) expect_token_type(parser, TOK_COMMA);
         Token param = expect_token_type(parser, TOK_IDENTIFIER);
         str_vector_append(&params, param.value);
         expect_token_type(parser, TOK_COLON);
@@ -2067,6 +2067,15 @@ parse_function_statement(Parser* parser, Location loc)
     LexicalScope* fn_scope = scope_init(parser->arena);
     fn_scope->kind = (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
     fn_scope->func = func;
+    if (func->is_method) {
+        Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
+        local_var->ns_ident = func->self_param;
+        local_var->type = func->self_type;
+        local_var->declared = true;
+        Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
+        local_sym.identifier = func->self_param;
+        symbol_hm_put(&fn_scope->hm, local_sym);
+    }
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->ns_ident = sig.params[i];  // function locals don't need name mangling

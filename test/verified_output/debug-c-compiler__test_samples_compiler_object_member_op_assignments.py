@@ -9,15 +9,16 @@ typedef struct {NpInt value;} object_member_op_assignments_A;
 // VARIABLE DECLARATIONS COMPILER SECTION
 NpFunction object_member_op_assignments_A___init__;
 object_member_op_assignments_A* object_member_op_assignments_a;
-object_member_op_assignments_A* NP_var4;
-NpInt NP_var5;
+object_member_op_assignments_A* NP_var5;
 NpInt NP_var6;
+NpInt NP_var7;
 
 // FUNCTION DECLARATIONS COMPILER SECTION
-void* NP_var0(object_member_op_assignments_A* self);
+void* NP_var0(NpContext ctx);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-void* NP_var0(object_member_op_assignments_A* self) {
+void* NP_var0(NpContext ctx) {
+object_member_op_assignments_A* self = ((object_member_op_assignments_A*)ctx.self);
 object_member_op_assignments_A* NP_var1;
 NP_var1 = self;
 NpInt NP_var2;
@@ -33,11 +34,13 @@ static void init_module(void) {
 object_member_op_assignments_A___init__.addr = &NP_var0;
 object_member_op_assignments_a = np_alloc(sizeof(object_member_op_assignments_A));
 object_member_op_assignments_a->value = 1;
-((void* (*)(object_member_op_assignments_A*))object_member_op_assignments_A___init__.addr)(object_member_op_assignments_a);
-NP_var4 = object_member_op_assignments_a;
-NP_var5 = 1;
-NP_var6 = NP_var4->value;
-NP_var4->value = NP_var6+NP_var5;
+NpContext NP_var4 = object_member_op_assignments_A___init__.ctx;
+NP_var4.self = object_member_op_assignments_a;
+((void* (*)(NpContext ctx))object_member_op_assignments_A___init__.addr)(NP_var4);
+NP_var5 = object_member_op_assignments_a;
+NP_var6 = 1;
+NP_var7 = NP_var5->value;
+NP_var5->value = NP_var7+NP_var6;
 }
 
 // MAIN FUNCTION COMPILER SECTION

@@ -1601,6 +1601,25 @@ render_object_operation(
         );
     }
 
+    // create a context containing `self`:
+    char ctx_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, ctx_variable);
+    write_many_to_section(
+        assignment->section,
+        // copy parent context
+        "NpContext ",
+        ctx_variable,
+        " = ",
+        fndef->ns_ident.data,
+        ".ctx;\n",
+        // write in `self`
+        ctx_variable,
+        ".self = ",
+        (is_rop) ? operand_reprs[1] : operand_reprs[0],
+        ";\n",
+        NULL
+    );
+
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
 
@@ -1613,28 +1632,17 @@ render_object_operation(
             (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
         )
     );
+
     // render args inside `()`
     if (is_unary)
-        write_many_to_section(assignment->section, "(", operand_reprs[0], ");\n", NULL);
+        write_many_to_section(assignment->section, "(", ctx_variable, ");\n", NULL);
     else if (is_rop)
         write_many_to_section(
-            assignment->section,
-            "(",
-            operand_reprs[1],
-            ", ",
-            operand_reprs[0],
-            ");\n",
-            NULL
+            assignment->section, "(", ctx_variable, ", ", operand_reprs[0], ");\n", NULL
         );
     else
         write_many_to_section(
-            assignment->section,
-            "(",
-            operand_reprs[0],
-            ", ",
-            operand_reprs[1],
-            ");\n",
-            NULL
+            assignment->section, "(", ctx_variable, ", ", operand_reprs[1], ");\n", NULL
         );
 }
 
@@ -1936,23 +1944,15 @@ static void
 render_object_method_call(
     C_Compiler* compiler,
     C_Assignment* assignment,
-    char* self_identifier,
+    C_Assignment self_assignment,
     FunctionStatement* fndef,
     Arguments* args
 )
 {
-    // patch out self param
-    Signature sig = fndef->sig;
-    sig.params_count -= 1;
-    if (sig.params_count) {
-        sig.params++;
-        sig.types++;
-    }
-
     // intermediate variables to store args into
-    C_Assignment intermediate_assignments[sig.params_count];
+    C_Assignment intermediate_assignments[fndef->sig.params_count];
     memset(intermediate_assignments, 0, sizeof(intermediate_assignments));
-    for (size_t i = 0; i < sig.params_count; i++) {
+    for (size_t i = 0; i < fndef->sig.params_count; i++) {
         GENERATE_UNIQUE_VAR_NAME(compiler, intermediate_assignments[i].variable);
         intermediate_assignments[i].section = assignment->section;
         intermediate_assignments[i].variable.type_info = fndef->sig.types[i];
@@ -1960,13 +1960,32 @@ render_object_method_call(
     }
 
     render_callable_args_to_variables(
-        compiler, args, sig, fndef->name.data, intermediate_assignments
+        compiler, args, fndef->sig, fndef->name.data, intermediate_assignments
     );
 
     set_assignment_type_info(compiler, assignment, fndef->sig.return_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
 
-    // cast NpFunction variable to a c function pointer and pass in self
+    // create a context containing `self`:
+    char ctx_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, ctx_variable);
+    write_many_to_section(
+        assignment->section,
+        // copy parent context
+        "NpContext ",
+        ctx_variable,
+        " = ",
+        fndef->ns_ident.data,
+        ".ctx;\n",
+        // write in `self`
+        ctx_variable,
+        ".self = ",
+        self_assignment.variable.compiled_name,
+        ";\n",
+        NULL
+    );
+
+    // cast NpFunction variable to a c function pointer and pass in the created context
     write_many_to_section(
         assignment->section,
         sb_c_cast(
@@ -1975,12 +1994,12 @@ render_object_method_call(
             (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
         ),
         "(",
-        self_identifier,
+        ctx_variable,
         NULL
     );
 
     // render arguments
-    for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
+    for (size_t arg_i = 0; arg_i < fndef->sig.params_count; arg_i++) {
         write_to_section(assignment->section, ", ");
         write_to_section(
             assignment->section, intermediate_assignments[arg_i].variable.compiled_name
@@ -2005,8 +2024,8 @@ render_object_creation(
     );
 
     // use user defined __init__ method
-    FunctionStatement* init = clsdef->object_model_methods[OBJECT_MODEL_INIT];
-    if (init) {
+    FunctionStatement* init_def = clsdef->object_model_methods[OBJECT_MODEL_INIT];
+    if (init_def) {
         for (size_t i = 0; i < clsdef->sig.defaults_count; i++) {
             SourceString varname = sb_build(
                 &compiler->sb,
@@ -2029,7 +2048,7 @@ render_object_creation(
         C_Assignment init_assignment = {
             .section = assignment->section, .variable.type_info.type = NPTYPE_NONE};
         render_object_method_call(
-            compiler, &init_assignment, assignment->variable.compiled_name, init, args
+            compiler, &init_assignment, *assignment, init_def, args
         );
         return;
     }
@@ -2105,10 +2124,12 @@ render_call_operation(
             fn_variable.type_info
         ),
         "(",
+        fn_variable.compiled_name,
+        ".ctx",
         NULL
     );
     for (size_t arg_i = 0; arg_i < sig.params_count; arg_i++) {
-        if (arg_i > 0) write_to_section(assignment->section, ", ");
+        write_to_section(assignment->section, ", ");
         write_to_section(assignment->section, assignments[arg_i].variable.compiled_name);
     }
     write_to_section(assignment->section, ");\n");
@@ -2149,6 +2170,8 @@ render_getattr_operation(
     SourceString attr
 )
 {
+    // TODO: refactor list/dict to use this system once functions have been completely
+    // implemented
     if (left_type.type != NPTYPE_OBJECT) {
         type_error(
             compiler->file_index,
@@ -2156,10 +2179,22 @@ render_getattr_operation(
             "getattr operation is currently only implemented for `object` types"
         );
     }
+
     TypeInfo attr_type = get_class_member_type_info(compiler, left_type.cls, attr);
     set_assignment_type_info(compiler, assignment, attr_type);
     prepare_c_assignment_for_rendering(compiler, assignment);
     write_many_to_section(assignment->section, left_repr, "->", attr.data, ";\n", NULL);
+
+    if (attr_type.type == NPTYPE_FUNCTION) {
+        write_many_to_section(
+            assignment->section,
+            assignment->variable.compiled_name,
+            ".self = ",
+            left_repr,
+            ";\n",
+            NULL
+        );
+    }
 }
 
 static void
@@ -2522,16 +2557,31 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
         else
             write_type_info_to_section(sections[i], &compiler->sb, type_info);
 
-        write_to_section(sections[i], compiled_function_name);
-        write_to_section(sections[i], "(");
+        write_many_to_section(
+            sections[i], compiled_function_name, "(NpContext ctx", NULL
+        );
         for (size_t j = 0; j < func->sig.params_count; j++) {
-            if (j > 0) write_to_section(sections[i], ", ");
+            write_to_section(sections[i], ", ");
             write_type_info_to_section(sections[i], &compiler->sb, func->sig.types[j]);
             write_to_section(sections[i], func->sig.params[j].data);
         }
     }
     write_to_section(&compiler->function_declarations, ");\n");
+
     write_to_section(&compiler->function_definitions, ") {\n");
+    if (func->is_method) {
+        // put `self` param into scope as the correct type (extract from NpContext)
+        write_many_to_section(
+            &compiler->function_definitions,
+            type_info_to_c_syntax(&compiler->sb, func->self_type),
+            " ",
+            func->self_param.data,
+            " = ",
+            sb_c_cast(&compiler->sb, "ctx.self", func->self_type),
+            ";\n",
+            NULL
+        );
+    }
 
     // TODO: investigate weather I need a scope stack in the compiler
     // considering the way the type checker is implemented
@@ -2567,6 +2617,9 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
 static void
 compile_class(C_Compiler* compiler, ClassStatement* cls)
 {
+    // TODO: might not need scope stack in compiler
+    scope_stack_push(&compiler->scope_stack, cls->scope);
+
     CompilerSection* current_declarations_section =
         compiler->current_variable_declaration_section;
     compiler->current_variable_declaration_section = &compiler->function_definitions;
@@ -2613,6 +2666,7 @@ compile_class(C_Compiler* compiler, ClassStatement* cls)
     );
 
     compiler->current_variable_declaration_section = current_declarations_section;
+    scope_stack_pop(&compiler->scope_stack);
 }
 
 static void
@@ -2693,6 +2747,7 @@ render_object_op_assignment(
     ObjectModel om = op_assignment_to_object_model(op_assignment_type);
     FunctionStatement* fndef = clsdef->object_model_methods[om];
 
+    // handle errors
     if (!fndef) {
         static const size_t buflen = 1024;
         char object_type_hr[buflen];
@@ -2707,7 +2762,7 @@ render_object_op_assignment(
             op_to_cstr(op_assignment_type)
         );
     }
-    if (!compare_types(other_assignment.variable.type_info, fndef->sig.types[1])) {
+    if (!compare_types(other_assignment.variable.type_info, fndef->sig.types[0])) {
         static const size_t buflen = 1024;
         char object_type_hr[buflen];
         render_type_info_human_readable(
@@ -2727,8 +2782,26 @@ render_object_op_assignment(
         );
     }
 
-    prepare_c_assignment_for_rendering(compiler, &obj_assignment);
+    // create a context containing `self`:
+    char ctx_variable[GENERATED_VARIABLE_CAPACITY];
+    WRITE_UNIQUE_VAR_NAME(compiler, ctx_variable);
+    write_many_to_section(
+        obj_assignment.section,
+        // copy parent context
+        "NpContext ",
+        ctx_variable,
+        " = ",
+        fndef->ns_ident.data,
+        ".ctx;\n",
+        // write in `self`
+        ctx_variable,
+        ".self = ",
+        obj_assignment.variable.compiled_name,
+        ";\n",
+        NULL
+    );
 
+    prepare_c_assignment_for_rendering(compiler, &obj_assignment);
     // cast NpFunction variable addr member to proper c function type
     write_to_section(
         obj_assignment.section,
@@ -2742,7 +2815,7 @@ render_object_op_assignment(
     write_many_to_section(
         obj_assignment.section,
         "(",
-        obj_assignment.variable.compiled_name,
+        ctx_variable,
         ", ",
         other_assignment.variable.compiled_name,
         ");\n",
@@ -3353,11 +3426,13 @@ compile_for_loop(
 }
 
 static char*
-assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
+assignment_to_truthy(C_Compiler* compiler, C_Assignment assignment)
 {
     switch (assignment.variable.type_info.type) {
         case NPTYPE_FUNCTION:
-            return sb_build_cstr(sb, assignment.variable.compiled_name, ".addr", NULL);
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, ".addr", NULL
+            );
         case NPTYPE_INT:
             return assignment.variable.compiled_name;
         case NPTYPE_FLOAT:
@@ -3365,11 +3440,17 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
         case NPTYPE_BOOL:
             return assignment.variable.compiled_name;
         case NPTYPE_STRING:
-            return sb_build_cstr(sb, assignment.variable.compiled_name, ".length", NULL);
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, ".length", NULL
+            );
         case NPTYPE_LIST:
-            return sb_build_cstr(sb, assignment.variable.compiled_name, "->count", NULL);
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
+            );
         case NPTYPE_DICT:
-            return sb_build_cstr(sb, assignment.variable.compiled_name, "->count", NULL);
+            return sb_build_cstr(
+                &compiler->sb, assignment.variable.compiled_name, "->count", NULL
+            );
         case NPTYPE_NONE:
             return "0";
         case NPTYPE_ITER:
@@ -3379,14 +3460,15 @@ assignment_to_truthy(StringBuilder* sb, C_Assignment assignment)
             FunctionStatement* fndef = clsdef->object_model_methods[OBJECT_MODEL_BOOL];
             if (!fndef) return assignment.variable.compiled_name;
             return sb_build_cstr(
-                sb,
+                &compiler->sb,
                 sb_c_cast(
-                    sb,
-                    sb_build_cstr(sb, fndef->ns_ident.data, ".addr", NULL),
+                    &compiler->sb,
+                    sb_build_cstr(&compiler->sb, fndef->ns_ident.data, ".addr", NULL),
                     (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig}
                 ),
-                "(",
+                "((NpContext){.self = ",
                 assignment.variable.compiled_name,
+                "}",
                 ")",
                 NULL
             );
@@ -3425,7 +3507,7 @@ compile_if(
         write_many_to_section(
             section,
             "if (",
-            assignment_to_truthy(&compiler->sb, condition_assignment),
+            assignment_to_truthy(compiler, condition_assignment),
             ") {\n",
             NULL
         );
@@ -3444,7 +3526,7 @@ compile_if(
             write_many_to_section(
                 section,
                 "if (",
-                assignment_to_truthy(&compiler->sb, elif_condition_assignment),
+                assignment_to_truthy(compiler, elif_condition_assignment),
                 ") {\n",
                 NULL
             );
@@ -3481,7 +3563,7 @@ compile_while(C_Compiler* compiler, CompilerSection* section, WhileStatement* wh
         write_many_to_section(
             section,
             "if (!",
-            assignment_to_truthy(&compiler->sb, condition_assignment),
+            assignment_to_truthy(compiler, condition_assignment),
             ") break;\n",
             NULL
         );
@@ -3614,7 +3696,7 @@ compile_assert(C_Compiler* compiler, CompilerSection* section, Expression* value
     write_many_to_section(
         section,
         "if (!",
-        assignment_to_truthy(&compiler->sb, condition),
+        assignment_to_truthy(compiler, condition),
         ") assertion_error(",
         line_number,
         ");\n",

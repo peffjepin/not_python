@@ -323,7 +323,7 @@ et_to_expr(ExpressionTable* et)
     return expr;
 }
 
-NpthonType
+NpType
 cstr_to_python_type(char* cstr)
 {
     switch (cstr[0]) {
