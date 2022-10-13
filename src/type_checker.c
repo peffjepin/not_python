@@ -644,15 +644,13 @@ resolve_from_scopes(TypeChecker* tc, SourceString identifier)
     Symbol* sym;
     if (tc->locals) {
         sym = symbol_hm_get(&tc->locals->hm, identifier);
-        if (sym) return sym->variable->type;
+        if (sym) return sym->variable->type_info;
     }
     sym = symbol_hm_get(&tc->globals->hm, identifier);
     if (sym) {
         switch (sym->kind) {
             case SYM_VARIABLE:
-                return sym->variable->type;
-            case SYM_SEMI_SCOPED:
-                return sym->semi_scoped->type;
+                return sym->variable->type_info;
             case SYM_CLASS:
                 UNIMPLEMENTED("resolve class type from scope");
             case SYM_FUNCTION:

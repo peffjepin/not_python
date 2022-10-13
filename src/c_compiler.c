@@ -42,6 +42,8 @@ typedef struct {
 
 #define GENERATED_VARIABLE_CAPACITY 16
 
+// TODO: can probable use the Variable struct from syntax.h in place of this
+// and move the local storage capacity to the C_Assignment struct
 typedef struct {
     TypeInfo type_info;
     bool declared;
@@ -180,10 +182,8 @@ simple_operand_repr(C_Compiler* compiler, Operand operand)
         // TODO: should consider a way to avoid this lookup because it happens often
         Symbol* sym = get_symbol(compiler, operand.token.value);
         switch (sym->kind) {
-            case SYM_SEMI_SCOPED:
-                return sym->semi_scoped->current_id.data;
             case SYM_VARIABLE:
-                return sym->variable->ns_ident.data;
+                return sym->variable->compiled_name.data;
             case SYM_FUNCTION:
                 return sym->func->ns_ident.data;
             case SYM_CLASS:
@@ -2312,15 +2312,22 @@ render_call_from_operands(
         case SYM_CLASS:
             render_object_creation(compiler, assignment, sym->cls, right.args);
             return;
-        case SYM_SEMI_SCOPED:
-            fn_ident_variable.source_name = sym->identifier.data;
-            fn_ident_variable.compiled_name = sym->semi_scoped->current_id.data;
-            fn_ident_variable.type_info = sym->semi_scoped->type;
-            break;
         case SYM_VARIABLE:
-            fn_ident_variable.source_name = sym->identifier.data;
-            fn_ident_variable.compiled_name = sym->variable->ns_ident.data;
-            fn_ident_variable.type_info = sym->variable->type;
+            switch (sym->variable->kind) {
+                case VAR_REGULAR:
+                    fn_ident_variable.source_name = sym->identifier.data;
+                    fn_ident_variable.compiled_name = sym->variable->compiled_name.data;
+                    fn_ident_variable.type_info = sym->variable->type_info;
+                    break;
+                case VAR_SEMI_SCOPED:
+                    fn_ident_variable.source_name = sym->identifier.data;
+                    fn_ident_variable.compiled_name = sym->variable->compiled_name.data;
+                    fn_ident_variable.type_info = sym->variable->type_info;
+                    break;
+                case VAR_CLOSURE:
+                    UNIMPLEMENTED("closure variable case unimplemented");
+                    break;
+            }
             break;
         case SYM_FUNCTION:
             fn_ident_variable.source_name = sym->func->name.data;
@@ -2668,7 +2675,7 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     write_to_section(&compiler->function_declarations, ");\n");
 
     write_to_section(&compiler->function_definitions, ") {\n");
-    if (func->is_method) {
+    if (func->self_param.data) {
         // put `self` param into scope as the correct type (extract from NpContext)
         write_many_to_section(
             &compiler->function_definitions,
@@ -3132,23 +3139,12 @@ compile_simple_assignment(C_Compiler* compiler, CompilerSection* section, Statem
 
     TypeInfo* symtype;
     C_Assignment assignment = {.section = section, .loc = &stmt->loc};
-
-    if (sym->kind == SYM_VARIABLE) {
-        symtype = &sym->variable->type;
-        assignment.variable.compiled_name = sym->variable->ns_ident.data;
-        assignment.variable.source_name = sym->identifier.data;
-        assignment.variable.declared = sym->variable->declared;
-        assignment.variable.type_info = *symtype;
-    }
-    else if (sym->kind == SYM_SEMI_SCOPED) {
-        symtype = &sym->semi_scoped->type;
-        assignment.variable.compiled_name = sym->semi_scoped->current_id.data;
-        assignment.variable.source_name = sym->identifier.data;
-        assignment.variable.declared = true;
-        assignment.variable.type_info = *symtype;
-    }
-    else
-        UNREACHABLE();
+    symtype = &sym->variable->type_info;
+    assignment.variable.compiled_name = sym->variable->compiled_name.data;
+    assignment.variable.source_name = sym->identifier.data;
+    assignment.variable.declared = sym->variable->declared;
+    assignment.variable.type_info = *symtype;
+    if (sym->variable->kind == VAR_SEMI_SCOPED) assignment.variable.declared = true;
 
     render_expression_assignment(compiler, &assignment, stmt->assignment->value);
 
@@ -3168,20 +3164,12 @@ compile_simple_op_assignment(
     TypeInfo* symtype;
     C_Assignment assignment = {.section = section, .loc = &stmt->loc};
 
-    if (sym->kind == SYM_VARIABLE) {
-        symtype = &sym->variable->type;
-        assignment.variable.compiled_name = sym->variable->ns_ident.data;
-        assignment.variable.source_name = sym->identifier.data;
-        assignment.variable.type_info = *symtype;
-        assignment.variable.declared = true;
-    }
-    else {
-        symtype = &sym->semi_scoped->type;
-        assignment.variable.compiled_name = sym->semi_scoped->current_id.data;
-        assignment.variable.source_name = sym->identifier.data;
-        assignment.variable.type_info = *symtype;
-        assignment.variable.declared = true;
-    }
+    symtype = &sym->variable->type_info;
+    assignment.variable.compiled_name = sym->variable->compiled_name.data;
+    assignment.variable.source_name = sym->identifier.data;
+    assignment.variable.type_info = *symtype;
+    assignment.variable.declared = true;
+    if (sym->variable->kind == VAR_SEMI_SCOPED) assignment.variable.declared = true;
 
     C_Assignment other_assignment = {.section = section};
     GENERATE_UNIQUE_VAR_NAME(compiler, other_assignment.variable);
@@ -3223,7 +3211,9 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
     if (sym->kind != SYM_VARIABLE)
         syntax_error(compiler->file_index, stmt->loc, 0, "unexpected annotation");
     if (!sym->variable->declared) {
-        declare_variable(compiler, stmt->annotation->type, sym->variable->ns_ident.data);
+        declare_variable(
+            compiler, stmt->annotation->type, sym->variable->compiled_name.data
+        );
         sym->variable->declared = true;
     }
 
@@ -3233,7 +3223,7 @@ compile_annotation(C_Compiler* compiler, CompilerSection* section, Statement* st
             .section = section,
             .variable.type_info = stmt->annotation->type,
             .variable.source_name = sym->identifier.data,
-            .variable.compiled_name = sym->variable->ns_ident.data,
+            .variable.compiled_name = sym->variable->compiled_name.data,
             .variable.declared = true};
         render_expression_assignment(compiler, &assignment, stmt->annotation->initial);
     }
@@ -3267,24 +3257,23 @@ init_semi_scoped_variable(
 )
 {
     Symbol* sym = get_symbol(compiler, identifier);
-    if (sym->kind == SYM_VARIABLE) return sym->variable->ns_ident.data;
-    if (!sym->semi_scoped->current_id.data) {
-        sym->semi_scoped->current_id.data =
+    if (!sym->variable->compiled_name.data) {
+        sym->variable->compiled_name.data =
             arena_alloc(compiler->arena, GENERATED_VARIABLE_CAPACITY);
     }
-    WRITE_UNIQUE_VAR_NAME(compiler, sym->semi_scoped->current_id.data);
-    sym->semi_scoped->current_id.length = strlen(sym->semi_scoped->current_id.data);
-    sym->semi_scoped->type = type_info;
-    sym->semi_scoped->directly_in_scope = true;
-    declare_variable(compiler, type_info, sym->semi_scoped->current_id.data);
-    return sym->semi_scoped->current_id.data;
+    WRITE_UNIQUE_VAR_NAME(compiler, sym->variable->compiled_name.data);
+    sym->variable->compiled_name.length = strlen(sym->variable->compiled_name.data);
+    sym->variable->type_info = type_info;
+    sym->variable->directly_in_scope = true;
+    declare_variable(compiler, type_info, sym->variable->compiled_name.data);
+    return sym->variable->compiled_name.data;
 }
 
 static void
 release_semi_scoped_variable(C_Compiler* compiler, SourceString identifier)
 {
     Symbol* sym = get_symbol(compiler, identifier);
-    sym->semi_scoped->directly_in_scope = false;
+    sym->variable->directly_in_scope = false;
 }
 
 static void

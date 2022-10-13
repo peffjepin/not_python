@@ -461,12 +461,10 @@ parse_iterable_identifiers(Parser* parser)
                 break;
             }
             case TOK_IDENTIFIER: {
-                SemiScopedVariable* var =
-                    arena_alloc(parser->arena, sizeof(SemiScopedVariable));
+                Variable* var = arena_alloc(parser->arena, sizeof(Variable));
+                var->kind = VAR_SEMI_SCOPED;
                 Symbol sym = {
-                    .kind = SYM_SEMI_SCOPED,
-                    .semi_scoped = var,
-                    .identifier = token.value};
+                    .kind = SYM_VARIABLE, .variable = var, .identifier = token.value};
                 symbol_hm_put(&scope->hm, sym);
                 ItIdentifier identifier = {.kind = IT_ID, .name = token.value};
                 itid_vector_append(&vec, identifier);
@@ -1441,7 +1439,8 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __setitem__ to have 3 params: `self`, `key` and `value`"
+                    "expecting __setitem__ to have 3 params: `self`, `key` and "
+                    "`value`"
                 );
             break;
         case OBJECT_MODEL_DELITEM:
@@ -1458,7 +1457,8 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __iter__ to return type: `NpIter` (general iterable "
+                    "expecting __iter__ to return type: `NpIter` (general "
+                    "iterable "
                     "interface not yet implemented)"
                 );
             if (sig.params_count != 0)
@@ -1731,7 +1731,8 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __rfloordiv__ to have 2 params: `self` and `other`"
+                    "expecting __rfloordiv__ to have 2 params: `self` and "
+                    "`other`"
                 );
             break;
         case OBJECT_MODEL_RMOD:
@@ -1827,7 +1828,8 @@ validate_object_model_signature(
                 type_error(
                     *parser->scanner->index,
                     loc,
-                    "expecting __ifloordiv__ to have 2 params: `self` and `other`"
+                    "expecting __ifloordiv__ to have 2 params: `self` and "
+                    "`other`"
                 );
             break;
         case OBJECT_MODEL_IMOD:
@@ -2069,8 +2071,9 @@ parse_function_statement(Parser* parser, Location loc)
     fn_scope->func = func;
     if (func->is_method) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-        local_var->ns_ident = func->self_param;
-        local_var->type = func->self_type;
+        local_var->kind = VAR_REGULAR;
+        local_var->compiled_name = func->self_param;
+        local_var->type_info = func->self_type;
         local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
         local_sym.identifier = func->self_param;
@@ -2078,8 +2081,10 @@ parse_function_statement(Parser* parser, Location loc)
     }
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-        local_var->ns_ident = sig.params[i];  // function locals don't need name mangling
-        local_var->type = sig.types[i];
+        local_var->kind = VAR_REGULAR;
+        local_var->compiled_name =
+            sig.params[i];  // function locals don't need name mangling
+        local_var->type_info = sig.types[i];
         local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
         local_sym.identifier = sig.params[i];
@@ -2096,8 +2101,8 @@ parse_function_statement(Parser* parser, Location loc)
     Symbol sym = {.kind = SYM_FUNCTION, .func = func, .identifier = func->name};
     if (parent_scope->kind == SCOPE_CLASS) {
         namespace_method(parser, func, parent_scope->cls);
-        // if function is part of the python object model validate it's signature and
-        // add it to the classes object model table
+        // if function is part of the python object model validate it's signature
+        // and add it to the classes object model table
         ObjectModel om = source_string_to_object_model(func->name);
         if (om != NOT_IN_OBJECT_MODEL) {
             validate_object_model_signature(parser, loc, om, func->sig);
@@ -2163,7 +2168,8 @@ add_class_member(Parser* parser, AnnotationStatement* member, Location loc)
             *parser->scanner->index,
             loc,
             0,
-            "class members without default values must be declared before all members "
+            "class members without default values must be declared before all "
+            "members "
             "with default values"
         );
     }
@@ -2241,13 +2247,16 @@ parse_class_statement(Parser* parser, unsigned int indent)
 static void
 namespace_variable(Parser* parser, Variable* variable, SourceString identifier)
 {
-    variable->ns_ident.length = identifier.length + parser->file_namespace_length;
-    variable->ns_ident.data = arena_alloc(parser->arena, variable->ns_ident.length + 1);
+    variable->compiled_name.length = identifier.length + parser->file_namespace_length;
+    variable->compiled_name.data =
+        arena_alloc(parser->arena, variable->compiled_name.length + 1);
     memcpy(
-        variable->ns_ident.data, parser->file_namespace, parser->file_namespace_length
+        variable->compiled_name.data,
+        parser->file_namespace,
+        parser->file_namespace_length
     );
     memcpy(
-        variable->ns_ident.data + parser->file_namespace_length,
+        variable->compiled_name.data + parser->file_namespace_length,
         identifier.data,
         identifier.length
     );
@@ -2264,7 +2273,8 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
     if (assignment->op_type == OPERATOR_ASSIGNMENT && assign_to->operations_count == 0) {
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
-        var->type = (TypeInfo){.type = NPTYPE_UNTYPED};
+        var->kind = VAR_REGULAR;
+        var->type_info = (TypeInfo){.type = NPTYPE_UNTYPED};
         Symbol sym = {
             .kind = SYM_VARIABLE,
             .variable = var,
@@ -2303,7 +2313,7 @@ parse_annotation_statement(Parser* parser, Location loc, SourceString identifier
             .kind = SYM_VARIABLE,
             .variable = arena_alloc(parser->arena, sizeof(Variable))};
         sym.identifier = identifier;
-        sym.variable->type = annotation->type;
+        sym.variable->type_info = annotation->type;
         namespace_variable(parser, sym.variable, sym.identifier);
         symbol_hm_put(&scope->hm, sym);
     }

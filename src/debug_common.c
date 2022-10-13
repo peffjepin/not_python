@@ -395,12 +395,12 @@ void
 print_function_definition(FunctionStatement* func, int indent)
 {
     indent_printf("def %s(", func->name.data);
-    if (func->is_method) {
+    if (func->self_param.data) {
         printf("%s: %s", func->self_param.data, render_type_info(func->self_type).data);
     }
     size_t positional_count = func->sig.params_count - func->sig.defaults_count;
     for (size_t i = 0; i < positional_count; i++) {
-        if (i > 0 || func->is_method) printf(", ");
+        if (i > 0 || func->self_param.data) printf(", ");
         printf(
             "%s: %s", func->sig.params[i].data, render_type_info(func->sig.types[i]).data
         );
@@ -597,9 +597,6 @@ print_symbol(Symbol sym, int indent)
 {
     switch (sym.kind) {
         case SYM_VARIABLE:
-            indent_printf("%s\n", sym.identifier.data);
-            break;
-        case SYM_SEMI_SCOPED:
             indent_printf("%s\n", sym.identifier.data);
             break;
         case SYM_FUNCTION:

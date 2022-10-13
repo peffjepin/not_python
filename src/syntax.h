@@ -310,36 +310,36 @@ struct Statement {
     Location loc;
 };
 
-// TODO: not sure if the following belongs in this header or not yet.
-// it lives here for now
-
+// VAR_SEMI_SCOPED purpose:
+//  for k, v in d1.items():
+//      ...
+//  print(k, v)  # k, v still in scope
+//  for k, v in d2.items():
+//     ...
+//  print(k, v)  # k, v can be reused and have their types changed
+//
+//  This struct is to allow for this behavior while a standard variable
+//  is defined only once and when it's type is determined it is immutable.
 struct Variable {
-    SourceString ns_ident;
-    TypeInfo type;
+    enum {
+        VAR_SEMI_SCOPED,
+        VAR_REGULAR,
+        VAR_CLOSURE,
+    } kind;
+    union {
+        bool directly_in_scope;  // VAR_SEMI_SCOPED
+        size_t closure_index;    // VAR_CLOSURE
+    };
+    SourceString compiled_name;
+    TypeInfo type_info;
     bool declared;
 };
 
-// for k, v in d1.items():
-//     ...
-// print(k, v)  # k, v still in scope
-// for k, v in d2.items():
-//     ...
-// print(k, v)  # k, v can be reused and have their types changed
-//
-// This struct is to allow for this behavior while a standard variable
-// is defined only once and when it's type is determined it is immutable.
-typedef struct {
-    SourceString current_id;
-    TypeInfo type;
-    bool directly_in_scope;  // type is immutable while directly in scope
-} SemiScopedVariable;
-
 struct Symbol {
-    enum { SYM_VARIABLE, SYM_SEMI_SCOPED, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER } kind;
+    enum { SYM_VARIABLE, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER } kind;
     SourceString identifier;
     union {
         Variable* variable;
-        SemiScopedVariable* semi_scoped;
         FunctionStatement* func;
         ClassStatement* cls;
         TypeInfo* member_type;
