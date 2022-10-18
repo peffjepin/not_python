@@ -39,6 +39,10 @@ type_info_human_readable(TypeInfo info)
             return "Iter";
         case NPTYPE_DICT_ITEMS:
             return "DictItems";
+        case NPTYPE_CONTEXT:
+            return "NpContext";
+        case NPTYPE_EXCEPTION:
+            return "Exception";
         case NPTYPE_UNTYPED:
             return "ERROR: UNTYPED";
         default:
@@ -114,11 +118,16 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
     return start - remaining;
 }
 
-void
-render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen)
+const char*
+errfmt_type_info(TypeInfo info)
 {
-    size_t written = write_type_info_into_buffer_human_readable(info, buf, buflen);
-    buf[written] = '\0';
+    char buf[1024];
+    size_t written = write_type_info_into_buffer_human_readable(info, buf, 1023);
+    buf[written++] = '\0';
+    char* res = malloc(written);
+    if (!res) error("out of memory");
+    memcpy(res, buf, written);
+    return (const char*)res;
 }
 
 const char*
@@ -189,12 +198,18 @@ type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info)
                 .data = DATATYPE_ITER, .length = sizeof(DATATYPE_ITER) - 1};
             return ITER;
         }
+        case NPTYPE_CONTEXT: {
+            static const SourceString CTX = {
+                .data = DATATYPE_CONTEXT, .length = sizeof(DATATYPE_CONTEXT) - 1};
+            return CTX;
+        }
+        case NPTYPE_EXCEPTION: {
+            static const SourceString EXC = {
+                .data = DATATYPE_EXCEPTION, .length = sizeof(DATATYPE_EXCEPTION) - 1};
+            return EXC;
+        }
         default: {
-            char buf[1024];
-            render_type_info_human_readable(info, buf, 1024);
-            fprintf(stderr, "%s\n", buf);
-            fflush(stderr);
-            UNREACHABLE();
+            errorf("no c syntax implementation for type `%s`", errfmt_type_info(info));
             break;
         }
     }
@@ -250,7 +265,7 @@ create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef)
 
     SourceString rtval = {
         .data = arena_alloc(arena, 1024 - remaining), .length = 1023 - remaining};
-    memcpy(rtval.data, fmtbuf, rtval.length);
+    memcpy((char*)rtval.data, fmtbuf, rtval.length);
     return rtval;
 }
 
@@ -266,7 +281,7 @@ str_hm_rehash(StringHashmap* hm)
 {
     for (size_t i = 0; i < hm->count; i++) {
         SourceString str = hm->elements[i];
-        uint64_t hash = hash_bytes(str.data, str.length);
+        uint64_t hash = hash_bytes((void*)str.data, str.length);
         size_t probe = hash % (hm->capacity * 2);
         for (;;) {
             int index = hm->lookup[probe];
@@ -300,7 +315,7 @@ size_t
 str_hm_put(StringHashmap* hm, SourceString element)
 {
     if (hm->count == hm->capacity) str_hm_grow(hm);
-    uint64_t hash = hash_bytes(element.data, element.length);
+    uint64_t hash = hash_bytes((void*)element.data, element.length);
     size_t probe = hash % (hm->capacity * 2);
     for (;;) {
         int index = hm->lookup[probe];
@@ -379,7 +394,7 @@ copy_section(CompilerSection* dest, CompilerSection src)
 }
 
 void
-write_to_section(CompilerSection* section, char* data)
+write_to_section(CompilerSection* section, const char* data)
 {
     char c;
     while ((c = *(data++)) != '\0') {
@@ -406,25 +421,42 @@ write_many_to_section(CompilerSection* section, ...)
 
 #define STRING_BUILDER_BUFFER_SIZE 4096
 
+static StringBuffer
+sb_init_buffer(size_t buffer_size)
+{
+    StringBuffer buf = {.data = calloc(1, buffer_size), .remaining = buffer_size};
+    buf.write = buf.data;
+    if (!buf.data) out_of_memory();
+    return buf;
+}
+
+static void
+buffer_grow(StringBuffer* buf, size_t increment)
+{
+    buf->data = realloc(
+        buf->data, (uint8_t*)buf->write - (uint8_t*)buf->data + buf->remaining + increment
+    );
+    buf->remaining += increment;
+    if (!buf->data) out_of_memory();
+}
+
 static void
 sb_start_new_buffer(StringBuilder* sb)
 {
     sb->buffers_count++;
-    sb->buffers = realloc(sb->buffers, sizeof(char*) * sb->buffers_count);
+    sb->buffers = realloc(sb->buffers, sizeof(StringBuffer) * sb->buffers_count);
     if (!sb->buffers) out_of_memory();
-    sb->buffers[sb->buffers_count - 1] = calloc(1, STRING_BUILDER_BUFFER_SIZE);
-    if (!sb->buffers[sb->buffers_count - 1]) out_of_memory();
-    sb->write = sb->buffers[sb->buffers_count - 1];
-    sb->remaining = STRING_BUILDER_BUFFER_SIZE;
+    sb->buffers[sb->buffers_count - 1] = sb_init_buffer(STRING_BUILDER_BUFFER_SIZE);
+    sb->current = sb->buffers[sb->buffers_count - 1];
 }
 
 static void
 sb_inherit_buffer(StringBuilder* sb, char* buf)
 {
     sb->buffers_count++;
-    sb->buffers = realloc(sb->buffers, sizeof(char*) * sb->buffers_count);
+    sb->buffers = realloc(sb->buffers, sizeof(StringBuffer) * sb->buffers_count);
     if (!sb->buffers) out_of_memory();
-    sb->buffers[sb->buffers_count - 1] = buf;
+    sb->buffers[sb->buffers_count - 1] = (StringBuffer){.data = buf};
 }
 
 StringBuilder
@@ -438,52 +470,52 @@ sb_init()
 void
 sb_free(StringBuilder* sb)
 {
-    for (size_t i = 0; i < sb->buffers_count; i++) free(sb->buffers[i]);
+    for (size_t i = 0; i < sb->buffers_count; i++) free(sb->buffers[i].data);
     free(sb->buffers);
+}
+
+void
+sb_concat(StringBuilder* sb, const char* cstr)
+{
+    char c;
+    char* start = sb->current.write;
+    while ((c = *cstr++) != '\0') {
+        if (sb->current.remaining == 1) {
+            if (sb->overflow) error("string builder overflow");
+            size_t length = (uint8_t*)sb->current.write - (uint8_t*)sb->current.data;
+            sb_start_new_buffer(sb);
+            memcpy(sb->current.write, start, length);
+            start = sb->current.write;
+            sb->current.write += length;
+            sb->current.remaining -= length;
+            sb->overflow = true;
+        }
+        *sb->current.write++ = c;
+    }
 }
 
 SourceString
 sb_build(StringBuilder* sb, ...)
 {
+    char* start = sb->current.write;
+
     va_list strings;
     va_start(strings, sb);
-
-    char* start = sb->write;
-    size_t initial_remaining = sb->remaining;
-    size_t length = 0;
-    bool fresh_buffer = false;
-
     for (;;) {
-        char* string = va_arg(strings, char*);
-        if (!string) break;
-
-        char c;
-        while ((c = *string++) != '\0') {
-            if (sb->remaining == 1) {
-                if (fresh_buffer) {
-                    fprintf(stderr, "ERROR: string builder overflow\n");
-                    exit(1);
-                }
-                sb_start_new_buffer(sb);
-                memcpy(sb->write, start, initial_remaining - 1);
-                start = sb->write;
-                sb->write += initial_remaining - 1;
-                sb->remaining -= initial_remaining - 1;
-                fresh_buffer = true;
-            }
-            *sb->write++ = c;
-            sb->remaining -= 1;
-            length++;
-        }
+        const char* cstr = va_arg(strings, const char*);
+        if (!cstr) break;
+        sb_concat(sb, cstr);
     }
-
-    *sb->write++ = '\0';
-    sb->remaining -= 1;
-    if (sb->remaining == 0) sb_start_new_buffer(sb);
-
     va_end(strings);
 
-    return (SourceString){.data = start, .length = length};
+    *(sb->current.write++) = '\0';
+    sb->current.remaining -= 1;
+    if (sb->current.remaining == 0) sb_start_new_buffer(sb);
+    sb->overflow = false;
+
+    return (SourceString){
+        .data = start,
+        .length = (uint8_t*)sb->current.write - (uint8_t*)sb->current.data - 1};
 }
 
 SourceString
@@ -495,15 +527,15 @@ sb_join_ss(StringBuilder* sb, SourceString* strs, size_t count, const char* deli
     for (size_t i = 0; i < count; i++) required += strs[i].length;
 
     char* buf;
-    if (sb->remaining < required) {
+    if (sb->current.remaining < required) {
         buf = malloc(required);
         if (!buf) out_of_memory();
         sb_inherit_buffer(sb, buf);
     }
     else {
-        buf = sb->write;
-        sb->remaining -= required;
-        sb->write += required;
+        buf = sb->current.write;
+        sb->current.remaining -= required;
+        sb->current.write += required;
     }
 
     char* write = buf;
@@ -518,6 +550,65 @@ sb_join_ss(StringBuilder* sb, SourceString* strs, size_t count, const char* deli
     *write = '\0';
 
     return (SourceString){.data = buf, .length = required};
+}
+
+const char*
+sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
+{
+    if (cast_to.type == NPTYPE_FUNCTION) {
+        const char* params_rendered = type_infos_to_comma_separated_c_syntax(
+            sb, cast_to.sig->types, cast_to.sig->params_count
+        );
+        const char* c_function_typing_syntax = sb_build_cstr(
+            sb,
+            type_info_to_c_syntax(sb, cast_to.sig->return_type),
+            " (*)(NpContext ctx",
+            (*params_rendered) ? ", " : "",
+            params_rendered,
+            ")",
+            NULL
+        );
+        return sb_build_cstr(
+            sb, "((", c_function_typing_syntax, ")", cast_this, ")", NULL
+        );
+    }
+    return sb_build_cstr(
+        sb, "((", type_info_to_c_syntax(sb, cast_to), ")", cast_this, ")", NULL
+    );
+}
+
+#define SB_BLOCK_CHUNK_SIZE 128
+
+void
+sb_begin(StringBuilder* sb)
+{
+    if (sb->block.data) error("sb_begin called before sb_end");
+    sb->block = sb_init_buffer(SB_BLOCK_CHUNK_SIZE);
+}
+
+void
+sb_add(StringBuilder* sb, const char* cstr)
+{
+    if (!sb->block.data) error("sb_add called before sb_begin");
+    if (!cstr) error("cstr cannot be null in sb_concat");
+
+    char c;
+    while ((c = *cstr++) != '\0') {
+        if (sb->block.remaining <= 1) buffer_grow(&sb->block, SB_BLOCK_CHUNK_SIZE);
+        *sb->block.write++ = c;
+        sb->block.remaining--;
+    }
+}
+
+const char*
+sb_end(StringBuilder* sb)
+{
+    if (!sb->block.data) error("sb_end called before sb_begin");
+    *sb->block.write = '\0';
+    const char* result = (const char*)sb->block.data;
+    sb_inherit_buffer(sb, sb->block.data);
+    sb->block = (StringBuffer){0};
+    return result;
 }
 
 static const char* SORT_CMP_TABLE[NPTYPE_COUNT] = {
@@ -593,29 +684,4 @@ source_string_to_exception_type_string(FileIndex index, Location loc, SourceStri
     if (SOURCESTRING_EQ(str, AssertionError)) return "ASSERTION_ERROR";
     unspecified_errorf(index, loc, "unrecognized exception type `%s`", str.data);
     UNREACHABLE();
-}
-
-const char*
-sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to)
-{
-    if (cast_to.type == NPTYPE_FUNCTION) {
-        const char* params_rendered = type_infos_to_comma_separated_c_syntax(
-            sb, cast_to.sig->types, cast_to.sig->params_count
-        );
-        const char* c_function_typing_syntax = sb_build_cstr(
-            sb,
-            type_info_to_c_syntax(sb, cast_to.sig->return_type),
-            " (*)(NpContext ctx",
-            (*params_rendered) ? ", " : "",
-            params_rendered,
-            ")",
-            NULL
-        );
-        return sb_build_cstr(
-            sb, "((", c_function_typing_syntax, ")", cast_this, ")", NULL
-        );
-    }
-    return sb_build_cstr(
-        sb, "((", type_info_to_c_syntax(sb, cast_to), ")", cast_this, ")", NULL
-    );
 }

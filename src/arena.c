@@ -1,6 +1,7 @@
 #include "arena.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -196,6 +197,17 @@ arena_init(void)
     if (!first_static_chunk->buffer) out_of_static_memory();
     first_static_chunk->capacity = ARENA_STATIC_CHUNK_MIN_SIZE;
     return arena;
+}
+
+const char*
+arena_nfmt(Arena* arena, size_t bufsize, const char* fmt, ...)
+{
+    void* buf = arena_alloc(arena, bufsize);
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, bufsize, fmt, args);
+    va_end(args);
+    return buf;
 }
 
 void

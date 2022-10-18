@@ -1,41 +1,45 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var0;
-NpInt NP_var1;
+// DECLARATIONS COMPILER SECTION
 NpDict* dict_update_d1;
-NpInt NP_var2;
-NpInt NP_var3;
 NpDict* dict_update_d2;
-NpDict* NP_var5;
-NpDict* NP_var6;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var0 = 1;
-NP_var1 = 2;
-dict_update_d1 = DICT_INIT(NpInt, NpInt, np_void_int_eq);
-np_dict_set_item(dict_update_d1, &NP_var0, &NP_var1);
-NP_var2 = 2;
-NP_var3 = 3;
-dict_update_d2 = DICT_INIT(NpInt, NpInt, np_void_int_eq);
-np_dict_set_item(dict_update_d2, &NP_var2, &NP_var3);
-NP_var5 = dict_update_d1;
-NP_var6 = dict_update_d2;
-np_dict_update(NP_var5, NP_var6);
+NpInt _np_0;
+NpInt _np_1;
+_np_0 = 1;
+_np_1 = 2;
+NpDict* _np_2;
+_np_2 = DICT_INIT(NpInt, NpInt, np_void_int_eq);
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+dict_update_d1 = _np_2;
+NpInt _np_3;
+NpInt _np_4;
+_np_3 = 2;
+_np_4 = 3;
+NpDict* _np_5;
+_np_5 = DICT_INIT(NpInt, NpInt, np_void_int_eq);
+np_dict_set_item(_np_5, &_np_3, &_np_4);
+dict_update_d2 = _np_5;
+NpDict* _np_8;
+_np_8 = dict_update_d1;
+NpDict* _np_9;
+_np_9 = dict_update_d2;
+void* _np_6;
+_np_6 = np_dict_update(_np_8, _np_9);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

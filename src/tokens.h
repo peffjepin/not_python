@@ -29,7 +29,7 @@ typedef enum {
 } TokenType;
 
 typedef struct {
-    char* data;
+    const char* data;
     size_t length;
 } SourceString;
 

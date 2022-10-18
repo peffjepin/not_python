@@ -1,42 +1,47 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
-typedef struct {NpInt value;} method_call_A;
+// TYPEDEFS COMPILER SECTION
+typedef struct { NpInt value; } method_call_A;
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpFunction method_call_A_fn;
+// DECLARATIONS COMPILER SECTION
 method_call_A* method_call_a;
-method_call_A* NP_var3;
-NpFunction NP_var2;
 NpInt method_call_x;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
-NpInt NP_var0(NpContext ctx);
+NpFunction method_call_A_fn;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpInt NP_var0(NpContext ctx) {
-method_call_A* self = ((method_call_A*)ctx.self);
-NpInt NP_var1;
-NP_var1 = self->value;
-return NP_var1;
+NpInt _np_0(NpContext __ctx__) {
+method_call_A* self;
+self = ((method_call_A*)__ctx__.self);
+NpInt _np_1;
+_np_1 = self->value;
+return _np_1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-method_call_A_fn.addr = &NP_var0;
-method_call_a = np_alloc(sizeof(method_call_A));
-method_call_a->value = 1;
-NP_var3 = method_call_a;
-NP_var2 = method_call_A_fn;
-NP_var2.ctx.self = NP_var3;
-method_call_x = ((NpInt (*)(NpContext ctx))NP_var2.addr)(NP_var2.ctx);
+method_call_A_fn.addr = &_np_0;
+method_call_A* _np_2;
+_np_2 = np_alloc(sizeof(method_call_A));
+NpInt _np_3;
+_np_3 = 1;
+_np_2->value = _np_3;
+method_call_a = _np_2;
+method_call_A* _np_5;
+_np_5 = method_call_a;
+NpFunction _np_6;
+_np_6 = method_call_A_fn;
+_np_6.ctx.self = _np_5;
+NpFunction _np_4;
+_np_4 = _np_6;
+method_call_x = ((NpInt (*)(NpContext ctx))_np_4.addr)(_np_4.ctx);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

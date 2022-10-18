@@ -1,43 +1,42 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var0;
+// DECLARATIONS COMPILER SECTION
 NpInt if_elif_else_stmt_x;
-NpInt NP_var1;
-NpInt NP_var2;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var0 = 1+2;
-if (NP_var0) {
+NpInt _np_1;
+_np_1 = 1+2;
+if (_np_1) {
 if_elif_else_stmt_x = 1;
-goto goto0;
+goto _np_0;
 }
-NP_var1 = 2+3;
-if (NP_var1) {
+NpInt _np_2;
+_np_2 = 2+3;
+if (_np_2) {
 if_elif_else_stmt_x = 2;
-goto goto0;
+goto _np_0;
 }
-NP_var2 = 3+4;
-if (NP_var2) {
+NpInt _np_3;
+_np_3 = 3+4;
+if (_np_3) {
 if_elif_else_stmt_x = 3;
-goto goto0;
+goto _np_0;
 }
 if_elif_else_stmt_x = 4;
-goto0:
+_np_0:
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

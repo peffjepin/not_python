@@ -145,7 +145,7 @@ static const DiagnosticConfig CONFIG_TABLE[LABEL_COUNT] = {
 };
 
 void
-diagnostic_printf(DiagnosticLabel label, char* fmt, ...)
+diagnostic_printf(DiagnosticLabel label, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -159,7 +159,7 @@ diagnostic_printf(DiagnosticLabel label, char* fmt, ...)
 }
 
 void
-diagnostic_vprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline)
+diagnostic_vprintf(DiagnosticLabel label, const char* fmt, va_list args, bool newline)
 {
     DiagnosticConfig config = CONFIG_TABLE[label];
     fprintf(stderr, "%s%s", config.term_color, config.text);
@@ -169,14 +169,14 @@ diagnostic_vprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline)
 }
 
 void
-error(char* msg)
+error(const char* msg)
 {
     diagnostic_printf(LABEL_DEFAULT_ERROR, "%s\n", msg);
     exit(1);
 }
 
 void
-errorf(char* fmt, ...)
+errorf(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -186,13 +186,13 @@ errorf(char* fmt, ...)
 }
 
 void
-warn(char* msg)
+warn(const char* msg)
 {
     diagnostic_printf(LABEL_WARNING, "%s\n", msg);
 }
 
 void
-warnf(char* fmt, ...)
+warnf(const char* fmt, ...)
 {
     va_list vargs;
     va_start(vargs, fmt);
@@ -203,13 +203,13 @@ warnf(char* fmt, ...)
 }
 
 void
-debug(char* msg)
+debug(const char* msg)
 {
     diagnostic_printf(LABEL_DEBUG, "%s\n", msg);
 }
 
 void
-debugf(char* fmt, ...)
+debugf(const char* fmt, ...)
 {
     va_list vargs;
     va_start(vargs, fmt);
@@ -238,7 +238,7 @@ error_with_source(
     FileIndex index,
     Location loc,
     size_t ctx,
-    char* msg
+    const char* msg
 )
 {
     diagnostic_printf(head_label, "%s:%u:%u\n", loc.filepath, loc.line, loc.col);
@@ -253,7 +253,7 @@ errorf_with_source(
     FileIndex index,
     Location loc,
     size_t ctx,
-    char* fmt,
+    const char* fmt,
     va_list args
 )
 {
@@ -268,13 +268,13 @@ errorf_with_source(
     for (int i = (va_start(args, last_non_va_arg), 0); i < 1; i = (va_end(args), i + 1))
 
 void
-syntax_error(FileIndex index, Location loc, size_t ctx, char* msg)
+syntax_error(FileIndex index, Location loc, size_t ctx, const char* msg)
 {
     error_with_source(LABEL_SYNTAX_ERROR, LABEL_NORMAL, index, loc, ctx, msg);
 }
 
 void
-syntax_errorf(FileIndex index, Location loc, size_t ctx, char* fmt, ...)
+syntax_errorf(FileIndex index, Location loc, size_t ctx, const char* fmt, ...)
 {
     WITH_VA(args, fmt)
     {
@@ -283,13 +283,13 @@ syntax_errorf(FileIndex index, Location loc, size_t ctx, char* fmt, ...)
 }
 
 void
-type_error(FileIndex index, Location loc, char* msg)
+type_error(FileIndex index, Location loc, const char* msg)
 {
     error_with_source(LABEL_TYPE_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
-type_errorf(FileIndex index, Location loc, char* fmt, ...)
+type_errorf(FileIndex index, Location loc, const char* fmt, ...)
 {
     WITH_VA(args, fmt)
     {
@@ -298,13 +298,13 @@ type_errorf(FileIndex index, Location loc, char* fmt, ...)
 }
 
 void
-name_error(FileIndex index, Location loc, char* msg)
+name_error(FileIndex index, Location loc, const char* msg)
 {
     error_with_source(LABEL_NAME_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
-name_errorf(FileIndex index, Location loc, char* fmt, ...)
+name_errorf(FileIndex index, Location loc, const char* fmt, ...)
 {
     WITH_VA(args, fmt)
     {
@@ -313,13 +313,13 @@ name_errorf(FileIndex index, Location loc, char* fmt, ...)
 }
 
 void
-unspecified_error(FileIndex index, Location loc, char* msg)
+unspecified_error(FileIndex index, Location loc, const char* msg)
 {
     error_with_source(LABEL_UNSPECIFIED_ERROR, LABEL_NORMAL, index, loc, 0, msg);
 }
 
 void
-unspecified_errorf(FileIndex index, Location loc, char* fmt, ...)
+unspecified_errorf(FileIndex index, Location loc, const char* fmt, ...)
 {
     WITH_VA(args, fmt)
     {

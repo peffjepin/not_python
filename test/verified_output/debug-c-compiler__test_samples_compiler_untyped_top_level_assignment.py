@@ -1,16 +1,15 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
+// DECLARATIONS COMPILER SECTION
 NpInt untyped_top_level_assignment_x;
 NpFloat untyped_top_level_assignment_y;
 NpFloat untyped_top_level_assignment_z;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
@@ -20,9 +19,9 @@ untyped_top_level_assignment_x = 1;
 untyped_top_level_assignment_y = 2.0;
 untyped_top_level_assignment_z = untyped_top_level_assignment_y;
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

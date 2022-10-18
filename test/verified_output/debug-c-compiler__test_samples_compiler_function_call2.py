@@ -1,34 +1,32 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpFunction function_call2_my_func;
-NpInt NP_var2;
+// DECLARATIONS COMPILER SECTION
 NpInt function_call2_y;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
-NpInt NP_var0(NpContext ctx, NpInt x);
+NpFunction function_call2_my_func;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpInt NP_var0(NpContext ctx, NpInt x) {
-NpInt NP_var1;
-NP_var1 = x;
-return NP_var1;
+NpInt _np_0(NpContext __ctx__, NpInt x) {
+NpInt _np_1;
+_np_1 = x;
+return _np_1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-function_call2_my_func.addr = &NP_var0;
-NP_var2 = 3;
-function_call2_y = ((NpInt (*)(NpContext ctx, NpInt))function_call2_my_func.addr)(function_call2_my_func.ctx, NP_var2);
+function_call2_my_func.addr = &_np_0;
+NpInt _np_2;
+_np_2 = 3;
+function_call2_y = ((NpInt (*)(NpContext ctx, NpInt))function_call2_my_func.addr)(function_call2_my_func.ctx, _np_2);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

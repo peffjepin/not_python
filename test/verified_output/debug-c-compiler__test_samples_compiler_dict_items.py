@@ -1,3 +1,4 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
@@ -5,54 +6,55 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 {.data="two", .length=3},
 {.data="three", .length=5}};
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var0;
-NpString NP_var1;
+// DECLARATIONS COMPILER SECTION
 NpDict* dict_items_d;
-NpDict* NP_var4;
-NpIter NP_var2;
-NpInt NP_var6;
-NpString NP_var7;
-NpInt NP_var9;
-NpString NP_var10;
-NpString NP_var11;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var0 = 1;
-NP_var1 = NOT_PYTHON_STRING_CONSTANTS[0];
-dict_items_d = DICT_INIT(NpInt, NpString, np_void_int_eq);
-np_dict_set_item(dict_items_d, &NP_var0, &NP_var1);
-NP_var0 = 2;
-NP_var1 = NOT_PYTHON_STRING_CONSTANTS[1];
-np_dict_set_item(dict_items_d, &NP_var0, &NP_var1);
-NP_var0 = 3;
-NP_var1 = NOT_PYTHON_STRING_CONSTANTS[2];
-np_dict_set_item(dict_items_d, &NP_var0, &NP_var1);
-NP_var4 = dict_items_d;
-NP_var2 = np_dict_iter_items(NP_var4);
-DictItem NP_var5;
-void* NP_var8 = NULL;
-while ((NP_var8 = NP_var2.next(NP_var2.iter),
-NP_var5 = (NP_var8) ? *(DictItem*)NP_var8 : NP_var5,
-NP_var6 = (NP_var8) ? *(NpInt*)(NP_var5.key) : NP_var6,
-NP_var7 = (NP_var8) ? *(NpString*)(NP_var5.val) : NP_var7,
-NP_var8)){
-NP_var9 = NP_var6;
-NP_var10 = NP_var7;
-NP_var11 = np_int_to_str(NP_var9);
-builtin_print(2, NP_var11, NP_var10);
+NpInt _np_0;
+NpString _np_1;
+_np_0 = 1;
+_np_1 = NOT_PYTHON_STRING_CONSTANTS[0];
+NpDict* _np_2;
+_np_2 = DICT_INIT(NpInt, NpString, np_void_int_eq);
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+_np_0 = 2;
+_np_1 = NOT_PYTHON_STRING_CONSTANTS[1];
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+_np_0 = 3;
+_np_1 = NOT_PYTHON_STRING_CONSTANTS[2];
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+dict_items_d = _np_2;
+NpDict* _np_7;
+_np_7 = dict_items_d;
+NpIter _np_5;
+_np_5 = np_dict_iter_items(_np_7);
+NpInt _np_8;
+NpString _np_9;
+void* _np_3;
+_np_3 = _np_5.next(_np_5.iter);
+while(_np_3) {
+_np_8 = *((NpInt*)(((DictItem*)_np_3)->key));
+_np_9 = *((NpString*)(((DictItem*)_np_3)->val));
+NpInt _np_11;
+_np_11 = _np_8;
+NpString _np_12;
+_np_12 = np_int_to_str(_np_11);
+NpString _np_13;
+_np_13 = _np_9;
+void* _np_10;
+_np_10 = builtin_print(2, _np_12, _np_13);
+_np_4:
+_np_3 = _np_5.next(_np_5.iter);
 }
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

@@ -13,7 +13,7 @@ typedef struct {
     Arena* arena;
     FileIndex index;
 
-    char* file_namespace;
+    const char* file_namespace;
     size_t file_namespace_length;
 
     size_t n_statements;

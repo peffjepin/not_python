@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// TODO: better handling of NoneType so library functions don't all have to return NULL
+
 typedef int64_t NpInt;
 typedef double NpFloat;
 typedef bool NpBool;
@@ -125,11 +127,11 @@ NpIter np_dict_iter_items(NpDict* dict);
 
 NpDict* np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp);
 NpDict* np_dict_copy(NpDict* other);
-void np_dict_clear(NpDict* dict);
+void* np_dict_clear(NpDict* dict);
 void np_dict_set_item(NpDict* dict, void* key, void* val);
 void np_dict_get_val(NpDict* dict, void* key, void* out);
-void np_dict_pop_val(NpDict* dict, void* key, void* out);
-void np_dict_update(NpDict* dict, NpDict* other);
+void* np_dict_pop_val(NpDict* dict, void* key, void* out);
+void* np_dict_update(NpDict* dict, NpDict* other);
 void np_dict_del(NpDict* dict, void* key);
 
 #define DICT_INIT(key_type, val_type, cmp)                                               \
@@ -163,21 +165,22 @@ NpList* np_list_init(
     NpCompareFunction cmp_fn
 );
 NpList* np_list_add(NpList* list1, NpList* list2);
-void np_list_clear(NpList* list);
+void* np_list_clear(NpList* list);
 NpList* np_list_copy(NpList* list);
-void np_list_extend(NpList* list, NpList* other);
+void* np_list_extend(NpList* list, NpList* other);
 void np_list_del(NpList* list, NpInt index);
 void np_list_grow(NpList* list);
-void np_list_reverse(NpList* list);
-void np_list_sort(NpList* list, NpBool reverse);
+void* np_list_reverse(NpList* list);
+void* np_list_sort(NpList* list, NpBool reverse);
 void np_list_get_item(NpList* list, NpInt index, void* out);
 void np_list_set_item(NpList* list, NpInt index, void* item);
-void np_list_append(NpList* list, void* item);
-void np_list_pop(NpList* list, NpInt index, void* out);
+void* np_list_append(NpList* list, void* item);
+void* np_list_pop(NpList* list, NpInt index, void* out);
 NpInt np_list_index(NpList* list, void* item);
-void np_list_remove(NpList* list, void* item);
+void* np_list_remove(NpList* list, void* item);
 NpInt np_list_count(NpList* list, void* item);
-void np_list_insert(NpList* list, NpInt index, void* item);
+void* np_list_insert(NpList* list, NpInt index, void* item);
+NpIter np_list_iter(NpList* list);
 
 #define LIST_INIT(type, sort, rev_sort, cmp)                                             \
     np_list_init(sizeof(type), sort, rev_sort, cmp)
@@ -199,6 +202,6 @@ typedef struct {
     NpContext ctx;
 } NpFunction;
 
-void builtin_print(size_t argc, ...);
+void* builtin_print(size_t argc, ...);
 
 #endif

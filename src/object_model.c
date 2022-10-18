@@ -33,7 +33,7 @@ source_string_to_object_model(SourceString str)
     if (!str.data) return NOT_IN_OBJECT_MODEL;
     if (str.length < 6) return NOT_IN_OBJECT_MODEL;
 
-    char* cstr = str.data;
+    const char* cstr = str.data;
     if (*cstr++ != '_') return NOT_IN_OBJECT_MODEL;
     if (*cstr++ != '_') return NOT_IN_OBJECT_MODEL;
 

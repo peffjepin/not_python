@@ -1,42 +1,47 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var0;
+// DECLARATIONS COMPILER SECTION
 NpList* list_element_op_assignment_l;
-NpList* NP_var1;
-NpInt NP_var2;
-NpInt NP_var4;
-NpInt NP_var5;
-NpInt NP_var3;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var0 = 1;
-list_element_op_assignment_l = LIST_INIT(NpInt, (NpSortFunction)np_int_sort_fn, (NpSortFunction)np_int_sort_fn_rev, (NpCompareFunction)np_void_int_eq);
-np_list_append(list_element_op_assignment_l, &NP_var0);
-NP_var0 = 2;
-np_list_append(list_element_op_assignment_l, &NP_var0);
-NP_var0 = 3;
-np_list_append(list_element_op_assignment_l, &NP_var0);
-NP_var1 = list_element_op_assignment_l;
-NP_var2 = 0;
-np_list_get_item(NP_var1, NP_var2, &NP_var4);
-NP_var5 = 1;
-NP_var3 = NP_var4+NP_var5;
-np_list_set_item(NP_var1, NP_var2, &NP_var3);
+NpInt _np_0;
+_np_0 = 1;
+NpList* _np_1;
+_np_1 = LIST_INIT(NpInt, (NpSortFunction)np_int_sort_fn, (NpSortFunction)np_int_sort_fn_rev, (NpCompareFunction)np_void_int_eq);
+np_list_append(_np_1, &_np_0);
+_np_0 = 2;
+np_list_append(_np_1, &_np_0);
+_np_0 = 3;
+np_list_append(_np_1, &_np_0);
+list_element_op_assignment_l = _np_1;
+NpList* _np_2;
+_np_2 = list_element_op_assignment_l;
+NpInt _np_4;
+_np_4 = 0;
+NpInt _np_3;
+_np_3 = _np_4;
+NpInt _np_6;
+np_list_get_item(_np_2, _np_3, &_np_6);
+NpInt _np_5;
+_np_5 = _np_6;
+NpInt _np_7;
+_np_7 = 1;
+NpInt _np_8;
+_np_8 = _np_5+_np_7;
+np_list_set_item(_np_2, _np_3, &_np_8);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

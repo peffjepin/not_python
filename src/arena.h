@@ -43,4 +43,6 @@ void* arena_alloc(Arena* arena, size_t nbytes);
 // copy into static arena memory
 void* arena_copy(Arena* arena, void* data, size_t nbytes);
 
+const char* arena_nfmt(Arena* arena, size_t bufsize, const char* fmt, ...);
+
 #endif

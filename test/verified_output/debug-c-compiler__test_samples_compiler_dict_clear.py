@@ -1,35 +1,37 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpInt NP_var0;
-NpInt NP_var1;
+// DECLARATIONS COMPILER SECTION
 NpDict* dict_clear_d;
-NpDict* NP_var3;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NP_var0 = 1;
-NP_var1 = 2;
-dict_clear_d = DICT_INIT(NpInt, NpInt, np_void_int_eq);
-np_dict_set_item(dict_clear_d, &NP_var0, &NP_var1);
-NP_var0 = 3;
-NP_var1 = 4;
-np_dict_set_item(dict_clear_d, &NP_var0, &NP_var1);
-NP_var3 = dict_clear_d;
-np_dict_clear(NP_var3);
+NpInt _np_0;
+NpInt _np_1;
+_np_0 = 1;
+_np_1 = 2;
+NpDict* _np_2;
+_np_2 = DICT_INIT(NpInt, NpInt, np_void_int_eq);
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+_np_0 = 3;
+_np_1 = 4;
+np_dict_set_item(_np_2, &_np_0, &_np_1);
+dict_clear_d = _np_2;
+NpDict* _np_5;
+_np_5 = dict_clear_d;
+void* _np_3;
+_np_3 = np_dict_clear(_np_5);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

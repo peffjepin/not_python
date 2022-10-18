@@ -61,7 +61,7 @@ key_at(SymbolHashmap* hm, size_t probe)
 static bool
 hm_lookup_insert(SymbolHashmap* hm, size_t elem_index, SourceString key)
 {
-    uint64_t hash = hash_bytes(key.data, key.length);
+    uint64_t hash = hash_bytes((void*)key.data, key.length);
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
     for (;;) {
@@ -113,7 +113,7 @@ symbol_hm_put(SymbolHashmap* hm, Symbol element)
 Symbol*
 symbol_hm_get(SymbolHashmap* hm, SourceString identifier)
 {
-    uint64_t hash = hash_bytes(identifier.data, identifier.length);
+    uint64_t hash = hash_bytes((void*)identifier.data, identifier.length);
     size_t probe = hash % hm->lookup_capacity;
     size_t init = probe;
 

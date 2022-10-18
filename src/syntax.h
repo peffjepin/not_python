@@ -37,6 +37,8 @@ typedef enum {
     NPTYPE_ITER,
     NPTYPE_FUNCTION,
     NPTYPE_DICT_ITEMS,
+    NPTYPE_CONTEXT,
+    NPTYPE_EXCEPTION,
     NPTYPE_COUNT,
 } NpType;
 
@@ -285,7 +287,6 @@ typedef enum {
     STMT_ASSERT,
     STMT_BREAK,
     STMT_CONTINUE,
-    STMT_GLOBAL,
     STMT_EOF,
 } StatementKind;
 
@@ -305,41 +306,27 @@ struct Statement {
         Expression* return_expr;
         Expression* assert_expr;
         Expression* expr;
-        SourceString* global_identifier;
     };
     Location loc;
 };
 
-// VAR_SEMI_SCOPED purpose:
-//  for k, v in d1.items():
-//      ...
-//  print(k, v)  # k, v still in scope
-//  for k, v in d2.items():
-//     ...
-//  print(k, v)  # k, v can be reused and have their types changed
-//
-//  This struct is to allow for this behavior while a standard variable
-//  is defined only once and when it's type is determined it is immutable.
+// TODO: not sure if the following belongs in this header or not yet.
+// it lives here for now
+
 struct Variable {
-    enum {
-        VAR_SEMI_SCOPED,
-        VAR_REGULAR,
-        VAR_CLOSURE,
-    } kind;
-    union {
-        bool directly_in_scope;  // VAR_SEMI_SCOPED
-        size_t closure_index;    // VAR_CLOSURE
-    };
+    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT } kind;
+    bool directly_in_scope;
+    SourceString identifier;
     SourceString compiled_name;
     TypeInfo type_info;
-    bool declared;
 };
 
 struct Symbol {
-    enum { SYM_VARIABLE, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER } kind;
+    enum { SYM_VARIABLE, SYM_FUNCTION, SYM_CLASS, SYM_MEMBER, SYM_GLOBAL } kind;
     SourceString identifier;
     union {
         Variable* variable;
+        Variable* globalvar;
         FunctionStatement* func;
         ClassStatement* cls;
         TypeInfo* member_type;

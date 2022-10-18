@@ -81,7 +81,7 @@ out_of_memory(void)
     exit(1);
 }
 
-char*
+const char*
 file_namespace(Arena* arena, const char* filepath)
 {
     // TODO: portability / make more robust
@@ -163,7 +163,7 @@ tq_discard(TokenQueue* tq)
 #define INDENT_TOP(stack) stack->values[stack->count - 1]
 #define INDENT_PUT(stack, indent) stack->values[stack->count++] = indent
 
-char*
+const char*
 indent_check(IndentationStack* stack, Location loc, bool begin_block)
 {
     assert(loc.col > 0 && "bad location");
@@ -325,7 +325,7 @@ et_to_expr(ExpressionTable* et)
 }
 
 NpType
-cstr_to_python_type(char* cstr)
+cstr_to_python_type(const char* cstr)
 {
     switch (cstr[0]) {
         case 'F':

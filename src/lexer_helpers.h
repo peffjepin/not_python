@@ -55,7 +55,7 @@ VALUE_VECTOR_DECLARATION(ElifStatement, elif);
 VALUE_VECTOR_DECLARATION(ExceptStatement, except);
 VALUE_VECTOR_DECLARATION(TypeInfo, typing);
 
-char* file_namespace(Arena* arena, const char* filepath);
+const char* file_namespace(Arena* arena, const char* filepath);
 
 #define TOKEN_QUEUE_CAPACITY 8
 
@@ -97,7 +97,7 @@ typedef struct {
 
 // in the case of an error returns error message
 // else returns NULL
-char* indent_check(IndentationStack* stack, Location loc, bool begin_block);
+const char* indent_check(IndentationStack* stack, Location loc, bool begin_block);
 
 typedef struct {
     size_t count;
@@ -124,6 +124,6 @@ void et_push_operation(ExpressionTable* et, Operation operation);
 void et_push_operation_type(ExpressionTable* et, Operator op_type, Location* loc);
 Expression* et_to_expr(ExpressionTable* et);
 
-NpType cstr_to_python_type(char* cstr);
+NpType cstr_to_python_type(const char* cstr);
 
 #endif

@@ -1,36 +1,35 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
+// DECLARATIONS COMPILER SECTION
 NpInt op_assignments_x;
-NpInt NP_var0;
-NpInt NP_var1;
-NpInt NP_var2;
-NpInt NP_var3;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 op_assignments_x = 10;
-NP_var0 = 1;
-op_assignments_x = op_assignments_x-NP_var0;
-NP_var1 = 1;
-op_assignments_x = op_assignments_x+NP_var1;
-NP_var2 = 2;
-op_assignments_x = op_assignments_x*NP_var2;
-NP_var3 = 2;
-op_assignments_x = (NpInt)((NpFloat)op_assignments_x/(NpFloat)NP_var3);
+NpInt _np_0;
+_np_0 = 1;
+op_assignments_x = op_assignments_x-_np_0;
+NpInt _np_1;
+_np_1 = 1;
+op_assignments_x = op_assignments_x+_np_1;
+NpInt _np_2;
+_np_2 = 2;
+op_assignments_x = op_assignments_x*_np_2;
+NpInt _np_3;
+_np_3 = 2;
+op_assignments_x = (NpInt)((NpFloat)op_assignments_x/(NpFloat)_np_3);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

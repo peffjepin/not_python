@@ -19,6 +19,8 @@
 #define DATATYPE_DICT "NpDict*"
 #define DATATYPE_ITER "NpIter"
 #define DATATYPE_FUNC "NpFunction"
+#define DATATYPE_CONTEXT "NpContext"
+#define DATATYPE_EXCEPTION "Exception*"
 
 SourceString create_default_object_fmt_str(Arena* arena, ClassStatement* clsdef);
 
@@ -41,7 +43,7 @@ typedef struct {
 } CompilerSection;
 
 void section_free(CompilerSection* section);
-void write_to_section(CompilerSection* section, char* data);
+void write_to_section(CompilerSection* section, const char* data);
 // LAST ... arg should be NULL
 void write_many_to_section(CompilerSection* section, ...);
 void copy_section(CompilerSection* dest, CompilerSection src);
@@ -70,10 +72,17 @@ void copy_section(CompilerSection* dest, CompilerSection src);
 #define STRING_BUILDER_BUFFER_SIZE 4096
 
 typedef struct {
-    size_t remaining;
+    char* data;
     char* write;
+    size_t remaining;
+} StringBuffer;
+
+typedef struct {
+    bool overflow;
+    StringBuffer block;
+    StringBuffer current;
     size_t buffers_count;
-    char** buffers;
+    StringBuffer* buffers;
 } StringBuilder;
 
 StringBuilder sb_init();
@@ -82,11 +91,15 @@ SourceString sb_build(StringBuilder* sb, ...);
 SourceString sb_join_ss(
     StringBuilder* sb, SourceString* strs, size_t count, const char* delimiter
 );
+void sb_begin(StringBuilder* sb);
+void sb_add(StringBuilder* sb, const char* cstr);
+const char* sb_end(StringBuilder* sb);
 const char* sb_c_cast(StringBuilder* sb, const char* cast_this, TypeInfo cast_to);
 
 #define sb_build_cstr(sb, ...) sb_build(sb, __VA_ARGS__).data
 
-void render_type_info_human_readable(TypeInfo info, char* buf, size_t buflen);
+// NOTE: this leaks and should only be used for errors
+const char* errfmt_type_info(TypeInfo info);
 SourceString type_info_to_c_syntax_ss(StringBuilder* sb, TypeInfo info);
 #define type_info_to_c_syntax(sb, type_info) type_info_to_c_syntax_ss(sb, type_info).data
 void write_type_info_to_section(

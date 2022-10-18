@@ -1,36 +1,34 @@
+
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 };
 
-// STRUCT DECLARATIONS COMPILER SECTION
+// TYPEDEFS COMPILER SECTION
 
-// VARIABLE DECLARATIONS COMPILER SECTION
-NpFunction function_call6_my_function;
-NpInt NP_var2;
-NpFloat NP_var3;
+// DECLARATIONS COMPILER SECTION
 NpFloat function_call6_z;
-
-// FUNCTION DECLARATIONS COMPILER SECTION
-NpFloat NP_var0(NpContext ctx, NpInt x, NpFloat y);
+NpFunction function_call6_my_function;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
-NpFloat NP_var0(NpContext ctx, NpInt x, NpFloat y) {
-NpFloat NP_var1;
-NP_var1 = (NpFloat)x/y;
-return NP_var1;
+NpFloat _np_0(NpContext __ctx__, NpInt x, NpFloat y) {
+NpFloat _np_1;
+_np_1 = (NpFloat)x/y;
+return _np_1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-function_call6_my_function.addr = &NP_var0;
-NP_var2 = 1;
-NP_var3 = 2.0;
-function_call6_z = ((NpFloat (*)(NpContext ctx, NpInt, NpFloat))function_call6_my_function.addr)(function_call6_my_function.ctx, NP_var2, NP_var3);
+function_call6_my_function.addr = &_np_0;
+NpInt _np_2;
+_np_2 = 1;
+NpFloat _np_3;
+_np_3 = 2.0;
+function_call6_z = ((NpFloat (*)(NpContext ctx, NpInt, NpFloat))function_call6_my_function.addr)(function_call6_my_function.ctx, _np_2, _np_3);
 }
-
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {
 init_module();
+return 0;
 }
 exitcode=0

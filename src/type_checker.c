@@ -649,6 +649,8 @@ resolve_from_scopes(TypeChecker* tc, SourceString identifier)
     sym = symbol_hm_get(&tc->globals->hm, identifier);
     if (sym) {
         switch (sym->kind) {
+            case SYM_GLOBAL:
+                return sym->globalvar->type_info;
             case SYM_VARIABLE:
                 return sym->variable->type_info;
             case SYM_CLASS:

@@ -1,5 +1,5 @@
 [0;31mTypeError: test/samples/programs/bad_function_ref_assignment.np:5:1
-[0m[0mtrying to assign type `Function[[], int]` to variable `ref` of type `Function[[], str]`[0m
+[0m[0mexpecting type `Function[[], str]` but got type `Function[[], int]`[0m
 [0m  5| ref: Function[[], str] = fn
 [0m
 exitcode=1

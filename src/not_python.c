@@ -189,7 +189,7 @@ np_bool_to_str(NpBool value)
     return (value) ? true_str : false_str;
 }
 
-void
+void*
 builtin_print(size_t argc, ...)
 {
     va_list vargs;
@@ -205,6 +205,8 @@ builtin_print(size_t argc, ...)
 
     fprintf(stdout, "\n");
     fflush(stdout);
+
+    return NULL;
 }
 
 #define LIST_COPY_TO_OUT(list, index, out)                                               \
@@ -215,6 +217,28 @@ builtin_print(size_t argc, ...)
 #define LIST_WRAP(list, index) (((index) < 0) ? (list)->count + (index) : (index))
 #define LIST_BOUNDS(list, wrapped_index)                                                 \
     if ((wrapped_index) < 0 || (wrapped_index) >= (list)->count) index_error()
+
+typedef struct {
+    NpList* list;
+    NpInt yielded;
+} NpListIter;
+
+void*
+np_list_next(void* iter)
+{
+    NpListIter* iterl = iter;
+    if (iterl->yielded == iterl->list->count) return NULL;
+    return (void*)(iterl->list->data + (iterl->yielded++ * iterl->list->element_size));
+}
+
+NpIter
+np_list_iter(NpList* list)
+{
+    NpListIter* iter = np_alloc(sizeof(NpListIter));
+    iter->list = list;
+    NpIter iterd = {.next = (NpIterNextFunc)np_list_next, .iter = iter};
+    return iterd;
+}
 
 NpList*
 np_list_init(
@@ -245,12 +269,13 @@ np_list_add(NpList* list1, NpList* list2)
     return new_list;
 }
 
-void
+void*
 np_list_clear(NpList* list)
 {
     list->count = 0;
     list->capacity = LIST_MIN_CAPACITY;
     list->data = np_realloc(list->data, list->element_size * list->capacity);
+    return NULL;
 }
 
 NpList*
@@ -266,7 +291,7 @@ np_list_copy(NpList* list)
     return new_list;
 }
 
-void
+void*
 np_list_extend(NpList* list, NpList* other)
 {
     NpInt required_capacity = list->count + other->count + 1;
@@ -278,6 +303,7 @@ np_list_extend(NpList* list, NpList* other)
         other->element_size * other->count
     );
     list->count += other->count;
+    return NULL;
 }
 
 void
@@ -310,7 +336,7 @@ np_list_grow(NpList* list)
     list->data = np_realloc(list->data, list->element_size * list->capacity);
 }
 
-void
+void*
 np_list_reverse(NpList* list)
 {
     NpByte tmp[list->element_size];
@@ -321,6 +347,7 @@ np_list_reverse(NpList* list)
         memcpy(right, left, list->element_size);
         memcpy(left, tmp, list->element_size);
     }
+    return NULL;
 }
 
 void
@@ -339,21 +366,23 @@ np_list_set_item(NpList* list, NpInt index, void* item)
     LIST_COPY_FROM_ITEM(list, index, item);
 }
 
-void
+void*
 np_list_append(NpList* list, void* item)
 {
     NpInt index = list->count++;
     LIST_COPY_FROM_ITEM(list, index, item);
     if (list->count == list->capacity) np_list_grow(list);
+    return NULL;
 }
 
-void
+void*
 np_list_pop(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
     LIST_COPY_TO_OUT(list, index, out);
     np_list_del(list, index);
+    return NULL;
 }
 
 NpInt
@@ -369,11 +398,12 @@ np_list_index(NpList* list, void* item)
     return location;
 }
 
-void
+void*
 np_list_remove(NpList* list, void* item)
 {
     NpInt index = np_list_index(list, item);
     np_list_del(list, index);
+    return NULL;
 }
 
 NpInt
@@ -386,7 +416,7 @@ np_list_count(NpList* list, void* item)
     return count;
 }
 
-void
+void*
 np_list_insert(NpList* list, NpInt index, void* item)
 {
     index = LIST_WRAP(list, index);
@@ -400,15 +430,17 @@ np_list_insert(NpList* list, NpInt index, void* item)
         list->element_size * (list->count - index)
     );
     LIST_COPY_FROM_ITEM(list, index, item);
+    return NULL;
 }
 
-void
+void*
 np_list_sort(NpList* list, NpBool reverse)
 {
     NpSortFunction fn = (reverse) ? list->rev_sort_fn : list->sort_fn;
     // TODO: better exception here
     if (!fn) value_error();
     qsort(list->data, list->count, list->element_size, fn);
+    return NULL;
 }
 
 int
@@ -643,7 +675,7 @@ np_dict_copy(NpDict* other)
     return dict;
 }
 
-void
+void*
 np_dict_clear(NpDict* dict)
 {
     np_free(dict->data);
@@ -658,6 +690,7 @@ np_dict_clear(NpDict* dict)
     size_t lut_bytes = dict->lut_capacity * sizeof(int);
     dict->lut = np_alloc(lut_bytes);
     memset(dict->lut, -1, lut_bytes);
+    return NULL;
 }
 
 #define DICT_EFFECTIVE_COUNT(dict) dict->count + dict->tombstone_count
@@ -818,12 +851,12 @@ np_dict_get_val(NpDict* dict, void* key, void* out)
         );
 }
 
-void
+void*
 np_dict_pop_val(NpDict* dict, void* key, void* out)
 {
     if (dict->count == 0) {
         key_error();
-        return;
+        return NULL;
     }
 
     int item_index;
@@ -844,6 +877,7 @@ np_dict_pop_val(NpDict* dict, void* key, void* out)
         if (DICT_EFFECTIVE_COUNT(dict) >= dict->capacity * DICT_SHRINK_THRESHOLD)
             np_dict_shrink(dict);
     }
+    return NULL;
 }
 
 void
@@ -861,7 +895,7 @@ np_dict_del(NpDict* dict, void* key)
         np_dict_shrink(dict);
 }
 
-void
+void*
 np_dict_update(NpDict* dict, NpDict* other)
 {
     size_t updated_count = 0;
@@ -872,6 +906,7 @@ np_dict_update(NpDict* dict, NpDict* other)
         data += other->item_size;
         updated_count += 1;
     }
+    return NULL;
 }
 
 // TODO: these are just stubs for now so I can keep track of where python

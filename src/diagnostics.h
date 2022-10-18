@@ -34,27 +34,29 @@ typedef enum {
     LABEL_COUNT,
 } DiagnosticLabel;
 
-void diagnostic_vprintf(DiagnosticLabel label, char* fmt, va_list args, bool newline);
-void diagnostic_printf(DiagnosticLabel label, char* fmt, ...);
+void diagnostic_vprintf(
+    DiagnosticLabel label, const char* fmt, va_list args, bool newline
+);
+void diagnostic_printf(DiagnosticLabel label, const char* fmt, ...);
 
-void error(char* msg);
-void errorf(char* fmt, ...);
-void warn(char* msg);
-void warnf(char* fmt, ...);
-void debug(char* msg);
-void debugf(char* fmt, ...);
+void error(const char* msg);
+void errorf(const char* fmt, ...);
+void warn(const char* msg);
+void warnf(const char* fmt, ...);
+void debug(const char* msg);
+void debugf(const char* fmt, ...);
 
 // ctx > 0 will render (ctx) surrounding lines
-void syntax_error(FileIndex index, Location loc, size_t ctx, char* msg);
-void syntax_errorf(FileIndex index, Location loc, size_t ctx, char* fmt, ...);
+void syntax_error(FileIndex index, Location loc, size_t ctx, const char* msg);
+void syntax_errorf(FileIndex index, Location loc, size_t ctx, const char* fmt, ...);
 
-void type_error(FileIndex index, Location loc, char* msg);
-void type_errorf(FileIndex index, Location loc, char* fmt, ...);
-void name_error(FileIndex index, Location loc, char* msg);
-void name_errorf(FileIndex index, Location loc, char* fmt, ...);
+void type_error(FileIndex index, Location loc, const char* msg);
+void type_errorf(FileIndex index, Location loc, const char* fmt, ...);
+void name_error(FileIndex index, Location loc, const char* msg);
+void name_errorf(FileIndex index, Location loc, const char* fmt, ...);
 
-void unspecified_error(FileIndex index, Location loc, char* msg);
-void unspecified_errorf(FileIndex index, Location loc, char* fmt, ...);
+void unspecified_error(FileIndex index, Location loc, const char* msg);
+void unspecified_errorf(FileIndex index, Location loc, const char* fmt, ...);
 
 #define UNIMPLEMENTED(msg)                                                               \
     do {                                                                                 \

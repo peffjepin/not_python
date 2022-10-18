@@ -31,7 +31,7 @@ str_concat(StringBuffer* str1, StringBuffer* str2)
 }
 
 static void
-str_concat_cstr(StringBuffer* str1, char* cstr)
+str_concat_cstr(StringBuffer* str1, const char* cstr)
 {
     size_t length = strlen(cstr);
     assert(str1->length + length <= STRING_BUFFER_CAPACITY);
@@ -454,7 +454,7 @@ print_statement(Statement* stmt, int indent)
                 for (size_t i = 0; i < stmt->import->what_count; i++) {
                     if (i > 0) printf(", ");
                     printf("%s", stmt->import->what[i].data);
-                    char* as = stmt->import->as[i].data;
+                    const char* as = stmt->import->as[i].data;
                     if (as) printf(" as %s", as);
                 }
                 printf("\n");
@@ -596,6 +596,9 @@ void
 print_symbol(Symbol sym, int indent)
 {
     switch (sym.kind) {
+        case SYM_GLOBAL:
+            indent_printf("%s\n", sym.identifier.data);
+            break;
         case SYM_VARIABLE:
             indent_printf("%s\n", sym.identifier.data);
             break;

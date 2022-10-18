@@ -329,7 +329,7 @@ typedef struct {
     IndentationStack indent_stack;
     LexicalScopeStack scope_stack;
 
-    char* file_namespace;
+    const char* file_namespace;
     size_t file_namespace_length;
 
     AnnotationStatement* current_class_members;
@@ -463,6 +463,7 @@ parse_iterable_identifiers(Parser* parser)
             case TOK_IDENTIFIER: {
                 Variable* var = arena_alloc(parser->arena, sizeof(Variable));
                 var->kind = VAR_SEMI_SCOPED;
+                var->identifier = token.value;
                 Symbol sym = {
                     .kind = SYM_VARIABLE, .variable = var, .identifier = token.value};
                 symbol_hm_put(&scope->hm, sym);
@@ -1969,7 +1970,7 @@ namespace_method(Parser* parser, FunctionStatement* fndef, ClassStatement* clsde
     fndef->ns_ident.length =
         fndef->name.length + parser->file_namespace_length + clsdef->name.length + 1;
     fndef->ns_ident.data = arena_alloc(parser->arena, fndef->ns_ident.length + 1);
-    char* write = fndef->ns_ident.data;
+    char* write = (char*)fndef->ns_ident.data;
     memcpy(write, parser->file_namespace, parser->file_namespace_length);
     write += parser->file_namespace_length;
     memcpy(write, clsdef->name.data, clsdef->name.length);
@@ -1983,7 +1984,7 @@ namespace_function(Parser* parser, FunctionStatement* fndef)
 {
     fndef->ns_ident.length = fndef->name.length + parser->file_namespace_length;
     fndef->ns_ident.data = arena_alloc(parser->arena, fndef->ns_ident.length + 1);
-    char* write = fndef->ns_ident.data;
+    char* write = (char*)fndef->ns_ident.data;
     memcpy(write, parser->file_namespace, parser->file_namespace_length);
     write += parser->file_namespace_length;
     memcpy(write, fndef->name.data, fndef->name.length);
@@ -2072,20 +2073,20 @@ parse_function_statement(Parser* parser, Location loc)
     if (func->is_method) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
         local_var->kind = VAR_REGULAR;
+        local_var->identifier = func->self_param;
         local_var->compiled_name = func->self_param;
         local_var->type_info = func->self_type;
-        local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
         local_sym.identifier = func->self_param;
         symbol_hm_put(&fn_scope->hm, local_sym);
     }
     for (size_t i = 0; i < sig.params_count; i++) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-        local_var->kind = VAR_REGULAR;
+        local_var->kind = VAR_ARGUMENT;
+        local_var->identifier = sig.params[i];
         local_var->compiled_name =
             sig.params[i];  // function locals don't need name mangling
         local_var->type_info = sig.types[i];
-        local_var->declared = true;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
         local_sym.identifier = sig.params[i];
         symbol_hm_put(&fn_scope->hm, local_sym);
@@ -2121,9 +2122,13 @@ namespace_class(Parser* parser, ClassStatement* clsdef)
 {
     clsdef->ns_ident.length = clsdef->name.length + parser->file_namespace_length;
     clsdef->ns_ident.data = arena_alloc(parser->arena, clsdef->ns_ident.length + 1);
-    memcpy(clsdef->ns_ident.data, parser->file_namespace, parser->file_namespace_length);
     memcpy(
-        clsdef->ns_ident.data + parser->file_namespace_length,
+        (char*)clsdef->ns_ident.data,
+        parser->file_namespace,
+        parser->file_namespace_length
+    );
+    memcpy(
+        (char*)clsdef->ns_ident.data + parser->file_namespace_length,
         clsdef->name.data,
         clsdef->name.length
     );
@@ -2251,12 +2256,12 @@ namespace_variable(Parser* parser, Variable* variable, SourceString identifier)
     variable->compiled_name.data =
         arena_alloc(parser->arena, variable->compiled_name.length + 1);
     memcpy(
-        variable->compiled_name.data,
+        (char*)variable->compiled_name.data,
         parser->file_namespace,
         parser->file_namespace_length
     );
     memcpy(
-        variable->compiled_name.data + parser->file_namespace_length,
+        (char*)variable->compiled_name.data + parser->file_namespace_length,
         identifier.data,
         identifier.length
     );
@@ -2274,11 +2279,10 @@ parse_assignment_statement(Parser* parser, Expression* assign_to)
         LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
         Variable* var = arena_alloc(parser->arena, sizeof(Variable));
         var->kind = VAR_REGULAR;
+        var->identifier = assign_to->operands[0].token.value;
         var->type_info = (TypeInfo){.type = NPTYPE_UNTYPED};
         Symbol sym = {
-            .kind = SYM_VARIABLE,
-            .variable = var,
-            .identifier = assign_to->operands[0].token.value};
+            .kind = SYM_VARIABLE, .variable = var, .identifier = var->identifier};
         namespace_variable(parser, var, sym.identifier);
         symbol_hm_put(&scope->hm, sym);
     }
@@ -2313,6 +2317,7 @@ parse_annotation_statement(Parser* parser, Location loc, SourceString identifier
             .kind = SYM_VARIABLE,
             .variable = arena_alloc(parser->arena, sizeof(Variable))};
         sym.identifier = identifier;
+        sym.variable->identifier = identifier;
         sym.variable->type_info = annotation->type;
         namespace_variable(parser, sym.variable, sym.identifier);
         symbol_hm_put(&scope->hm, sym);
@@ -2320,7 +2325,7 @@ parse_annotation_statement(Parser* parser, Location loc, SourceString identifier
     return annotation;
 }
 
-static SourceString*
+static void
 parse_global(Parser* parser, Location loc)
 {
     LexicalScope* scope = scope_stack_peek(&parser->scope_stack);
@@ -2334,6 +2339,8 @@ parse_global(Parser* parser, Location loc)
     }
 
     Token ident = expect_token_type(parser, TOK_IDENTIFIER);
+    expect_token_type(parser, TOK_NEWLINE);
+
     Symbol* local_sym = symbol_hm_get(&scope->hm, ident.value);
     if (local_sym) {
         name_errorf(
@@ -2347,13 +2354,9 @@ parse_global(Parser* parser, Location loc)
         );
     }
 
-    expect_token_type(parser, TOK_NEWLINE);
-
-    Symbol placeholder_local = *global_sym;
+    Symbol placeholder_local = {
+        .kind = SYM_GLOBAL, .identifier = ident.value, .globalvar = global_sym->variable};
     symbol_hm_put(&scope->hm, placeholder_local);
-    SourceString* ss = arena_alloc(parser->arena, sizeof(SourceString));
-    *ss = ident.value;
-    return ss;
 }
 
 static Statement*
@@ -2365,16 +2368,16 @@ parse_statement(Parser* parser)
     consume_newline_tokens(parser);
     Token peek = peek_next_token(parser);
     stmt->loc = *peek.loc;
-    char* error = indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
+    const char* error =
+        indent_check(&parser->indent_stack, stmt->loc, rule == BLOCK_BEGIN);
     if (error) syntax_error(*parser->scanner->index, stmt->loc, 2, error);
 
     if (peek.type == TOK_KEYWORD) {
         switch (peek.kw) {
             case KW_GLOBAL: {
                 discard_next_token(parser);
-                stmt->kind = STMT_GLOBAL;
-                stmt->global_identifier = parse_global(parser, stmt->loc);
-                return stmt;
+                parse_global(parser, stmt->loc);
+                return parse_statement(parser);
             }
             case KW_BREAK:
                 // TODO: make sure that we're currently parsing some kind of loop
@@ -2493,7 +2496,7 @@ lex_file(const char* filepath)
     FILE* file = fopen(filepath, "r");
     if (!file) errorf("failed to open (%s) for reading: %s", filepath, strerror(errno));
     Arena* arena = arena_init();
-    char* ns = file_namespace(arena, filepath);
+    const char* ns = file_namespace(arena, filepath);
     size_t ns_len = strlen(ns);
     Lexer lexer = {
         .arena = arena,
