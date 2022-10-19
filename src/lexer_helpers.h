@@ -86,6 +86,7 @@ typedef struct {
 LexicalScope* scope_stack_peek(LexicalScopeStack* stack);
 void scope_stack_push(LexicalScopeStack* stack, LexicalScope* scope);
 LexicalScope* scope_stack_pop(LexicalScopeStack* stack);
+Symbol* get_symbol_from_scopes(LexicalScopeStack stack, SourceString identifier);
 
 #define INDENTATION_MAX 10
 #define INDENTATION_MAX_STR "10"

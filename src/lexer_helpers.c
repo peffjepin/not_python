@@ -231,6 +231,21 @@ scope_stack_pop(LexicalScopeStack* stack)
     return scope;
 }
 
+Symbol*
+get_symbol_from_scopes(LexicalScopeStack stack, SourceString identifier)
+{
+    for (size_t i = stack.count - 1; i > 0; i--) {
+        LexicalScope* locals = stack.scopes[i];
+        Symbol* sym = symbol_hm_get(&locals->hm, identifier);
+        if (sym)
+            return sym;
+        else if (locals->kind != SCOPE_CLOSURE)
+            break;
+    }
+
+    return symbol_hm_get(&stack.scopes[0]->hm, identifier);
+}
+
 void
 operation_vector_push(OperationVector* vec, Operation operation)
 {

@@ -351,7 +351,7 @@ Symbol* symbol_hm_get(SymbolHashmap* hm, SourceString identifier);
 void symbol_hm_finalize(SymbolHashmap* hm);
 
 struct LexicalScope {
-    enum { SCOPE_TOP, SCOPE_FUNCTION, SCOPE_METHOD, SCOPE_CLASS } kind;
+    enum { SCOPE_TOP, SCOPE_FUNCTION, SCOPE_METHOD, SCOPE_CLOSURE, SCOPE_CLASS } kind;
     union {
         FunctionStatement* func;
         ClassStatement* cls;

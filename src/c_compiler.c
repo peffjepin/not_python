@@ -348,11 +348,7 @@ static Symbol*
 get_symbol(C_Compiler* compiler, SourceString identifier)
 {
     // TODO: need to treat globals/locals differently in the furute
-    LexicalScope* locals = scope_stack_peek(&compiler->scope_stack);
-    Symbol* sym = symbol_hm_get(&locals->hm, identifier);
-    if (sym) return sym;
-    sym = symbol_hm_get(&compiler->top_level_scope->hm, identifier);
-    return sym;
+    return get_symbol_from_scopes(compiler->scope_stack, identifier);
 }
 
 static const char*
@@ -2652,10 +2648,6 @@ expr_to_assignment_inst(
     return inst;
 }
 
-#define IDENT_CONCAT(a, b) a##b
-#define IDENT_CONCAT_INDIRECT(a, b) IDENT_CONCAT(a, b)
-#define MACRO_VAR(name) IDENT_CONCAT_INDIRECT(name, __LINE__)
-
 #define COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, comp_inst)                            \
     CompoundInstruction MACRO_VAR(current) = compiler->instructions;                     \
     for (int _i_ =                                                                       \
@@ -2670,8 +2662,6 @@ expr_to_assignment_inst(
 static void
 compile_function(C_Compiler* compiler, FunctionStatement* func)
 {
-    LexicalScope* old_locals = compiler->tc.locals;
-    compiler->tc.locals = func->scope;
     scope_stack_push(&compiler->scope_stack, func->scope);
 
     const char* fn_ident = generate_ident(compiler);
@@ -2709,8 +2699,10 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
                 }
             );
         }
+
         for (size_t i = 0; i < func->body.stmts_count; i++)
             compile_statement(compiler, func->body.stmts[i]);
+
         if (func->sig.return_type.type == NPTYPE_NONE)
             add_instruction(
                 compiler,
@@ -2722,7 +2714,6 @@ compile_function(C_Compiler* compiler, FunctionStatement* func)
     }
 
     scope_stack_pop(&compiler->scope_stack);
-    compiler->tc.locals = old_locals;
 }
 
 static void
@@ -4363,14 +4354,15 @@ write_to_output(C_Compiler* compiler, FILE* out)
 Requirements
 compile_to_c(FILE* outfile, Lexer* lexer)
 {
-    TypeChecker tc = {.arena = lexer->arena, .globals = lexer->top_level, .locals = NULL};
+    TypeChecker tc = {.arena = lexer->arena};
     C_Compiler compiler = {
         .arena = lexer->arena,
         .file_index = lexer->index,
         .top_level_scope = lexer->top_level,
         .instructions = compound_instruction_init(lexer->arena),
-        .tc = tc,
+        .tc.arena = lexer->arena,
         .sb = sb_init()};
+    compiler.tc.stack = &compiler.scope_stack;
 
     scope_stack_push(&compiler.scope_stack, lexer->top_level);
     declare_scope_variables(&compiler, compiler.top_level_scope);

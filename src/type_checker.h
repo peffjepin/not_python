@@ -1,11 +1,11 @@
 #ifndef TYPE_CHECKER_H
 #define TYPE_CHECKER_H
 
+#include "lexer_helpers.h"
 #include "syntax.h"
 
 typedef struct {
-    LexicalScope* locals;
-    LexicalScope* globals;
+    LexicalScopeStack* stack;
     Arena* arena;
 } TypeChecker;
 

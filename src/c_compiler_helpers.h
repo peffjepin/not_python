@@ -61,13 +61,18 @@ void copy_section(CompilerSection* dest, CompilerSection src);
  *     ...
  * }
  */
+
+#define IDENT_CONCAT(a, b) a##b
+#define IDENT_CONCAT_INDIRECT(a, b) IDENT_CONCAT(a, b)
+#define MACRO_VAR(name) IDENT_CONCAT_INDIRECT(name, __LINE__)
+
 #define temporary_section(section_ptr)                                                   \
-    CompilerSection tmp##__LINE__ = {0};                                                 \
-    CompilerSection* actual##__LINE__ = section_ptr;                                     \
-    section_ptr = &tmp##__LINE__;                                                        \
+    CompilerSection MACRO_VAR(tmp) = {0};                                                \
+    CompilerSection* MACRO_VAR(actual) = section_ptr;                                    \
+    section_ptr = &MACRO_VAR(tmp);                                                       \
     for (int i = 0; i < 1; i++,                                                          \
-             copy_section(actual##__LINE__, tmp##__LINE__),                              \
-             section_ptr = actual##__LINE__)
+             copy_section(MACRO_VAR(actual), MACRO_VAR(tmp)),                            \
+             section_ptr = MACRO_VAR(actual))
 
 #define STRING_BUILDER_BUFFER_SIZE 4096
 

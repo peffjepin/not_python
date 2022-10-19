@@ -641,12 +641,7 @@ special_ops:
 static TypeInfo
 resolve_from_scopes(TypeChecker* tc, SourceString identifier)
 {
-    Symbol* sym;
-    if (tc->locals) {
-        sym = symbol_hm_get(&tc->locals->hm, identifier);
-        if (sym) return sym->variable->type_info;
-    }
-    sym = symbol_hm_get(&tc->globals->hm, identifier);
+    Symbol* sym = get_symbol_from_scopes(*tc->stack, identifier);
     if (sym) {
         switch (sym->kind) {
             case SYM_GLOBAL:
