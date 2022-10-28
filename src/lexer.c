@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "lexer_helpers.h"
+#include "syntax.h"
 
 #define SCANNER_BUF_CAPACITY 4096
 
@@ -336,7 +337,6 @@ typedef struct {
     size_t current_class_members_capacity;
     size_t current_class_members_count;
     size_t current_class_members_defaults_count;
-    size_t current_class_members_bytes;  // TODO: arena should track this
 } Parser;
 
 static inline ConsumableParserRule
@@ -2137,7 +2137,6 @@ namespace_class(Parser* parser, ClassStatement* clsdef)
 static ClassStatement*
 init_class_statement(Parser* parser, SourceString name)
 {
-    // TODO: test a class with enough members to stress test this
     ClassStatement* cls = arena_alloc(parser->arena, sizeof(ClassStatement));
     LexicalScope* scope = scope_init(parser->arena);
     scope->kind = SCOPE_CLASS;
@@ -2145,10 +2144,12 @@ init_class_statement(Parser* parser, SourceString name)
     cls->scope = scope;
     cls->name = name;
     namespace_class(parser, cls);
-    parser->current_class_members =
-        arena_dynamic_alloc(parser->arena, &parser->current_class_members_bytes);
-    parser->current_class_members_capacity =
-        parser->current_class_members_bytes / sizeof(AnnotationStatement);
+    parser->current_class_members_count = 0;
+    parser->current_class_members_capacity = 8;
+    parser->current_class_members = arena_dynamic_alloc(
+        parser->arena,
+        sizeof(AnnotationStatement) * parser->current_class_members_capacity
+    );
     Symbol sym = {.kind = SYM_CLASS, .cls = cls};
     sym.identifier = cls->name;
     symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
@@ -2160,13 +2161,12 @@ static void
 add_class_member(Parser* parser, AnnotationStatement* member, Location loc)
 {
     if (parser->current_class_members_count == parser->current_class_members_capacity) {
-        parser->current_class_members = arena_dynamic_grow(
+        parser->current_class_members_capacity *= 2;
+        parser->current_class_members = arena_dynamic_realloc(
             parser->arena,
             parser->current_class_members,
-            &parser->current_class_members_bytes
+            sizeof(AnnotationStatement) * parser->current_class_members_capacity
         );
-        parser->current_class_members_capacity =
-            parser->current_class_members_bytes / sizeof(AnnotationStatement);
     }
     if (!member->initial && parser->current_class_members_defaults_count > 0) {
         syntax_error(
@@ -2210,13 +2210,10 @@ finalize_class_statement(Parser* parser, ClassStatement* cls)
             cls->sig.defaults[cls->sig.defaults_count++] = annotation.initial;
     }
 
-    arena_dynamic_free(
-        parser->arena, parser->current_class_members, parser->current_class_members_bytes
-    );
+    arena_dynamic_free(parser->arena, parser->current_class_members);
     parser->current_class_members_capacity = 0;
     parser->current_class_members_count = 0;
     parser->current_class_members_defaults_count = 0;
-    parser->current_class_members_bytes = 0;
     parser->current_class_members = NULL;
 
     scope_stack_pop(&parser->scope_stack);

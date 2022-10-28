@@ -2,7 +2,8 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+{.data="", .length=0},
+{.data="A(x=%s, y=%s)", .length=13}};
 
 // TYPEDEFS COMPILER SECTION
 typedef struct { NpInt x; NpInt y; } default_object_str_A;
@@ -13,24 +14,32 @@ typedef struct { NpInt x; NpInt y; } default_object_str_A;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-default_object_str_A* _np_2;
-_np_2 = np_alloc(sizeof(default_object_str_A));
-NpInt _np_3;
-_np_3 = 1;
-NpInt _np_4;
-_np_4 = 2;
-_np_2->x = _np_3;
-_np_2->y = _np_4;
 default_object_str_A* _np_1;
-_np_1 = _np_2;
-NpString _np_5;
-_np_5 = np_int_to_str(_np_1->x);
+_np_1 = np_alloc(16);
+NpInt _np_2;
+_np_2 = 1;
+NpInt _np_3;
+_np_3 = 2;
+_np_1->x = _np_2;
+_np_1->y = _np_3;
+char* _np_4;
+_np_4 = NOT_PYTHON_STRING_CONSTANTS[1].data;
+NpInt _np_5;
+_np_5 = _np_1->x;
 NpString _np_6;
-_np_6 = np_int_to_str(_np_1->y);
-NpString _np_7;
-_np_7 = np_str_fmt("A(x=%s, y=%s)", np_str_to_cstr(_np_5), np_str_to_cstr(_np_6));
-void* _np_0;
-_np_0 = builtin_print(1, _np_7);
+_np_6 = np_int_to_str(_np_5);
+char* _np_7;
+_np_7 = np_str_to_cstr(_np_6);
+NpInt _np_8;
+_np_8 = _np_1->y;
+NpString _np_9;
+_np_9 = np_int_to_str(_np_8);
+char* _np_10;
+_np_10 = np_str_to_cstr(_np_9);
+NpString _np_11;
+_np_11 = np_str_fmt(_np_4, _np_7, _np_10);
+NpNone _np_0;
+_np_0 = builtin_print(1, _np_11);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

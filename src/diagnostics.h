@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #include "arena.h"
+#include "syntax.h"
 #include "tokens.h"
 
 typedef struct {
@@ -58,6 +59,10 @@ void name_errorf(FileIndex index, Location loc, const char* fmt, ...);
 void unspecified_error(FileIndex index, Location loc, const char* msg);
 void unspecified_errorf(FileIndex index, Location loc, const char* fmt, ...);
 
+#define IDENT_CONCAT(a, b) a##b
+#define IDENT_CONCAT_INDIRECT(a, b) IDENT_CONCAT(a, b)
+#define MACRO_VAR(name) IDENT_CONCAT_INDIRECT(name, __LINE__)
+
 #define UNIMPLEMENTED(msg)                                                               \
     do {                                                                                 \
         diagnostic_printf(                                                               \
@@ -71,5 +76,7 @@ void unspecified_errorf(FileIndex index, Location loc, const char* fmt, ...);
         diagnostic_printf(LABEL_UNREACHABLE, "%s:%i:%s", __FILE__, __LINE__, __func__);  \
         exit(1);                                                                         \
     } while (0)
+
+const char* errfmt_type_info(TypeInfo info);
 
 #endif

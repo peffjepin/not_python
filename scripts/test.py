@@ -351,7 +351,7 @@ def init_test_groups(args, opts):
         tests.append(
             CompilerIterdirGroup("debug scopes", "--debug-scopes", args, opts)
         )
-    if args.debug_c_compiler:
+    if args.debug_compiler:
         tests.append(
             CompilerIterdirGroup(
                 "debug C compiler", "--debug-c-compiler", args, opts
@@ -400,9 +400,9 @@ def main():
         "--programs", action="store_true", help="runs the test programs"
     )
     parser.add_argument(
-        "--debug_c_compiler",
+        "--debug_compiler",
         action="store_true",
-        help="runs the debug_c_compiler program",
+        help="runs the debug_compiler program",
     )
     parser.add_argument(
         "--debug_statements",

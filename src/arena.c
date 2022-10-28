@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diagnostics.h"
+
 static inline void
 out_of_static_memory()
 {
@@ -20,112 +22,165 @@ out_of_dynamic_memory()
     exit(1);
 }
 
-void*
-arena_dynamic_alloc(Arena* arena, size_t* capacity)
+static size_t
+find_dynamic_chunk(Arena* arena, size_t required_chunks)
 {
-    for (size_t i = 0; i < ARENA_DYNAMIC_CHUNK_COUNT; i++) {
-        if (!arena->dynamic_chunks_in_use[i]) {
-            arena->dynamic_chunks_in_use[i] = true;
-            *capacity = ARENA_DYNAMIC_CHUNK_SIZE;
-            return arena->dynamic_chunks[i];
+    bool zero[required_chunks];
+    memset(zero, 0, sizeof(zero));
+
+    for (size_t off = 0, stride = 8; off < stride; off++) {
+        size_t chunk = off;
+        while (chunk < ARENA_DYNAMIC_CHUNK_COUNT) {
+            if (memcmp(zero, arena->dynamic_chunks_in_use + chunk, sizeof(zero)) == 0)
+                return chunk;
+            chunk += stride;
         }
     }
-    return NULL;
+
+    error("unable to find an available dynamic memory chunk");
+    UNREACHABLE();
+}
+
+static void
+assert_is_dynamic_allocation(Arena* arena, void* allocation)
+{
+    assert((uint8_t*)allocation >= (uint8_t*)arena->dynamic_region);
+    assert(
+        (uint8_t*)allocation <=
+        (uint8_t*)arena->dynamic_region[ARENA_DYNAMIC_CHUNK_COUNT - 1]
+    );
 }
 
 static size_t
 dynamic_allocation_to_chunk(Arena* arena, void* dynamic_allocation)
 {
     // assert `dynamic_alloction` is indeed located in the dynamic allocation region
-    assert((uint8_t*)dynamic_allocation >= (uint8_t*)arena->dynamic_chunks);
-    assert(
-        (uint8_t*)dynamic_allocation <=
-        (uint8_t*)arena->dynamic_chunks[ARENA_DYNAMIC_CHUNK_COUNT - 1]
-    );
-    size_t offset = (uint8_t*)dynamic_allocation - (uint8_t*)arena->dynamic_chunks;
+    uint8_t* head = (uint8_t*)dynamic_allocation - sizeof(size_t);
+    size_t offset = head - (uint8_t*)arena->dynamic_region;
     assert(offset % ARENA_DYNAMIC_CHUNK_SIZE == 0);
-
     return offset / ARENA_DYNAMIC_CHUNK_SIZE;
 }
 
+#define REQUIRED_DYNAMIC_CHUNKS(size)                                                    \
+    (1 + ((sizeof(size_t) + size) / ARENA_DYNAMIC_CHUNK_SIZE))
+
 void*
-arena_dynamic_grow(Arena* arena, void* dynamic_allocation, size_t* capacity)
+arena_dynamic_alloc(Arena* arena, size_t size)
 {
-    size_t chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
-    size_t nchunks = *capacity / ARENA_DYNAMIC_CHUNK_SIZE;
-    size_t next_chunk = chunk + nchunks;
-    if (next_chunk >= ARENA_DYNAMIC_CHUNK_COUNT) goto memory_error;
+    assert(size > 0);
 
-    // case where the next chunk is empty and we can just reserve it and return
-    if (!arena->dynamic_chunks_in_use[chunk + nchunks]) {
-        *capacity += ARENA_DYNAMIC_CHUNK_SIZE;
-        arena->dynamic_chunks_in_use[chunk + nchunks] = true;
-        return dynamic_allocation;
-    }
+    size_t required_chunks = REQUIRED_DYNAMIC_CHUNKS(size);
+    assert(required_chunks < ARENA_DYNAMIC_CHUNK_COUNT);
 
-    // case where the next chunk is taken and we have to relocate
-    // first we will search for a new region and copy existing memory there
-    int new_head_chunk = -1;
-    for (size_t i = 0; i < ARENA_DYNAMIC_CHUNK_COUNT; i++) {
-        if (arena->dynamic_chunks_in_use[i] == true)
-            new_head_chunk = -1;
-        else if (new_head_chunk == -1)
-            new_head_chunk = i;
-        else if (i - new_head_chunk == nchunks)
-            break;
-    }
-    if (new_head_chunk == -1 || new_head_chunk + nchunks >= ARENA_DYNAMIC_CHUNK_COUNT)
-        goto memory_error;
-    memcpy(
-        arena->dynamic_chunks[new_head_chunk],
-        dynamic_allocation,
-        nchunks * ARENA_DYNAMIC_CHUNK_SIZE
-    );
-    // then we can clear the in use flags for the chunks we have vacated
-    memset(arena->dynamic_chunks_in_use + chunk, false, sizeof(bool) * nchunks);
-    // and set the in use flags for the new region
-    memset(
-        arena->dynamic_chunks_in_use + new_head_chunk, true, sizeof(bool) * (nchunks + 1)
-    );
+    size_t chunk = find_dynamic_chunk(arena, required_chunks);
 
-    *capacity += ARENA_DYNAMIC_CHUNK_SIZE;
-    return arena->dynamic_chunks[new_head_chunk];
-
-memory_error:
-    // At the time of writing this allocator is meant to have more chunks
-    // available for dynamic allocation than it would ever need. If this
-    // state is reached a redesign is probably due.
-    out_of_dynamic_memory();
-    return NULL;
+    memset(arena->dynamic_chunks_in_use + chunk, 1, sizeof(bool) * required_chunks);
+    uint8_t* head = arena->dynamic_region[chunk];
+    *((size_t*)head) = size;
+    void* allocation = (void*)(head + sizeof(size_t));
+    memset(allocation, 0, size);
+    return allocation;
 }
 
 void*
-arena_dynamic_finalize(Arena* arena, void* dynamic_allocation, size_t nbytes)
+arena_dynamic_realloc(Arena* arena, void* allocation, size_t size)
 {
-    void* ptr = NULL;
-    if (nbytes > 0) {
-        ptr = arena_alloc(arena, nbytes);
-        if (!ptr) out_of_static_memory();
-        memcpy(ptr, dynamic_allocation, nbytes);
+    assert_is_dynamic_allocation(arena, allocation);
+
+    size_t required_chunks = REQUIRED_DYNAMIC_CHUNKS(size);
+    assert(required_chunks < ARENA_DYNAMIC_CHUNK_COUNT);
+
+    size_t* size_tag = (size_t*)((uint8_t*)allocation - sizeof(size_t));
+    size_t prev_required_chunks = REQUIRED_DYNAMIC_CHUNKS(*size_tag);
+
+    // if we don't have a change in number of required chunks just update size
+    // and return the same alllocation
+    if (prev_required_chunks == required_chunks) {
+        *size_tag = size;
+        return allocation;
     }
-    arena_dynamic_free(arena, dynamic_allocation, nbytes);
-    return ptr;
+
+    size_t prev_chunk = dynamic_allocation_to_chunk(arena, allocation);
+
+    // if more chunks are now required first check if the allocation will need to move
+    if (prev_required_chunks < required_chunks) {
+        bool zero[required_chunks - prev_required_chunks];
+        memset(zero, 0, sizeof(zero));
+        if (memcmp(
+                zero,
+                arena->dynamic_chunks_in_use + prev_chunk + prev_required_chunks,
+                sizeof(zero)
+            ) == 0) {
+            // forward space is free, no move required:
+            //      mark chunks in use
+            //      zero init new region
+            //      update size tag
+            //      return the same allocation
+            memset(
+                arena->dynamic_chunks_in_use + prev_chunk,
+                1,
+                sizeof(bool) * required_chunks
+            );
+            memset((uint8_t*)allocation + *size_tag, 0, size - *size_tag);
+            *size_tag = size;
+            return allocation;
+        }
+        else {
+            // forward space is not free, move required:
+            //      find a new allocation
+            //      copy old data into new buffer and zero initialize the end
+            //      mark old chunks not in use
+            //      return new allocation
+            size_t new_chunk = find_dynamic_chunk(arena, required_chunks);
+            memset(
+                arena->dynamic_chunks_in_use + new_chunk,
+                1,
+                sizeof(bool) * required_chunks
+            );
+            uint8_t* head = arena->dynamic_region[new_chunk];
+            *((size_t*)head) = size;
+            void* new = (void*)(head + sizeof(size_t));
+            memcpy(new, allocation, *size_tag);
+            memset((uint8_t*)new + *size_tag, 0, size - *size_tag);
+            memset(
+                arena->dynamic_chunks_in_use + prev_chunk,
+                0,
+                sizeof(bool) * prev_required_chunks
+            );
+            return new;
+        }
+    }
+    // if shrinking update the size and chunks in use then return the same allocation
+    else {
+        *size_tag = size;
+        memset(
+            arena->dynamic_chunks_in_use + prev_chunk + required_chunks,
+            0,
+            sizeof(bool) * (prev_required_chunks - required_chunks)
+        );
+        return allocation;
+    }
+    UNREACHABLE();
+}
+
+void*
+arena_dynamic_finalize(Arena* arena, void* dynamic_allocation)
+{
+    assert_is_dynamic_allocation(arena, dynamic_allocation);
+    uint8_t* head = (uint8_t*)dynamic_allocation - sizeof(size_t);
+    void* new = arena_copy(arena, dynamic_allocation, *(size_t*)head);
+    arena_dynamic_free(arena, dynamic_allocation);
+    return new;
 }
 
 void
-arena_dynamic_free(Arena* arena, void* dynamic_allocation, size_t nbytes)
+arena_dynamic_free(Arena* arena, void* dynamic_allocation)
 {
-    // TODO: if dynamic_chunks_in_use kept the nchunks value in the head chunk position
-    // we could avoid some computation here and not have to pass in nbytes to free chunks
-    size_t head_chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
-    size_t nchunks;
-    if (nbytes % ARENA_DYNAMIC_CHUNK_SIZE == 0) {
-        nchunks = nbytes / ARENA_DYNAMIC_CHUNK_SIZE;
-    }
-    else {
-        nchunks = nbytes / ARENA_DYNAMIC_CHUNK_SIZE + 1;
-    }
-    memset(arena->dynamic_chunks_in_use + head_chunk, false, sizeof(bool) * nchunks);
+    assert_is_dynamic_allocation(arena, dynamic_allocation);
+    size_t chunk = dynamic_allocation_to_chunk(arena, dynamic_allocation);
+    size_t* size_tag = (size_t*)((uint8_t*)dynamic_allocation - sizeof(size_t));
+    size_t nchunks = REQUIRED_DYNAMIC_CHUNKS(*size_tag);
+    memset(arena->dynamic_chunks_in_use + chunk, 0, sizeof(bool) * nchunks);
 }
 
 #define ARENA_STATIC_CHUNK_MIN_SIZE 4096
@@ -200,7 +255,7 @@ arena_init(void)
 }
 
 const char*
-arena_nfmt(Arena* arena, size_t bufsize, const char* fmt, ...)
+arena_snprintf(Arena* arena, size_t bufsize, const char* fmt, ...)
 {
     void* buf = arena_alloc(arena, bufsize);
     va_list args;

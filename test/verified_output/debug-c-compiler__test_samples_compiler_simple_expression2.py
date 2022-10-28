@@ -2,7 +2,7 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+{.data="", .length=0}};
 
 // TYPEDEFS COMPILER SECTION
 
@@ -15,11 +15,17 @@ NpFloat simple_expression2_z;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-simple_expression2_x = 1.0;
-simple_expression2_y = 2.0;
+simple_expression2_x = 1.000000;
+simple_expression2_y = 2.000000;
 NpFloat _np_0;
-_np_0 = simple_expression2_x+simple_expression2_y;
-simple_expression2_z = _np_0+3.0;
+_np_0 = simple_expression2_x;
+NpFloat _np_1;
+_np_1 = simple_expression2_y;
+NpFloat _np_2;
+_np_2 = _np_0 + _np_1;
+NpFloat _np_3;
+_np_3 = 3.000000;
+simple_expression2_z = _np_2 + _np_3;
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

@@ -681,7 +681,7 @@ resolve_operand_type(TypeChecker* tc, Operand operand)
         default:
             // the rest of the operands aren't resolved outside of the scope
             // of an operation
-            UNREACHABLE();
+            errorf("unexpected operand kind: %i", operand.kind);
     }
     UNREACHABLE();
 }

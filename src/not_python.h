@@ -5,12 +5,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// TODO: better handling of NoneType so library functions don't all have to return NULL
+// TODO: better handling of NoneType so library functions don't all have to return
+// NULL
 
 typedef int64_t NpInt;
+typedef uint64_t NpUnsigned;
 typedef double NpFloat;
 typedef bool NpBool;
 typedef uint8_t NpByte;
+typedef void* NpPointer;
+typedef void* NpNone;
 
 typedef enum {
     MEMORY_ERROR = 1u << 0,
@@ -26,7 +30,7 @@ typedef struct {
 } Exception;
 
 extern Exception* global_exception;
-extern uint64_t current_excepts;
+extern NpUnsigned current_excepts;
 void set_exception(ExceptionType type, const char* msg);
 void set_exceptionf(ExceptionType type, const char* fmt, ...);
 Exception* get_exception(void);
@@ -51,10 +55,10 @@ NpBool np_bool_eq(NpBool bool1, NpBool bool2);
 
 typedef NpBool (*NpCompareFunction)(const void*, const void*);
 
-NpBool np_void_int_eq(void* int1, void* int2);
-NpBool np_void_float_eq(void* float1, void* float2);
-NpBool np_void_bool_eq(void* bool1, void* bool2);
-NpBool np_void_str_eq(void* str1, void* str2);
+NpBool np_void_int_eq(const void* int1, const void* int2);
+NpBool np_void_float_eq(const void* float1, const void* float2);
+NpBool np_void_bool_eq(const void* bool1, const void* bool2);
+NpBool np_void_str_eq(const void* str1, const void* str2);
 
 typedef int (*NpSortFunction)(const void*, const void*);
 
@@ -90,7 +94,8 @@ typedef void* (*NpIterNextFunc)(void* iter);
 
 typedef struct {
     NpIterNextFunc next;
-    void* iter;
+    NpPointer iter;
+    NpPointer next_data;
 } NpIter;
 
 #define DICT_MIN_CAPACITY 10
@@ -99,7 +104,7 @@ typedef struct {
 #define DICT_SHRINK_THRESHOLD 0.35
 #define DICT_SHRINK_FACTOR 0.5
 
-typedef bool (*NpDictKeyCmpFunc)(void* key1, void* key2);
+typedef NpBool (*NpDictKeyCmpFunc)(const void* key1, const void* key2);
 
 typedef struct {
     NpDictKeyCmpFunc keycmp;
@@ -127,10 +132,10 @@ NpIter np_dict_iter_items(NpDict* dict);
 
 NpDict* np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp);
 NpDict* np_dict_copy(NpDict* other);
-void* np_dict_clear(NpDict* dict);
+NpNone np_dict_clear(NpDict* dict);
 void np_dict_set_item(NpDict* dict, void* key, void* val);
 void np_dict_get_val(NpDict* dict, void* key, void* out);
-void* np_dict_pop_val(NpDict* dict, void* key, void* out);
+NpNone np_dict_pop_val(NpDict* dict, void* key, void* out);
 void* np_dict_update(NpDict* dict, NpDict* other);
 void np_dict_del(NpDict* dict, void* key);
 
@@ -165,21 +170,21 @@ NpList* np_list_init(
     NpCompareFunction cmp_fn
 );
 NpList* np_list_add(NpList* list1, NpList* list2);
-void* np_list_clear(NpList* list);
+NpNone np_list_clear(NpList* list);
 NpList* np_list_copy(NpList* list);
-void* np_list_extend(NpList* list, NpList* other);
+NpNone np_list_extend(NpList* list, NpList* other);
 void np_list_del(NpList* list, NpInt index);
 void np_list_grow(NpList* list);
-void* np_list_reverse(NpList* list);
-void* np_list_sort(NpList* list, NpBool reverse);
+NpNone np_list_reverse(NpList* list);
+NpNone np_list_sort(NpList* list, NpBool reverse);
 void np_list_get_item(NpList* list, NpInt index, void* out);
 void np_list_set_item(NpList* list, NpInt index, void* item);
-void* np_list_append(NpList* list, void* item);
-void* np_list_pop(NpList* list, NpInt index, void* out);
+NpNone np_list_append(NpList* list, void* item);
+NpNone np_list_pop(NpList* list, NpInt index, void* out);
 NpInt np_list_index(NpList* list, void* item);
-void* np_list_remove(NpList* list, void* item);
+NpNone np_list_remove(NpList* list, void* item);
 NpInt np_list_count(NpList* list, void* item);
-void* np_list_insert(NpList* list, NpInt index, void* item);
+NpNone np_list_insert(NpList* list, NpInt index, void* item);
 NpIter np_list_iter(NpList* list);
 
 #define LIST_INIT(type, sort, rev_sort, cmp)                                             \
@@ -192,13 +197,13 @@ NpIter np_list_iter(NpList* list);
 
 // passed as an argument to all not python function calls
 typedef struct {
-    void* self;
+    NpPointer self;
 } NpContext;
 
 extern const NpContext global_context;
 
 typedef struct {
-    void* addr;
+    NpPointer addr;
     NpContext ctx;
 } NpFunction;
 

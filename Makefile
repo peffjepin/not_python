@@ -4,7 +4,7 @@ INSTALL_DIR ?= /usr
 
 CC = cc
 
-CFLAGS_COMMON = -Wall -Wextra -Wpedantic -std=c11
+CFLAGS_COMMON = -Wall -Wextra -Wpedantic -std=c11 -Wno-missing-braces
 DEBUG_CFLAGS = $(CFLAGS_COMMON) -g
 RELEASE_CFLAGS = $(CFLAGS_COMMON) -O3
 

@@ -45,8 +45,8 @@ layout_hm_memory(SymbolHashmap* hm)
 SymbolHashmap
 symbol_hm_init(Arena* arena)
 {
-    SymbolHashmap hm = {.arena = arena};
-    hm.buffer = arena_dynamic_alloc(arena, &hm.bytes);
+    SymbolHashmap hm = {
+        .arena = arena, .bytes = 1024, .buffer = arena_dynamic_alloc(arena, 1024)};
     layout_hm_memory(&hm);
     return hm;
 }
@@ -98,7 +98,8 @@ symbol_hm_put(SymbolHashmap* hm, Symbol element)
         exit(1);
     }
     if (hm->elements_count == hm->elements_capacity) {
-        hm->buffer = arena_dynamic_grow(hm->arena, hm->buffer, &hm->bytes);
+        hm->bytes *= 2;
+        hm->buffer = arena_dynamic_realloc(hm->arena, hm->buffer, hm->bytes);
         layout_hm_memory(hm);
     }
     size_t element_index = hm->elements_count;
@@ -148,6 +149,6 @@ symbol_hm_finalize(SymbolHashmap* hm)
     hm->elements = (Symbol*)static_buffer;
     hm->lookup_table = (int*)(static_buffer + elements_size);
 
-    arena_dynamic_free(hm->arena, hm->buffer, hm->bytes);
+    arena_dynamic_free(hm->arena, hm->buffer);
     hm->finalized = true;
 }

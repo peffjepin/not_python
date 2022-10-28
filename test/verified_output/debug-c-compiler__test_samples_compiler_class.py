@@ -2,7 +2,7 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+{.data="", .length=0}};
 
 // TYPEDEFS COMPILER SECTION
 typedef struct { NpFloat x; NpFloat y; NpFloat z; } class_Vec3;

@@ -113,7 +113,6 @@ typedef struct {
     enum { ET_NONE, ET_OPERAND, ET_OPERATION } previous;
     size_t operands_count;
     size_t operands_capacity;
-    size_t operands_nbytes;
     Operand* operands;
     size_t operations_count;
     OperationVector operation_vectors[MAX_PRECEDENCE + 1];

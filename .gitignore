@@ -2,7 +2,7 @@ backup
 build
 .ccls-cache
 codegen
-debug_c_compiler
+debug_compiler
 debug_lexical_scopes
 debug_statements
 debug_tokens

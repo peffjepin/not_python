@@ -39,6 +39,10 @@ typedef enum {
     NPTYPE_DICT_ITEMS,
     NPTYPE_CONTEXT,
     NPTYPE_EXCEPTION,
+    NPTYPE_POINTER,
+    NPTYPE_BYTE,
+    NPTYPE_UNSIGNED,
+    NPTYPE_CSTR,
     NPTYPE_COUNT,
 } NpType;
 
@@ -243,6 +247,8 @@ struct ClassStatement {
     SourceString base;
     SourceString ns_ident;
     SourceString fmtstr;
+    size_t fmtstr_index;
+    size_t nbytes;
     Signature sig;
     Block body;
     LexicalScope* scope;

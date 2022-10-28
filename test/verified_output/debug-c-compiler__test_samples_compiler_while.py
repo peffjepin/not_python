@@ -2,7 +2,7 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+{.data="", .length=0}};
 
 // TYPEDEFS COMPILER SECTION
 
@@ -15,14 +15,18 @@ NpInt while_x;
 static void init_module(void) {
 while_x = 0;
 while(1) {
-NpBool _np_1;
-_np_1 = while_x<10;
-if (!_np_1) {
+NpInt _np_1;
+_np_1 = while_x;
+NpInt _np_2;
+_np_2 = 10;
+NpBool _np_3;
+_np_3 = _np_1 < _np_2;
+if (!_np_3) {
 break;
 }
-NpInt _np_2;
-_np_2 = 1;
-while_x = while_x+_np_2;
+NpInt _np_4;
+_np_4 = 1;
+while_x = while_x + _np_4;
 _np_0:
 }
 }

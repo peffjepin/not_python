@@ -24,45 +24,51 @@
 #define PTR_VECTOR_DEFINITION(type, prefix)                                              \
     type##Vector prefix##_vector_init(Arena* arena)                                      \
     {                                                                                    \
-        type##Vector vec = {.arena = arena};                                             \
-        vec.data = arena_dynamic_alloc(arena, &vec.bytes);                               \
-        vec.capacity = vec.bytes / sizeof(type*);                                        \
+        type##Vector vec = {                                                             \
+            .arena = arena,                                                              \
+            .capacity = 8,                                                               \
+            .data = arena_dynamic_alloc(arena, sizeof(type*) * 8),                       \
+        };                                                                               \
         return vec;                                                                      \
     }                                                                                    \
     void prefix##_vector_append(type##Vector* vec, type* ptr)                            \
     {                                                                                    \
         if (vec->count == vec->capacity) {                                               \
-            vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);          \
-            vec->capacity = vec->bytes / sizeof(type*);                                  \
+            vec->capacity *= 2;                                                          \
+            vec->data = arena_dynamic_realloc(                                           \
+                vec->arena, vec->data, (sizeof(type*) * vec->capacity)                   \
+            );                                                                           \
         }                                                                                \
         vec->data[vec->count++] = ptr;                                                   \
     }                                                                                    \
     type** prefix##_vector_finalize(type##Vector* vec)                                   \
     {                                                                                    \
-        return arena_dynamic_finalize(                                                   \
-            vec->arena, vec->data, sizeof(type*) * vec->count                            \
-        );                                                                               \
+        return arena_dynamic_finalize(vec->arena, vec->data);                            \
     }
 
 #define VALUE_VECTOR_DEFINITION(type, prefix)                                            \
     type##Vector prefix##_vector_init(Arena* arena)                                      \
     {                                                                                    \
-        type##Vector vec = {.arena = arena};                                             \
-        vec.data = arena_dynamic_alloc(arena, &vec.bytes);                               \
-        vec.capacity = vec.bytes / sizeof(type);                                         \
+        type##Vector vec = {                                                             \
+            .arena = arena,                                                              \
+            .capacity = 8,                                                               \
+            .data = arena_dynamic_alloc(arena, sizeof(type) * 8),                        \
+        };                                                                               \
         return vec;                                                                      \
     }                                                                                    \
     void prefix##_vector_append(type##Vector* vec, type value)                           \
     {                                                                                    \
         if (vec->count == vec->capacity) {                                               \
-            vec->data = arena_dynamic_grow(vec->arena, vec->data, &vec->bytes);          \
-            vec->capacity = vec->bytes / sizeof(type);                                   \
+            vec->capacity *= 2;                                                          \
+            vec->data = arena_dynamic_realloc(                                           \
+                vec->arena, vec->data, sizeof(type) * vec->capacity                      \
+            );                                                                           \
         }                                                                                \
         vec->data[vec->count++] = value;                                                 \
     }                                                                                    \
     type* prefix##_vector_finalize(type##Vector* vec)                                    \
     {                                                                                    \
-        return arena_dynamic_finalize(vec->arena, vec->data, sizeof(type) * vec->count); \
+        return arena_dynamic_finalize(vec->arena, vec->data);                            \
     }
 
 PTR_VECTOR_DEFINITION(Expression, expr)
@@ -260,9 +266,11 @@ operation_vector_push(OperationVector* vec, Operation operation)
 ExpressionTable
 et_init(Arena* arena)
 {
-    ExpressionTable et = {.arena = arena};
-    et.operands = arena_dynamic_alloc(arena, &et.operands_nbytes);
-    et.operands_capacity = et.operands_nbytes / sizeof(Operand);
+    ExpressionTable et = {
+        .arena = arena,
+        .operands_capacity = 8,
+        .operands = arena_dynamic_alloc(arena, sizeof(Operand) * 8),
+    };
     return et;
 }
 
@@ -270,8 +278,10 @@ void
 et_push_operand(ExpressionTable* et, Operand operand)
 {
     if (et->operands_count == et->operands_capacity) {
-        et->operands = arena_dynamic_grow(et->arena, et->operands, &et->operands_nbytes);
-        et->operands_capacity = et->operands_nbytes / sizeof(Operand);
+        et->operands_capacity *= 2;
+        et->operands = arena_dynamic_realloc(
+            et->arena, et->operands, sizeof(Operand) * et->operands_capacity
+        );
     }
     et->operands[et->operands_count++] = operand;
     et->previous = ET_OPERAND;
@@ -309,9 +319,7 @@ et_to_expr(ExpressionTable* et)
     Expression* expr = arena_alloc(et->arena, sizeof(Expression));
     expr->operations = arena_alloc(et->arena, sizeof(Operation) * et->operations_count);
     expr->operations_count = et->operations_count;
-    expr->operands = arena_dynamic_finalize(
-        et->arena, et->operands, sizeof(Operand) * et->operands_count
-    );
+    expr->operands = arena_dynamic_finalize(et->arena, et->operands);
     expr->operands_count = et->operands_count;
 
     size_t sorted_count = 0;

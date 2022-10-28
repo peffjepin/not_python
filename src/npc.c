@@ -6,9 +6,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "c_compiler.h"
+#include "compiler.h"
 #include "diagnostics.h"
 #include "lexer.h"
+#include "writer.h"
 
 #if DEBUG
 #include "debug.h"
@@ -47,13 +48,15 @@ make_build_directory(void)
 // TODO: in the future this will need to be more robust and support multiple files
 #define INTERMEDIATE_FILEPATH BUILD_DIR "/intermediate.c"
 
-static void
+static Requirements
 compile_target_to_c(char* target)
 {
     Lexer lexer = lex_file(target);
     FILE* outfile = open_file_for_writing(INTERMEDIATE_FILEPATH);
-    compile_to_c(outfile, &lexer);
+    CompiledInstructions compiled = compile(&lexer);
+    write_c_program(compiled, outfile);
     fclose(outfile);
+    return compiled.req;
 }
 
 ShortString
@@ -127,27 +130,58 @@ fork_and_run_sync(char* const* argv)
     }
 }
 
+#define ARGV_BUILDER_CAP 256
+
+typedef struct {
+    const char* buffer[ARGV_BUILDER_CAP];
+    size_t length;
+} ArgvBuilder;
+
 static void
-compile_to_binary(char* outfile)
+argv_append(ArgvBuilder* argv, const char* arg)
 {
-    char* compiled_c_file = INTERMEDIATE_FILEPATH;
-    char* extra_include_dir = "-I" INSTALL_DIR "/include";
-    char* extra_lib_dir = "-L" INSTALL_DIR "/lib";
+    if (argv->length == ARGV_BUILDER_CAP - 1) error("argv buffer overflow");
+    argv->buffer[argv->length++] = arg;
+}
+
+// NULL terminated array of args
+static void
+argv_extend(ArgvBuilder* argv, const char* args[])
+{
+    const char* arg;
+    while ((arg = *args++)) argv_append(argv, arg);
+}
+
+static void
+compile_to_binary(Requirements req, char* outfile)
+{
+    ArgvBuilder args = {0};
+
+    argv_extend(
+        &args,
+        (const char*[]){
+            "cc",
+            "-o",
+            outfile,
+            (const char*)INTERMEDIATE_FILEPATH,
+            (const char*)"-L" INSTALL_DIR "/lib",
+            (const char*)"-I" INSTALL_DIR "/include",
+            NULL,
+        }
+    );
 #if DEBUG
-    char* static_linking_flag = "-l:not_python_db.a";
+    argv_append(&args, "-l:not_python_db.a");
 #else
-    char* static_linking_flag = "-l:not_python.a";
+    argv_append(&args, "-l:not_python.a");
 #endif
-    char* const argv[] = {
-        "cc",
-        "-o",
-        outfile,
-        compiled_c_file,
-        extra_lib_dir,
-        extra_include_dir,
-        static_linking_flag,
-        NULL};
-    fork_and_run_sync(argv);
+
+    if (req.libs[LIB_MATH]) {
+        argv_append(&args, "-lm");
+    }
+
+    argv_append(&args, NULL);
+
+    fork_and_run_sync((char* const*)args.buffer);
 }
 
 static void
@@ -272,13 +306,13 @@ main(int argc, char** argv)
             debug_scopes_main(cli.target.data);
             exit(0);
         case DEBUG_C_COMPILER:
-            debug_c_compiler_main(cli.target.data);
+            debug_compiler_main(cli.target.data);
             exit(0);
     }
 #endif
 
     make_build_directory();
-    compile_target_to_c(cli.target.data);
-    compile_to_binary(cli.outfile.data);
+    Requirements req = compile_target_to_c(cli.target.data);
+    compile_to_binary(req, cli.outfile.data);
     if (cli.run) run_program(cli.outfile.data);
 }

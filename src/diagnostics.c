@@ -13,9 +13,12 @@
 FileIndex
 create_file_index(Arena* arena, const char* filepath)
 {
-    FileIndex index = {.filepath = filepath, .arena = arena};
-    index.line_offsets = arena_dynamic_alloc(arena, &index.bytes);
-    index.line_capacity = index.bytes / sizeof(size_t);
+    FileIndex index = {
+        .filepath = filepath,
+        .arena = arena,
+        .line_capacity = 64,
+        .line_offsets = arena_dynamic_alloc(arena, sizeof(size_t) * 64),
+    };
     file_index_index_line(&index, 0);  // index line 1
     return index;
 }
@@ -24,9 +27,10 @@ void
 file_index_index_line(FileIndex* index, size_t line_start)
 {
     if (index->line_count == index->line_capacity) {
-        index->line_offsets =
-            arena_dynamic_grow(index->arena, index->line_offsets, &index->bytes);
-        index->line_capacity = index->bytes / sizeof(size_t);
+        index->line_capacity *= 2;
+        index->line_offsets = arena_dynamic_realloc(
+            index->arena, index->line_offsets, sizeof(size_t) * index->line_capacity
+        );
     }
     index->line_offsets[index->line_count++] = line_start;
 }
@@ -327,4 +331,136 @@ unspecified_errorf(FileIndex index, Location loc, const char* fmt, ...)
             LABEL_UNSPECIFIED_ERROR, LABEL_NORMAL, index, loc, 0, fmt, args
         );
     }
+}
+
+static const char*
+type_info_human_readable(TypeInfo info)
+{
+    switch (info.type) {
+        case NPTYPE_NONE:
+            return "None";
+        case NPTYPE_INT:
+            return "int";
+        case NPTYPE_UNSIGNED:
+            return "uint";
+        case NPTYPE_BYTE:
+            return "byte";
+        case NPTYPE_POINTER:
+            return "pointer";
+        case NPTYPE_FLOAT:
+            return "float";
+        case NPTYPE_STRING:
+            return "str";
+        case NPTYPE_LIST:
+            return "List";
+        case NPTYPE_TUPLE:
+            return "Tuple";
+        case NPTYPE_DICT:
+            return "Dict";
+        case NPTYPE_FUNCTION:
+            return "Function";
+        case NPTYPE_OBJECT:
+            return info.cls->name.data;
+        case NPTYPE_BOOL:
+            return "bool";
+        case NPTYPE_SLICE:
+            return "slice";
+        case NPTYPE_ITER:
+            return "Iter";
+        case NPTYPE_DICT_ITEMS:
+            return "DictItems";
+        case NPTYPE_CONTEXT:
+            return "NpContext";
+        case NPTYPE_EXCEPTION:
+            return "Exception";
+        case NPTYPE_CSTR:
+            return "cstr";
+        case NPTYPE_UNTYPED:
+            return "ERROR: UNTYPED";
+        default: {
+            char* str = malloc(21);
+            sprintf(str, "%i", info.type);
+            return str;
+        }
+    }
+}
+
+static size_t
+write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t remaining)
+{
+    size_t start = remaining;
+    const char* outer = type_info_human_readable(info);
+
+    while (*outer != '\0' && remaining > 1) {
+        *buffer++ = *outer++;
+        remaining--;
+    }
+    if (info.type == NPTYPE_FUNCTION) {
+        if (remaining > 2) {
+            *buffer++ = '[';
+            *buffer++ = '[';
+            remaining -= 2;
+        }
+        for (size_t i = 0; i < info.sig->params_count; i++) {
+            if (i > 0 && remaining > 2) {
+                *buffer++ = ',';
+                *buffer++ = ' ';
+                remaining -= 2;
+            }
+            remaining -= write_type_info_into_buffer_human_readable(
+                info.sig->types[i], buffer, remaining
+            );
+        }
+        if (remaining > 2) {
+            *buffer++ = ']';
+            *buffer++ = ',';
+            *buffer++ = ' ';
+            remaining -= 3;
+        }
+        size_t written = write_type_info_into_buffer_human_readable(
+            info.sig->return_type, buffer, remaining
+        );
+        remaining -= written;
+        buffer += written;
+        if (remaining > 0) {
+            *buffer++ = ']';
+            remaining -= 1;
+        }
+    }
+    else if (info.type != NPTYPE_OBJECT && info.inner) {
+        if (remaining > 1) {
+            *buffer++ = '[';
+            remaining--;
+        }
+        for (size_t i = 0; i < info.inner->count; i++) {
+            if (i > 0 && remaining > 2) {
+                *buffer++ = ',';
+                *buffer++ = ' ';
+                remaining -= 2;
+            }
+            size_t written = write_type_info_into_buffer_human_readable(
+                info.inner->types[i], buffer, remaining
+            );
+            remaining -= written;
+            buffer += written;
+        }
+        if (remaining > 1) {
+            *buffer++ = ']';
+            remaining--;
+        }
+    }
+    *buffer = '\0';
+    return start - remaining;
+}
+
+const char*
+errfmt_type_info(TypeInfo info)
+{
+    char buf[1024];
+    size_t written = write_type_info_into_buffer_human_readable(info, buf, 1023);
+    buf[written++] = '\0';
+    char* res = malloc(written);
+    if (!res) error("out of memory");
+    memcpy(res, buf, written);
+    return (const char*)res;
 }

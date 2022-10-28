@@ -2,13 +2,12 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-};
+{.data="", .length=0}};
 
 // TYPEDEFS COMPILER SECTION
 
 // DECLARATIONS COMPILER SECTION
 NpInt function_call1_x;
-NpFunction function_call1_my_func;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpInt _np_0(NpContext __ctx__) {
@@ -19,8 +18,9 @@ return _np_1;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-function_call1_my_func.addr = &_np_0;
-function_call1_x = ((NpInt (*)(NpContext ctx))function_call1_my_func.addr)(function_call1_my_func.ctx);
+NpFunction function_call1_my_func;
+function_call1_my_func.addr = _np_0;
+function_call1_x = ((NpInt (*)(NpContext))function_call1_my_func.addr)(function_call1_my_func.ctx);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

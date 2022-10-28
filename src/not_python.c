@@ -366,7 +366,7 @@ np_list_set_item(NpList* list, NpInt index, void* item)
     LIST_COPY_FROM_ITEM(list, index, item);
 }
 
-void*
+NpNone
 np_list_append(NpList* list, void* item)
 {
     NpInt index = list->count++;
@@ -375,7 +375,7 @@ np_list_append(NpList* list, void* item)
     return NULL;
 }
 
-void*
+NpNone
 np_list_pop(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
@@ -416,7 +416,7 @@ np_list_count(NpList* list, void* item)
     return count;
 }
 
-void*
+NpNone
 np_list_insert(NpList* list, NpInt index, void* item)
 {
     index = LIST_WRAP(list, index);
@@ -512,11 +512,13 @@ np_int_eq(NpInt int1, NpInt int2)
 {
     return int1 == int2;
 }
+
 NpBool
 np_float_eq(NpFloat float1, NpFloat float2)
 {
     return float1 == float2;
 }
+
 NpBool
 np_bool_eq(NpBool bool1, NpBool bool2)
 {
@@ -524,22 +526,25 @@ np_bool_eq(NpBool bool1, NpBool bool2)
 }
 
 NpBool
-np_void_int_eq(void* int1, void* int2)
+np_void_int_eq(const void* int1, const void* int2)
 {
     return *(NpInt*)int1 == *(NpInt*)int2;
 }
+
 NpBool
-np_void_float_eq(void* float1, void* float2)
+np_void_float_eq(const void* float1, const void* float2)
 {
     return *(NpFloat*)float1 == *(NpFloat*)float2;
 }
+
 NpBool
-np_void_bool_eq(void* bool1, void* bool2)
+np_void_bool_eq(const void* bool1, const void* bool2)
 {
     return *(NpBool*)bool1 == *(NpBool*)bool2;
 }
+
 NpBool
-np_void_str_eq(void* str1, void* str2)
+np_void_str_eq(const void* str1, const void* str2)
 {
     return np_str_eq(*(NpString*)str1, *(NpString*)str2);
 }
@@ -851,7 +856,7 @@ np_dict_get_val(NpDict* dict, void* key, void* out)
         );
 }
 
-void*
+NpNone
 np_dict_pop_val(NpDict* dict, void* key, void* out)
 {
     if (dict->count == 0) {
