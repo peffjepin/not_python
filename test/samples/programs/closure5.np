@@ -1,0 +1,7 @@
+def inner():
+    def outer():
+        print("hello")
+    outer()
+
+
+outer()
