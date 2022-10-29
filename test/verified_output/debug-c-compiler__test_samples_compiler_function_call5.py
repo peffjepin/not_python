@@ -8,6 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpInt function_call5_z;
+NpFunction function_call5_my_function;
+NpInt _np_0(NpContext __ctx__, NpInt x, NpInt y);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpInt _np_0(NpContext __ctx__, NpInt x, NpInt y) {
@@ -22,7 +24,6 @@ return _np_3;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction function_call5_my_function;
 function_call5_my_function.addr = _np_0;
 NpInt _np_4;
 _np_4 = 2;

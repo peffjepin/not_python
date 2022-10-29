@@ -198,6 +198,7 @@ NpIter np_list_iter(NpList* list);
 // passed as an argument to all not python function calls
 typedef struct {
     NpPointer self;
+    NpByte* closure;
 } NpContext;
 
 extern const NpContext global_context;

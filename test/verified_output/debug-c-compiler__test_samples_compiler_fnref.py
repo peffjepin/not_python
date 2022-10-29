@@ -9,6 +9,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpFunction fnref_fnref;
+NpFunction fnref_my_function;
+NpNone _np_0(NpContext __ctx__, NpString value);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__, NpString value) {
@@ -21,7 +23,6 @@ return 0;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction fnref_my_function;
 fnref_my_function.addr = _np_0;
 fnref_fnref = fnref_my_function;
 NpString _np_4;

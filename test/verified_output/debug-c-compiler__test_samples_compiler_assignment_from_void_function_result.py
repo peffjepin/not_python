@@ -8,6 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpNone assignment_from_void_function_result_x;
+NpFunction assignment_from_void_function_result_void_fn;
+NpNone _np_0(NpContext __ctx__);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
@@ -16,7 +18,6 @@ return 0;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction assignment_from_void_function_result_void_fn;
 assignment_from_void_function_result_void_fn.addr = _np_0;
 assignment_from_void_function_result_x = ((NpNone (*)(NpContext))assignment_from_void_function_result_void_fn.addr)(assignment_from_void_function_result_void_fn.ctx);
 }

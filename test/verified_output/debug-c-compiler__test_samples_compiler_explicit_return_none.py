@@ -7,6 +7,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // TYPEDEFS COMPILER SECTION
 
 // DECLARATIONS COMPILER SECTION
+NpFunction explicit_return_none_fn;
+NpNone _np_0(NpContext __ctx__);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
@@ -18,7 +20,6 @@ return 0;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction explicit_return_none_fn;
 explicit_return_none_fn.addr = _np_0;
 }
 // MAIN FUNCTION COMPILER SECTION

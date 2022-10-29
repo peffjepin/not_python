@@ -9,6 +9,9 @@ typedef struct { NpInt value; } object_op_assignment_A;
 
 // DECLARATIONS COMPILER SECTION
 object_op_assignment_A* object_op_assignment_a;
+NpFunction object_op_assignment_A___iadd__;
+object_op_assignment_A* _np_0(NpContext __ctx__, NpInt other);
+NpFunction _np_8;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 object_op_assignment_A* _np_0(NpContext __ctx__, NpInt other) {
@@ -30,7 +33,6 @@ return _np_5;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction object_op_assignment_A___iadd__;
 object_op_assignment_A___iadd__.addr = _np_0;
 object_op_assignment_a = np_alloc(8);
 NpInt _np_6;
@@ -38,7 +40,6 @@ _np_6 = 1;
 object_op_assignment_a->value = _np_6;
 NpInt _np_7;
 _np_7 = 1;
-NpFunction _np_8;
 _np_8 = object_op_assignment_A___iadd__;
 NpContext _np_9;
 _np_9 = _np_8.ctx;

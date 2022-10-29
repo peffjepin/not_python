@@ -9,6 +9,9 @@ typedef struct { NpInt x; NpInt y; } object_initialization6_A;
 
 // DECLARATIONS COMPILER SECTION
 object_initialization6_A* object_initialization6_a;
+NpFunction object_initialization6_A___init__;
+NpNone _np_0(NpContext __ctx__);
+NpFunction _np_5;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
@@ -29,10 +32,8 @@ return 0;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
-NpFunction object_initialization6_A___init__;
 object_initialization6_A___init__.addr = _np_0;
 object_initialization6_a = np_alloc(16);
-NpFunction _np_5;
 _np_5 = object_initialization6_A___init__;
 NpContext _np_6;
 _np_6 = _np_5.ctx;

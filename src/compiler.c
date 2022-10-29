@@ -205,6 +205,9 @@ storage_ident_from_variable(Variable* variable)
         case VAR_REGULAR:
             return (StorageIdent){
                 .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
+        case VAR_CLOSURE:
+            return (StorageIdent){
+                .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
         case VAR_SEMI_SCOPED:
             return (StorageIdent){
                 .kind = IDENT_CSTR,
@@ -2925,6 +2928,20 @@ render_expression(Compiler* compiler, StorageHint hint, Expression* expr)
 }
 
 static void
+iterate_scopes_and_update_closure_variables(size_t* closure_size, LexicalScope* scope)
+{
+    for (size_t i = 0; i < scope->hm.elements_count; i++) {
+        Symbol* sym = scope->hm.elements + i;
+        if (sym->kind == SYM_VARIABLE && sym->variable->kind == VAR_CLOSURE) {
+            sym->variable->closure_offset = *closure_size;
+            *closure_size += type_info_sizeof(sym->variable->type_info);
+        }
+        else if (sym->kind == SYM_FUNCTION)
+            iterate_scopes_and_update_closure_variables(closure_size, sym->func->scope);
+    }
+}
+
+static void
 compile_function(Compiler* compiler, FunctionStatement* func)
 {
     scope_stack_push(&compiler->scope_stack, func->scope);
@@ -2954,6 +2971,20 @@ compile_function(Compiler* compiler, FunctionStatement* func)
                     .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = function_name},
                 }}
     );
+    if (func->scope->kind == SCOPE_CLOSURE_CHILD)
+        // copy parent context for closure children so they have access to the closure
+        add_instruction(
+            compiler,
+            (Instruction){
+                .kind = INST_OPERATION,
+                .operation =
+                    (OperationInst){
+                        .kind = OPERATION_SET_ATTR,
+                        .object = fn_variable,
+                        .attr = SOURCESTRING("ctx"),
+                        .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = "__ctx__"},
+                    }}
+        );
 
     Instruction fndef_inst = {
         .kind = INST_DEFINE_FUNCTION,
@@ -2961,8 +2992,22 @@ compile_function(Compiler* compiler, FunctionStatement* func)
         .define_function.signature = func->sig,
         .define_function.var_ident = fn_variable,
     };
+
+    size_t* closure_size;
+
     COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, fndef_inst.define_function.body)
     {
+        if (func->scope->kind == SCOPE_CLOSURE_PARENT) {
+            closure_size = arena_alloc(compiler->arena, sizeof(size_t));
+            add_instruction(
+                compiler,
+                (Instruction){
+                    .kind = INST_INIT_CLOSURE,
+                    .closure_size = closure_size,
+                }
+            );
+        }
+
         declare_scope_variables(compiler, func->scope);
         if (func->self_param.data) {
             // set `self` variable from context (declared from scope)
@@ -3000,12 +3045,19 @@ compile_function(Compiler* compiler, FunctionStatement* func)
                 compiler,
                 (Instruction){
                     .kind = INST_RETURN,
-                    .rtval = compiler->none_ident,
+                    .return_.rtval = compiler->none_ident,
+                    .return_.should_free_closure =
+                        func->scope->kind == SCOPE_CLOSURE_PARENT,
                 }
             );
     }
 
     add_instruction(compiler, fndef_inst);
+
+    if (func->scope->kind == SCOPE_CLOSURE_PARENT)
+        // now that all types have been resolved we can assign closure offsets
+        iterate_scopes_and_update_closure_variables(closure_size, func->scope);
+
     scope_stack_pop(&compiler->scope_stack);
 }
 
@@ -3443,9 +3495,10 @@ compile_return_statement(Compiler* compiler, Expression* value)
         compiler,
         (Instruction){
             .kind = INST_RETURN,
-            .rtval = render_expression(
+            .return_.rtval = render_expression(
                 compiler, (StorageHint){.info = scope->func->sig.return_type}, value
             ),
+            .return_.should_free_closure = scope->kind == SCOPE_CLOSURE_PARENT,
         }
     );
 }
@@ -4294,7 +4347,11 @@ declare_scope_variables(Compiler* compiler, LexicalScope* scope)
         Symbol s = scope->hm.elements[i];
         if (s.kind == SYM_VARIABLE) {
             switch (s.variable->kind) {
-                case VAR_REGULAR:
+                case VAR_SEMI_SCOPED:
+                    // semi scoped var is managed in the compiler
+                    continue;
+                default:
+                    // writer can decide how to handle different variable types
                     add_instruction(
                         compiler,
                         (Instruction){
@@ -4303,10 +4360,6 @@ declare_scope_variables(Compiler* compiler, LexicalScope* scope)
                             .declare_variable.var = s.variable,
                         }
                     );
-                    break;
-                case VAR_SEMI_SCOPED:
-                    break;
-                case VAR_ARGUMENT:
                     break;
             }
         }

@@ -2006,23 +2006,39 @@ parse_function_statement(Parser* parser, Location loc)
     TypeInfoVector types = typing_vector_init(parser->arena);
     ExpressionVector defaults = expr_vector_init(parser->arena);
 
+    LexicalScope* fn_scope = scope_init(parser->arena);
     LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
-    if (parent_scope->kind == SCOPE_FUNCTION || parent_scope->kind == SCOPE_METHOD)
-        syntax_error(*parser->scanner->index, loc, 2, "nested functions not supported");
-    else if (parent_scope->kind == SCOPE_CLASS) {
-        func->is_method = true;
-        // parse name of self param
-        Token self_token = get_next_token(parser);
-        if (self_token.type != TOK_IDENTIFIER) {
-            syntax_error(
-                *parser->scanner->index,
-                *self_token.loc,
-                1,
-                "expecting `self` param for method def"
-            );
+
+    switch (parent_scope->kind) {
+        case SCOPE_FUNCTION:
+            parent_scope->kind = SCOPE_CLOSURE_PARENT;
+            fn_scope->kind = SCOPE_CLOSURE_CHILD;
+            break;
+        case SCOPE_CLOSURE_CHILD:
+            fn_scope->kind = SCOPE_CLOSURE_CHILD;
+            break;
+        case SCOPE_CLOSURE_PARENT:
+            fn_scope->kind = SCOPE_CLOSURE_CHILD;
+            break;
+        case SCOPE_TOP:
+            fn_scope->kind = SCOPE_FUNCTION;
+            break;
+        case SCOPE_CLASS: {
+            func->is_method = true;
+            // parse name of self param
+            Token self_token = get_next_token(parser);
+            if (self_token.type != TOK_IDENTIFIER) {
+                syntax_error(
+                    *parser->scanner->index,
+                    *self_token.loc,
+                    1,
+                    "expecting `self` param for method def"
+                );
+            }
+            func->self_param = self_token.value;
+            func->self_type = (TypeInfo){.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
+            break;
         }
-        func->self_param = self_token.value;
-        func->self_type = (TypeInfo){.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
     }
 
     Token peek = peek_next_token(parser);
@@ -2067,8 +2083,6 @@ parse_function_statement(Parser* parser, Location loc)
 
     // init functions lexical scope
     expect_token_type(parser, TOK_COLON);
-    LexicalScope* fn_scope = scope_init(parser->arena);
-    fn_scope->kind = (parent_scope->kind == SCOPE_CLASS) ? SCOPE_METHOD : SCOPE_FUNCTION;
     fn_scope->func = func;
     if (func->is_method) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));

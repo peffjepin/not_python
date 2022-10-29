@@ -234,7 +234,19 @@ write_ident(Section* section, StorageIdent ident)
             write(section, ident.cstr);
             break;
         case IDENT_VAR:
-            write(section, ident.var->compiled_name.data);
+            if (ident.var->kind == VAR_CLOSURE) {
+                // *(type*)(__ctx__.closure + closure_offset)
+                write(section, "*(");
+                write_type_info(section, ident.var->type_info);
+                write(section, "*)(__ctx__.closure + ");
+                char numbuf[21];
+                snprintf(numbuf, 21, "%zu", ident.var->closure_offset);
+                write(section, numbuf);
+                write(section, ")");
+            }
+            else {
+                write(section, ident.var->compiled_name.data);
+            }
             break;
         case IDENT_INT_LITERAL:
             if (snprintf(buffer, buflen, "%i", ident.int_value) >= buflen)
@@ -521,6 +533,13 @@ static void
 write_instruction(Writer* writer, SectionID s, Instruction inst)
 {
     switch (inst.kind) {
+        case INST_INIT_CLOSURE:
+            write(writer->sections + s, "__ctx__.closure = " NPLIB_ALLOC "(");
+            char num_buf[21];
+            snprintf(num_buf, 21, "%zu", *inst.closure_size);
+            write(writer->sections + s, num_buf);
+            write(writer->sections + s, ");\n");
+            break;
         case INST_ITER_NEXT:
             // iter.next_data = iter.next(iter.iter);
             write_ident_attr(writer->sections + s, inst.iter_next.iter, "next_data");
@@ -551,8 +570,10 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
             write(writer->sections + s, ";\n");
             break;
         case INST_RETURN:
+            if (inst.return_.should_free_closure)
+                write(writer->sections + s, NPLIB_FREE "(__ctx__.closure);\n");
             write(writer->sections + s, "return ");
-            write_ident(writer->sections + s, inst.rtval);
+            write_ident(writer->sections + s, inst.return_.rtval);
             write(writer->sections + s, ";\n");
             break;
         case INST_LABEL:
@@ -615,9 +636,14 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
             break;
         case INST_DECLARE_VARIABLE: {
             bool is_variable = inst.declare_variable.kind == IDENT_VAR;
-            Section* section = (s == SEC_INIT && is_variable)
-                                   ? writer->sections + SEC_DECLARATIONS
-                                   : writer->sections + s;
+            if (is_variable && (inst.declare_variable.var->kind == VAR_ARGUMENT ||
+                                inst.declare_variable.var->kind == VAR_CLOSURE))
+                break;
+            Section* section =
+                (s == SEC_INIT &&
+                 (is_variable || inst.declare_variable.info.type == NPTYPE_FUNCTION))
+                    ? writer->sections + SEC_DECLARATIONS
+                    : writer->sections + s;
 
             write_type_info(
                 section,
@@ -679,39 +705,66 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
             }
             break;
         case INST_DEFINE_FUNCTION: {
-            // `return_type function_name(NpContext __ctx__`
-            write_type_info(
-                writer->sections + SEC_DEFS, inst.define_function.signature.return_type
-            );
-            write_many(
-                writer->sections + SEC_DEFS,
-                (const char*[]){
-                    " ",
-                    inst.define_function.function_name,
-                    "(" DATATYPE_CONTEXT " __ctx__",
-                    NULL}
-            );
+            // closure function definitions need to wait for this function definition
+            // to finish being written before themselves being written
+            static const size_t FUNCS_WAITING_CAP = 64;
+            // index in the instruction sequence
+            size_t funcs_waiting_list[FUNCS_WAITING_CAP];
+            size_t funcs_waiting_count = 0;
 
-            // `, type1 param1` for each param
-            for (size_t i = 0; i < inst.define_function.signature.params_count; i++) {
-                write(writer->sections + SEC_DEFS, ", ");
+            SectionID secs[2] = {SEC_DEFS, SEC_DECLARATIONS};
+            for (size_t j = 0; j < 2; j++) {
+                // `return_type function_name(NpContext __ctx__`
                 write_type_info(
-                    writer->sections + SEC_DEFS, inst.define_function.signature.types[i]
+                    writer->sections + secs[j], inst.define_function.signature.return_type
                 );
                 write_many(
-                    writer->sections + SEC_DEFS,
+                    writer->sections + secs[j],
                     (const char*[]){
-                        " ", inst.define_function.signature.params[i].data, NULL}
+                        " ",
+                        inst.define_function.function_name,
+                        "(" DATATYPE_CONTEXT " __ctx__",
+                        NULL}
                 );
+
+                // `, type1 param1` for each param
+                for (size_t i = 0; i < inst.define_function.signature.params_count; i++) {
+                    write(writer->sections + secs[j], ", ");
+                    write_type_info(
+                        writer->sections + secs[j],
+                        inst.define_function.signature.types[i]
+                    );
+                    write_many(
+                        writer->sections + secs[j],
+                        (const char*[]){
+                            " ", inst.define_function.signature.params[i].data, NULL}
+                    );
+                }
             }
+            // declaration complete
+            write(writer->sections + SEC_DECLARATIONS, ");\n");
 
             // begin scope -- function body -- end scope
             write(writer->sections + SEC_DEFS, ") {\n");
             for (size_t i = 0; i < inst.define_function.body.count; i++) {
                 Instruction body_inst = inst.define_function.body.instructions[i];
+                if (body_inst.kind == INST_DEFINE_FUNCTION) {
+                    if (funcs_waiting_count == FUNCS_WAITING_CAP)
+                        error("max child functions exceeded");
+                    funcs_waiting_list[funcs_waiting_count++] = i;
+                    continue;
+                }
                 write_instruction(writer, SEC_DEFS, body_inst);
             }
             write(writer->sections + SEC_DEFS, "}\n");
+
+            // this function is written, now we can write child functions
+            for (size_t i = 0; i < funcs_waiting_count; i++)
+                write_instruction(
+                    writer,
+                    s,
+                    inst.define_function.body.instructions[funcs_waiting_list[i]]
+                );
         }
     }
 }

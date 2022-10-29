@@ -8,6 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpInt global_x;
+NpFunction global_incx;
+NpNone _np_0(NpContext __ctx__);
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
@@ -20,7 +22,6 @@ return 0;
 // INIT MODULE FUNCTION COMPILER SECTION
 static void init_module(void) {
 global_x = 1;
-NpFunction global_incx;
 global_incx.addr = _np_0;
 }
 // MAIN FUNCTION COMPILER SECTION

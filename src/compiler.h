@@ -8,6 +8,7 @@
 #define NPLIB_PRINT "builtin_print"
 
 #define NPLIB_ALLOC "np_alloc"
+#define NPLIB_FREE "np_free"
 
 #define NPLIB_LIST_APPEND "np_list_append"
 #define NPLIB_LIST_CLEAR "np_list_clear"
@@ -202,6 +203,11 @@ typedef struct {
     InstructionSequence body;
 } IfInst;
 
+typedef struct {
+    StorageIdent rtval;
+    bool should_free_closure;
+} ReturnInst;
+
 struct Instruction {
     enum {
         INST_NO_OP,
@@ -220,6 +226,7 @@ struct Instruction {
         INST_CONTINUE,
         INST_RETURN,
         INST_ITER_NEXT,
+        INST_INIT_CLOSURE,
     } kind;
     union {
         AssignmentInst assignment;
@@ -231,8 +238,9 @@ struct Instruction {
         IfInst if_;
         InstructionSequence else_;
         const char* label;
-        StorageIdent rtval;
+        ReturnInst return_;
         IterNextInst iter_next;
+        size_t* closure_size;
     };
 };
 

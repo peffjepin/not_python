@@ -240,13 +240,17 @@ scope_stack_pop(LexicalScopeStack* stack)
 Symbol*
 get_symbol_from_scopes(LexicalScopeStack stack, SourceString identifier)
 {
+    bool closure = false;
     for (size_t i = stack.count - 1; i > 0; i--) {
         LexicalScope* locals = stack.scopes[i];
         Symbol* sym = symbol_hm_get(&locals->hm, identifier);
-        if (sym)
+        if (sym) {
+            if (closure && sym->kind == SYM_VARIABLE) sym->variable->kind = VAR_CLOSURE;
             return sym;
-        else if (locals->kind != SCOPE_CLOSURE)
+        }
+        else if (locals->kind != SCOPE_CLOSURE_CHILD)
             break;
+        closure = true;
     }
 
     return symbol_hm_get(&stack.scopes[0]->hm, identifier);

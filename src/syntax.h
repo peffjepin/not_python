@@ -320,8 +320,11 @@ struct Statement {
 // it lives here for now
 
 struct Variable {
-    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT } kind;
-    bool directly_in_scope;
+    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT, VAR_CLOSURE } kind;
+    union {
+        bool directly_in_scope;  // VAR_SEMI_SCOPED
+        size_t closure_offset;   // VAR_CLOSURE
+    };
     SourceString identifier;
     SourceString compiled_name;
     TypeInfo type_info;
@@ -357,7 +360,13 @@ Symbol* symbol_hm_get(SymbolHashmap* hm, SourceString identifier);
 void symbol_hm_finalize(SymbolHashmap* hm);
 
 struct LexicalScope {
-    enum { SCOPE_TOP, SCOPE_FUNCTION, SCOPE_METHOD, SCOPE_CLOSURE, SCOPE_CLASS } kind;
+    enum {
+        SCOPE_TOP,
+        SCOPE_FUNCTION,
+        SCOPE_CLOSURE_CHILD,
+        SCOPE_CLOSURE_PARENT,
+        SCOPE_CLASS
+    } kind;
     union {
         FunctionStatement* func;
         ClassStatement* cls;
