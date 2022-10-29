@@ -211,6 +211,9 @@ storage_ident_from_variable(Variable* variable)
         case VAR_CLOSURE:
             return (StorageIdent){
                 .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
+        case VAR_CLOSURE_ARGUMENT:
+            return (StorageIdent){
+                .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
         case VAR_SEMI_SCOPED:
             return (StorageIdent){
                 .kind = IDENT_CSTR,

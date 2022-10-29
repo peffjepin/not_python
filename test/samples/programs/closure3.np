@@ -1,0 +1,7 @@
+def outer(x: int):
+    def inner():
+        print(x)
+    inner()
+
+
+outer(10)

@@ -318,10 +318,17 @@ struct Statement {
 // it lives here for now
 
 struct Variable {
-    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT, VAR_CLOSURE, VAR_SELF } kind;
+    enum {
+        VAR_REGULAR,
+        VAR_SEMI_SCOPED,
+        VAR_ARGUMENT,
+        VAR_CLOSURE,
+        VAR_SELF,
+        VAR_CLOSURE_ARGUMENT
+    } kind;
     union {
         bool directly_in_scope;  // VAR_SEMI_SCOPED
-        size_t closure_offset;   // VAR_CLOSURE
+        size_t closure_offset;   // VAR_CLOSURE / VAR_CLOSURE_ARGUMENT
     };
     SourceString identifier;
     SourceString compiled_name;

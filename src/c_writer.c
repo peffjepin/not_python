@@ -234,7 +234,8 @@ write_ident(Section* section, StorageIdent ident)
             write(section, ident.cstr);
             break;
         case IDENT_VAR:
-            if (ident.var->kind == VAR_CLOSURE) {
+            if (ident.var->kind == VAR_CLOSURE ||
+                ident.var->kind == VAR_CLOSURE_ARGUMENT) {
                 // *(type*)(__ctx__.closure + closure_offset)
                 write(section, "*(");
                 write_type_info(section, ident.var->type_info);
@@ -646,6 +647,23 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
                                 inst.declare_variable.var->kind == VAR_SELF ||
                                 inst.declare_variable.var->kind == VAR_CLOSURE))
                 break;
+
+            if (is_variable && inst.declare_variable.var->kind == VAR_CLOSURE_ARGUMENT) {
+                // closure argument variables must be copied from the c argument list into
+                // the closure
+                write_ident(writer->sections + s, inst.declare_variable);
+                write_many(
+                    writer->sections + s,
+                    (const char*[]){
+                        " = ",
+                        inst.declare_variable.var->compiled_name.data,
+                        ";\n",
+                        NULL,
+                    }
+                );
+                break;
+            }
+
             Section* section =
                 (s == SEC_INIT &&
                  (is_variable || inst.declare_variable.info.type == NPTYPE_FUNCTION))
