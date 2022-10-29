@@ -245,7 +245,8 @@ get_symbol_from_scopes(LexicalScopeStack stack, SourceString identifier)
         LexicalScope* locals = stack.scopes[i];
         Symbol* sym = symbol_hm_get(&locals->hm, identifier);
         if (sym) {
-            if (closure && sym->kind == SYM_VARIABLE) sym->variable->kind = VAR_CLOSURE;
+            if (closure && sym->kind == SYM_VARIABLE && sym->variable->kind != VAR_SELF)
+                sym->variable->kind = VAR_CLOSURE;
             return sym;
         }
         else if (locals->kind != SCOPE_CLOSURE_CHILD)

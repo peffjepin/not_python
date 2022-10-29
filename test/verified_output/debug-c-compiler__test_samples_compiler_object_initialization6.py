@@ -15,15 +15,13 @@ NpFunction _np_5;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
-object_initialization6_A* self;
-self = __ctx__.self;
 object_initialization6_A* _np_1;
-_np_1 = self;
+_np_1 = (object_initialization6_A*)__ctx__.self;
 NpInt _np_2;
 _np_2 = 1;
 _np_1->x = _np_2;
 object_initialization6_A* _np_3;
-_np_3 = self;
+_np_3 = (object_initialization6_A*)__ctx__.self;
 NpInt _np_4;
 _np_4 = 1;
 _np_3->y = _np_4;

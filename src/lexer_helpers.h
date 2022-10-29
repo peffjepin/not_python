@@ -75,7 +75,7 @@ void tq_discard(TokenQueue* tq);
 
 // at the moment I'm not supporting nested classes or functions
 // so the most we would have is 3: top_level -> class -> function
-#define SCOPE_STACK_MAX 3
+#define SCOPE_STACK_MAX 10
 LexicalScope* scope_init(Arena* arena);
 
 typedef struct {

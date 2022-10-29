@@ -16,10 +16,8 @@ NpFunction _np_5;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpInt _np_0(NpContext __ctx__) {
-method_call_A* self;
-self = __ctx__.self;
 method_call_A* _np_1;
-_np_1 = self;
+_np_1 = (method_call_A*)__ctx__.self;
 NpInt _np_2;
 _np_2 = _np_1->value;
 return _np_2;

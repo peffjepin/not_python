@@ -2009,6 +2009,9 @@ parse_function_statement(Parser* parser, Location loc)
     LexicalScope* fn_scope = scope_init(parser->arena);
     LexicalScope* parent_scope = scope_stack_peek(&parser->scope_stack);
 
+    SourceString self_param;
+    TypeInfo self_type;
+
     switch (parent_scope->kind) {
         case SCOPE_FUNCTION:
             parent_scope->kind = SCOPE_CLOSURE_PARENT;
@@ -2024,6 +2027,7 @@ parse_function_statement(Parser* parser, Location loc)
             fn_scope->kind = SCOPE_FUNCTION;
             break;
         case SCOPE_CLASS: {
+            fn_scope->kind = SCOPE_FUNCTION;
             func->is_method = true;
             // parse name of self param
             Token self_token = get_next_token(parser);
@@ -2035,8 +2039,8 @@ parse_function_statement(Parser* parser, Location loc)
                     "expecting `self` param for method def"
                 );
             }
-            func->self_param = self_token.value;
-            func->self_type = (TypeInfo){.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
+            self_param = self_token.value;
+            self_type = (TypeInfo){.type = NPTYPE_OBJECT, .cls = parent_scope->cls};
             break;
         }
     }
@@ -2086,12 +2090,12 @@ parse_function_statement(Parser* parser, Location loc)
     fn_scope->func = func;
     if (func->is_method) {
         Variable* local_var = arena_alloc(parser->arena, sizeof(Variable));
-        local_var->kind = VAR_REGULAR;
-        local_var->identifier = func->self_param;
-        local_var->compiled_name = func->self_param;
-        local_var->type_info = func->self_type;
+        local_var->kind = VAR_SELF;
+        local_var->identifier = self_param;
+        local_var->compiled_name = self_param;
+        local_var->type_info = self_type;
         Symbol local_sym = {.kind = SYM_VARIABLE, .variable = local_var};
-        local_sym.identifier = func->self_param;
+        local_sym.identifier = self_param;
         symbol_hm_put(&fn_scope->hm, local_sym);
     }
     for (size_t i = 0; i < sig.params_count; i++) {

@@ -15,10 +15,8 @@ NpFunction _np_8;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 object_op_assignment_A* _np_0(NpContext __ctx__, NpInt other) {
-object_op_assignment_A* self;
-self = __ctx__.self;
 object_op_assignment_A* _np_1;
-_np_1 = self;
+_np_1 = (object_op_assignment_A*)__ctx__.self;
 NpInt _np_2;
 _np_2 = other;
 NpInt _np_3;
@@ -27,7 +25,7 @@ NpInt _np_4;
 _np_4 = _np_3 + _np_2;
 _np_1->value = _np_4;
 object_op_assignment_A* _np_5;
-_np_5 = self;
+_np_5 = (object_op_assignment_A*)__ctx__.self;
 return _np_5;
 }
 

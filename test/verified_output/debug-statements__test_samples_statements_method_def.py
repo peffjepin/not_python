@@ -1,5 +1,5 @@
 class A:
-    def method(self: A, x: int) -> None:
+    def method(self, x: int) -> None:
         NO_OP
 EOF
 

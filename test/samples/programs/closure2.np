@@ -1,0 +1,13 @@
+class A:
+    value: int
+
+    def __init__(self, value: int):
+        self.value = value
+
+        def inner():
+            print(self)
+
+        inner()
+
+
+a = A(10)

@@ -205,6 +205,9 @@ storage_ident_from_variable(Variable* variable)
         case VAR_REGULAR:
             return (StorageIdent){
                 .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
+        case VAR_SELF:
+            return (StorageIdent){
+                .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
         case VAR_CLOSURE:
             return (StorageIdent){
                 .kind = IDENT_VAR, .var = variable, .info = variable->type_info};
@@ -3009,32 +3012,6 @@ compile_function(Compiler* compiler, FunctionStatement* func)
         }
 
         declare_scope_variables(compiler, func->scope);
-        if (func->self_param.data) {
-            // set `self` variable from context (declared from scope)
-            add_instruction(
-                compiler,
-                (Instruction){
-                    .kind = INST_ASSIGNMENT,
-                    .assignment.left =
-                        (StorageIdent){
-                            .kind = IDENT_CSTR,
-                            .cstr = func->self_param.data,
-                            .info = func->self_type,
-                        },
-                    .assignment.right =
-                        (OperationInst){
-                            .kind = OPERATION_GET_ATTR,
-                            .object =
-                                (StorageIdent){
-                                    .kind = IDENT_CSTR,
-                                    .cstr = "__ctx__",
-                                    .info = CONTEXT_TYPE,
-                                },
-                            .attr = SOURCESTRING("self"),
-                        },
-                }
-            );
-        }
 
         for (size_t i = 0; i < func->body.stmts_count; i++)
             compile_statement(compiler, func->body.stmts[i]);

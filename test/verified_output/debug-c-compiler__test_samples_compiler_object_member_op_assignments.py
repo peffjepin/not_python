@@ -15,10 +15,8 @@ NpFunction _np_6;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {
-object_member_op_assignments_A* self;
-self = __ctx__.self;
 object_member_op_assignments_A* _np_1;
-_np_1 = self;
+_np_1 = (object_member_op_assignments_A*)__ctx__.self;
 NpInt _np_2;
 _np_2 = 1;
 NpInt _np_3;

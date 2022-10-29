@@ -244,6 +244,12 @@ write_ident(Section* section, StorageIdent ident)
                 write(section, numbuf);
                 write(section, ")");
             }
+            else if (ident.var->kind == VAR_SELF) {
+                // (type)__ctx__.self
+                write(section, "(");
+                write_type_info(section, ident.var->type_info);
+                write(section, ")__ctx__.self");
+            }
             else {
                 write(section, ident.var->compiled_name.data);
             }
@@ -637,6 +643,7 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
         case INST_DECLARE_VARIABLE: {
             bool is_variable = inst.declare_variable.kind == IDENT_VAR;
             if (is_variable && (inst.declare_variable.var->kind == VAR_ARGUMENT ||
+                                inst.declare_variable.var->kind == VAR_SELF ||
                                 inst.declare_variable.var->kind == VAR_CLOSURE))
                 break;
             Section* section =

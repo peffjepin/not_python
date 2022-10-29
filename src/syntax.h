@@ -236,8 +236,6 @@ typedef struct {
     SourceString ns_ident;
     Signature sig;
     bool is_method;
-    SourceString self_param;
-    TypeInfo self_type;
     Block body;
     LexicalScope* scope;
 } FunctionStatement;
@@ -320,7 +318,7 @@ struct Statement {
 // it lives here for now
 
 struct Variable {
-    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT, VAR_CLOSURE } kind;
+    enum { VAR_REGULAR, VAR_SEMI_SCOPED, VAR_ARGUMENT, VAR_CLOSURE, VAR_SELF } kind;
     union {
         bool directly_in_scope;  // VAR_SEMI_SCOPED
         size_t closure_offset;   // VAR_CLOSURE

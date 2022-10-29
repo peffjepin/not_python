@@ -443,12 +443,12 @@ void
 print_function_definition(FunctionStatement* func, int indent)
 {
     indent_printf("def %s(", func->name.data);
-    if (func->self_param.data) {
-        printf("%s: %s", func->self_param.data, render_type_info(func->self_type).data);
+    if (func->is_method) {
+        printf("self");
     }
     size_t positional_count = func->sig.params_count - func->sig.defaults_count;
     for (size_t i = 0; i < positional_count; i++) {
-        if (i > 0 || func->self_param.data) printf(", ");
+        if (i > 0 || func->is_method) printf(", ");
         printf(
             "%s: %s", func->sig.params[i].data, render_type_info(func->sig.types[i]).data
         );
