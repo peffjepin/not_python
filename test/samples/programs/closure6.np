@@ -1,0 +1,8 @@
+def outer(msg: str) -> Function[[], None]:
+    def inner():
+        print(msg)
+    return inner
+
+
+fn = outer("hello")
+fn()

@@ -3027,8 +3027,7 @@ compile_function(Compiler* compiler, FunctionStatement* func)
                     .kind = INST_RETURN,
                     .return_.rtval = compiler->none_ident,
                     .return_.should_free_closure =
-                        func->scope->kind == SCOPE_CLOSURE_PARENT,
-                }
+                        func->scope->kind == SCOPE_CLOSURE_PARENT}
             );
     }
 
@@ -3478,7 +3477,9 @@ compile_return_statement(Compiler* compiler, Expression* value)
             .return_.rtval = render_expression(
                 compiler, (StorageHint){.info = scope->func->sig.return_type}, value
             ),
-            .return_.should_free_closure = scope->kind == SCOPE_CLOSURE_PARENT,
+            .return_.should_free_closure =
+                scope->kind == SCOPE_CLOSURE_PARENT &&
+                scope->func->sig.return_type.type != NPTYPE_FUNCTION,
         }
     );
 }
