@@ -12,7 +12,7 @@ NpInt if_elif_else_stmt_x;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 NpInt _np_1;
 _np_1 = 1;
 NpInt _np_2;

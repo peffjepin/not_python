@@ -14,7 +14,7 @@ NpFloat simple_expression2_z;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 simple_expression2_x = 1.000000;
 simple_expression2_y = 2.000000;
 NpFloat _np_0;

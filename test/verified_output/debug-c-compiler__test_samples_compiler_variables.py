@@ -14,7 +14,7 @@ NpInt variables_z;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 variables_x = 1;
 variables_y = 2;
 variables_z = 3;

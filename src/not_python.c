@@ -39,6 +39,7 @@ set_exceptionf(ExceptionType type, const char* fmt, ...)
     size_t wrote = vsnprintf(linebuffer, 1024, fmt, args);
     va_end(args);
     char* msg = np_alloc(sizeof(char) * wrote);
+    if (global_exception) return;
     memcpy(msg, linebuffer, wrote);
     set_exception(type, (const char*)msg);
 }
@@ -129,6 +130,7 @@ np_str_add(NpString str1, NpString str2)
     NpString str = {
         .data = np_alloc(str1.length + str2.length + 1),
         .length = str1.length + str2.length};
+    if (global_exception) return (NpString){.data = "", .length = 0};
     memcpy(str.data, str1.data + str1.offset, str1.length);
     memcpy(str.data + str1.length, str2.data + str2.offset, str2.length);
     return str;
@@ -143,6 +145,7 @@ np_str_fmt(const char* fmt, ...)
     va_end(args);
 
     NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    if (global_exception) return (NpString){.data = "", .length = 0};
 
     va_start(args, fmt);
     vsnprintf(str.data, required_length + 1, fmt, args);
@@ -158,6 +161,7 @@ np_str_to_cstr(NpString str)
         return str.data + str.offset;
     }
     char* cstr = np_alloc(str.length + 1);
+    if (global_exception) return NULL;
     memcpy(cstr, str.data + str.offset, str.length);
     return cstr;
 }
@@ -167,6 +171,7 @@ np_int_to_str(NpInt num)
 {
     size_t required_length = snprintf(NULL, 0, "%li", num);
     NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    if (global_exception) return (NpString){.data = "", .length = 0};
     snprintf(str.data, required_length + 1, "%li", num);
     return str;
 }
@@ -176,6 +181,7 @@ np_float_to_str(NpFloat num)
 {
     size_t required_length = snprintf(NULL, 0, "%f", num);
     NpString str = {.data = np_alloc(required_length + 1), .length = required_length};
+    if (global_exception) return (NpString){.data = "", .length = 0};
     snprintf(str.data, required_length + 1, "%f", num);
     return str;
 }
@@ -235,6 +241,7 @@ NpIter
 np_list_iter(NpList* list)
 {
     NpListIter* iter = np_alloc(sizeof(NpListIter));
+    if (global_exception) return (NpIter){0};
     iter->list = list;
     NpIter iterd = {.next = (NpIterNextFunc)np_list_next, .iter = iter};
     return iterd;
@@ -249,6 +256,7 @@ np_list_init(
 )
 {
     NpList* list = np_alloc(sizeof(NpList));
+    if (global_exception) return NULL;
     list->cmp_fn = cmp_fn;
     list->sort_fn = sort_fn;
     list->rev_sort_fn = rev_sort_fn;
@@ -256,6 +264,7 @@ np_list_init(
     list->capacity = LIST_MIN_CAPACITY;
     list->element_size = elem_size;
     list->data = np_alloc(elem_size * list->capacity);
+    if (global_exception) return NULL;
     return list;
 }
 
@@ -265,7 +274,9 @@ np_list_add(NpList* list1, NpList* list2)
     // TODO: it would be better to allocate a large enough list to begin with and copy
     // into it.
     NpList* new_list = np_list_copy(list1);
+    if (global_exception) return NULL;
     np_list_extend(new_list, list2);
+    if (global_exception) return NULL;
     return new_list;
 }
 
@@ -275,6 +286,7 @@ np_list_clear(NpList* list)
     list->count = 0;
     list->capacity = LIST_MIN_CAPACITY;
     list->data = np_realloc(list->data, list->element_size * list->capacity);
+    if (global_exception) return NULL;
     return NULL;
 }
 
@@ -282,11 +294,13 @@ NpList*
 np_list_copy(NpList* list)
 {
     NpList* new_list = np_alloc(sizeof(NpList));
+    if (global_exception) return NULL;
     new_list->count = list->count;
     new_list->capacity = list->capacity;
     new_list->element_size = list->element_size;
     size_t bytes = list->capacity * list->element_size;
     new_list->data = np_alloc(bytes);
+    if (global_exception) return NULL;
     memcpy(new_list->data, list->data, bytes);
     return new_list;
 }
@@ -295,8 +309,10 @@ void*
 np_list_extend(NpList* list, NpList* other)
 {
     NpInt required_capacity = list->count + other->count + 1;
-    if (list->capacity < required_capacity)
+    if (list->capacity < required_capacity) {
         np_realloc(list->data, list->element_size * required_capacity);
+        if (global_exception) return NULL;
+    }
     memcpy(
         list->data + list->element_size * list->count,
         other->data,
@@ -355,6 +371,7 @@ np_list_get_item(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
+    if (global_exception) return;
     LIST_COPY_TO_OUT(list, index, out);
 }
 
@@ -363,6 +380,7 @@ np_list_set_item(NpList* list, NpInt index, void* item)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
+    if (global_exception) return;
     LIST_COPY_FROM_ITEM(list, index, item);
 }
 
@@ -380,6 +398,7 @@ np_list_pop(NpList* list, NpInt index, void* out)
 {
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
+    if (global_exception) return NULL;
     LIST_COPY_TO_OUT(list, index, out);
     np_list_del(list, index);
     return NULL;
@@ -394,7 +413,10 @@ np_list_index(NpList* list, void* item)
             location = (NpInt)index;
         }
     }
-    if (location < 0) value_error();
+    if (location < 0) {
+        value_error();
+        return 0;
+    }
     return location;
 }
 
@@ -402,6 +424,7 @@ void*
 np_list_remove(NpList* list, void* item)
 {
     NpInt index = np_list_index(list, item);
+    if (global_exception) return NULL;
     np_list_del(list, index);
     return NULL;
 }
@@ -422,6 +445,7 @@ np_list_insert(NpList* list, NpInt index, void* item)
     index = LIST_WRAP(list, index);
     LIST_BOUNDS(list, index);
     if (list->count == list->capacity - 1) np_list_grow(list);
+    if (global_exception) return NULL;
 
     list->count += 1;
     memmove(
@@ -438,7 +462,10 @@ np_list_sort(NpList* list, NpBool reverse)
 {
     NpSortFunction fn = (reverse) ? list->rev_sort_fn : list->sort_fn;
     // TODO: better exception here
-    if (!fn) value_error();
+    if (!fn) {
+        value_error();
+        return NULL;
+    }
     qsort(list->data, list->count, list->element_size, fn);
     return NULL;
 }
@@ -575,6 +602,7 @@ np_dict_iter_keys(NpDict* dict)
 {
     // TODO: empty iterable is probably a bug
     NpDictIter* iter = np_alloc(sizeof(NpDictIter));
+    if (global_exception) return (NpIter){0};
     iter->dict = dict;
     NpIter iterd = {.next = (NpIterNextFunc)np_dict_keys_next, .iter = iter};
     return iterd;
@@ -600,6 +628,7 @@ np_dict_iter_vals(NpDict* dict)
 {
     // TODO: empty iterable is probably a bug
     NpDictIter* iter = np_alloc(sizeof(NpDictIter));
+    if (global_exception) return (NpIter){0};
     iter->dict = dict;
     NpIter iterd = {.next = (NpIterNextFunc)np_dict_vals_next, .iter = iter};
     return iterd;
@@ -635,6 +664,7 @@ NpIter
 np_dict_iter_items(NpDict* dict)
 {
     DictItemsIter* iter = np_alloc(sizeof(DictItemsIter));
+    if (global_exception) return (NpIter){0};
     iter->dict = dict;
     NpIter iterd = {.next = (NpIterNextFunc)np_dict_items_next, .iter = iter};
     return iterd;
@@ -644,6 +674,7 @@ NpDict*
 np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp)
 {
     NpDict* dict = np_alloc(sizeof(NpDict));
+    if (global_exception) return NULL;
 
     dict->keycmp = cmp;
     dict->key_size = key_size;
@@ -656,9 +687,11 @@ np_dict_init(size_t key_size, size_t val_size, NpDictKeyCmpFunc cmp)
     dict->lut_capacity = dict->capacity * DICT_LUT_FACTOR;
     dict->count = 0;
     dict->data = np_alloc(dict->item_size * dict->capacity);
+    if (global_exception) return NULL;
 
     size_t lut_bytes = dict->lut_capacity * sizeof(int);
     dict->lut = np_alloc(lut_bytes);
+    if (global_exception) return NULL;
     memset(dict->lut, -1, lut_bytes);
 
     return dict;
@@ -668,12 +701,15 @@ NpDict*
 np_dict_copy(NpDict* other)
 {
     NpDict* dict = np_alloc(sizeof(NpDict));
+    if (global_exception) return NULL;
     memcpy(dict, other, sizeof(NpDict));
 
     size_t data_bytes = dict->item_size * dict->capacity;
     size_t lut_bytes = dict->lut_capacity * sizeof(int);
     dict->data = np_alloc(data_bytes);
+    if (global_exception) return NULL;
     dict->lut = np_alloc(lut_bytes);
+    if (global_exception) return NULL;
     memcpy(dict->data, other->data, data_bytes);
     memcpy(dict->lut, other->lut, lut_bytes);
 
@@ -691,9 +727,11 @@ np_dict_clear(NpDict* dict)
     dict->count = 0;
     dict->tombstone_count = 0;
     dict->data = np_alloc(dict->item_size * dict->capacity);
+    if (global_exception) return NULL;
 
     size_t lut_bytes = dict->lut_capacity * sizeof(int);
     dict->lut = np_alloc(lut_bytes);
+    if (global_exception) return NULL;
     memset(dict->lut, -1, lut_bytes);
     return NULL;
 }
@@ -740,7 +778,9 @@ np_dict_grow(NpDict* dict)
     dict->capacity *= DICT_GROW_FACTOR;
     dict->lut_capacity *= DICT_GROW_FACTOR;
     dict->data = np_realloc(dict->data, sizeof(dict->item_size) * dict->capacity);
+    if (global_exception) return;
     dict->lut = np_realloc(dict->lut, sizeof(int) * dict->lut_capacity);
+    if (global_exception) return;
     memset(dict->lut, -1, sizeof(int) * dict->lut_capacity);
 
     uint8_t* write = dict->data;
@@ -779,7 +819,9 @@ np_dict_shrink(NpDict* dict)
     dict->lut_capacity = dict->capacity * DICT_LUT_FACTOR;
     uint8_t* old_data = dict->data;
     dict->data = np_alloc(sizeof(dict->item_size) * dict->capacity);
+    if (global_exception) return;
     dict->lut = np_realloc(dict->lut, sizeof(int) * dict->lut_capacity);
+    if (global_exception) return;
     memset(dict->lut, -1, sizeof(int) * dict->lut_capacity);
 
     uint8_t* write = dict->data;
@@ -815,6 +857,7 @@ void
 np_dict_set_item(NpDict* dict, void* key, void* val)
 {
     if (DICT_FULL(dict)) np_dict_grow(dict);
+    if (global_exception) return;
     int lut_value;
     size_t lut_location = np_dict_find_lut_location(dict, key, &lut_value);
 
@@ -888,7 +931,10 @@ np_dict_pop_val(NpDict* dict, void* key, void* out)
 void
 np_dict_del(NpDict* dict, void* key)
 {
-    if (dict->count == 0) key_error();
+    if (dict->count == 0) {
+        key_error();
+        return;
+    }
     int item_index;
     size_t lut_index = np_dict_find_lut_location(dict, key, &item_index);
     if (item_index < 0) key_error();
@@ -908,6 +954,7 @@ np_dict_update(NpDict* dict, NpDict* other)
     while (updated_count != other->count) {
         while (!data[0]) data += other->item_size;
         np_dict_set_item(dict, data + other->key_offset, data + other->val_offset);
+        if (global_exception) return NULL;
         data += other->item_size;
         updated_count += 1;
     }

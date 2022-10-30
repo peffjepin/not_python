@@ -23,7 +23,7 @@ return _np_3;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 function_call3_my_func.addr = _np_0;
 NpFloat _np_5;
 _np_5 = 1.000000;

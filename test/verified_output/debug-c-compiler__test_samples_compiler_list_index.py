@@ -13,15 +13,24 @@ NpInt list_index_i;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 NpInt _np_0;
 _np_0 = 1;
+if (global_exception) {
+return 1;
+}
 list_index_l = np_list_init(8, np_int_sort_fn, np_int_sort_fn_rev, np_void_int_eq);
+if (global_exception) {
+return 1;
+}
 np_list_append(list_index_l, &_np_0);
 NpList* _np_1;
 _np_1 = list_index_l;
 NpInt _np_2;
 _np_2 = 1;
+if (global_exception) {
+return 1;
+}
 list_index_i = np_list_index(_np_1, &_np_2);
 }
 // MAIN FUNCTION COMPILER SECTION

@@ -19,7 +19,7 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 explicit_return_none_fn.addr = _np_0;
 }
 // MAIN FUNCTION COMPILER SECTION

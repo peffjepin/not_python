@@ -94,6 +94,7 @@ typedef struct {
     StorageIdent empty_str_ident;
     size_t unique_vars_counter;
     const char* excepts_goto;
+    LexicalScope* try_scope;
     const char* loop_after;
     SequenceStack inst_seq_stack;
 } Compiler;
@@ -247,7 +248,7 @@ add_instruction(Compiler* compiler, Instruction inst)
         inst.declare_variable.info.type == NPTYPE_UNTYPED) {
         assert(0 && "trying to add untyped variable declaration");
     }
-    if (compiler->excepts_goto && UNSAFE_INST(inst)) compile_check_exceptions(compiler);
+    if (UNSAFE_INST(inst)) compile_check_exceptions(compiler);
 
     seq_stack_append_instruction(&compiler->inst_seq_stack, inst);
 }
@@ -342,6 +343,8 @@ set_storage_type_info(Compiler* compiler, StorageIdent* ident, TypeInfo info)
         case IDENT_FLOAT_LITERAL:
             break;
         case IDENT_STRING_LITERAL:
+            break;
+        case IDENT_NPTYPE_ZERO_INIT_LITERAL:
             break;
         case IDENT_VAR: {
             ident->info = info;
@@ -3991,6 +3994,59 @@ compile_while(Compiler* compiler, WhileStatement* while_stmt)
     add_instruction(compiler, loop_inst);
 }
 
+static StorageIdent
+default_return_val_for_type(Compiler* compiler, TypeInfo info)
+{
+    switch (info.type) {
+        case NPTYPE_NONE:
+            return compiler->none_ident;
+        case NPTYPE_INT:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_FLOAT:
+            return (StorageIdent){.kind = IDENT_FLOAT_LITERAL, .float_value = 0};
+        case NPTYPE_STRING:
+            return compiler->empty_str_ident;
+        case NPTYPE_LIST:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_TUPLE:
+            UNIMPLEMENTED("tuples not implemented");
+        case NPTYPE_DICT:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_OBJECT:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_BOOL:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_SLICE:
+            UNIMPLEMENTED("slice not implemented");
+        case NPTYPE_ITER:
+            return (StorageIdent){
+                .kind = IDENT_NPTYPE_ZERO_INIT_LITERAL, .info.type = NPTYPE_ITER};
+        case NPTYPE_FUNCTION:
+            return (StorageIdent){
+                .kind = IDENT_NPTYPE_ZERO_INIT_LITERAL, .info.type = NPTYPE_FUNCTION};
+        case NPTYPE_DICT_ITEMS:
+            return (StorageIdent){
+                .kind = IDENT_NPTYPE_ZERO_INIT_LITERAL, .info.type = NPTYPE_DICT_ITEMS};
+        case NPTYPE_CONTEXT:
+            return (StorageIdent){
+                .kind = IDENT_NPTYPE_ZERO_INIT_LITERAL, .info.type = NPTYPE_CONTEXT};
+        case NPTYPE_EXCEPTION:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_POINTER:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_BYTE:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_UNSIGNED:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_CSTR:
+            return (StorageIdent){.kind = IDENT_INT_LITERAL, .int_value = 0};
+        case NPTYPE_COUNT:
+            UNREACHABLE();
+        case NPTYPE_UNTYPED:
+            UNREACHABLE();
+    }
+}
+
 static void
 compile_check_exceptions(Compiler* compiler)
 {
@@ -4002,9 +4058,69 @@ compile_check_exceptions(Compiler* compiler)
     };
     COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, inst.if_.body)
     {
-        add_instruction(
-            compiler, (Instruction){.kind = INST_GOTO, .label = compiler->excepts_goto}
-        );
+        LexicalScope* scope = scope_stack_peek(&compiler->scope_stack);
+        if (scope != compiler->try_scope) {
+            switch (scope->kind) {
+                case SCOPE_TOP:
+                    add_instruction(
+                        compiler,
+                        (Instruction){
+                            .kind = INST_RETURN,
+                            .return_.rtval =
+                                (StorageIdent){
+                                    .kind = IDENT_INT_LITERAL,
+                                    .int_value = 1,
+                                },
+                        }
+                    );
+                    break;
+                case SCOPE_CLASS:
+                    UNIMPLEMENTED(
+                        "only functions are currently implemented within class body"
+                    );
+                    break;
+                case SCOPE_CLOSURE_PARENT:
+                    add_instruction(
+                        compiler,
+                        (Instruction){
+                            .kind = INST_RETURN,
+                            .return_.rtval = default_return_val_for_type(
+                                compiler, scope->func->sig.return_type
+                            ),
+                            .return_.should_free_closure =
+                                scope->func->sig.return_type.type != NPTYPE_FUNCTION,
+                        }
+                    );
+                    break;
+                case SCOPE_CLOSURE_CHILD:
+                    add_instruction(
+                        compiler,
+                        (Instruction){
+                            .kind = INST_RETURN,
+                            .return_.rtval = default_return_val_for_type(
+                                compiler, scope->func->sig.return_type
+                            ),
+                        }
+                    );
+                    break;
+                case SCOPE_FUNCTION:
+                    add_instruction(
+                        compiler,
+                        (Instruction){
+                            .kind = INST_RETURN,
+                            .return_.rtval = default_return_val_for_type(
+                                compiler, scope->func->sig.return_type
+                            ),
+                        }
+                    );
+                    break;
+            }
+        }
+        else
+            add_instruction(
+                compiler,
+                (Instruction){.kind = INST_GOTO, .label = compiler->excepts_goto}
+            );
     }
     add_instruction(compiler, inst);
 }
@@ -4014,7 +4130,9 @@ compile_try(Compiler* compiler, TryStatement* try)
 {
     const char* old_goto = compiler->excepts_goto;
     const char* finally_goto = UNIQUE_ID(compiler);
+    LexicalScope* old_try_scope = compiler->try_scope;
     compiler->excepts_goto = UNIQUE_ID(compiler);
+    compiler->try_scope = scope_stack_peek(&compiler->scope_stack);
 
     StorageIdent old_excepts_ident =
         storage_ident_from_hint(compiler, (StorageHint){.info = UNSIGNED_TYPE});
@@ -4243,6 +4361,7 @@ compile_try(Compiler* compiler, TryStatement* try)
                 }}
     );
     compiler->excepts_goto = old_goto;
+    compiler->try_scope = old_try_scope;
 }
 
 static void

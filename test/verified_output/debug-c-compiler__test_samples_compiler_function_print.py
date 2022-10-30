@@ -12,7 +12,7 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 NpString _np_1;
 _np_1 = NOT_PYTHON_STRING_CONSTANTS[1];
 NpNone _np_0;

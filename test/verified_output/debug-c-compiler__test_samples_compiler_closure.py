@@ -34,7 +34,7 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 closure_outer.addr = _np_0;
 NpNone _np_6;
 _np_6 = ((NpNone (*)(NpContext))closure_outer.addr)(closure_outer.ctx);

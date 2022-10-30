@@ -12,7 +12,7 @@ typedef struct { NpFloat x; NpFloat y; NpFloat z; } class_Vec3;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

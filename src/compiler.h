@@ -112,7 +112,8 @@ typedef struct {
         IDENT_VAR,
         IDENT_STRING_LITERAL,
         IDENT_INT_LITERAL,
-        IDENT_FLOAT_LITERAL
+        IDENT_FLOAT_LITERAL,
+        IDENT_NPTYPE_ZERO_INIT_LITERAL,
     } kind;
     union {
         // CSTR

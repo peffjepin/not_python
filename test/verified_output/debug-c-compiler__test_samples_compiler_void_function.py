@@ -16,7 +16,7 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 void_function_my_function.addr = _np_0;
 }
 // MAIN FUNCTION COMPILER SECTION

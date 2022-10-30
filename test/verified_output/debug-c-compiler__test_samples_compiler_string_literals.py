@@ -16,7 +16,7 @@ NpString string_literals_string2_2;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 string_literals_string1 = NOT_PYTHON_STRING_CONSTANTS[1];
 string_literals_string2 = NOT_PYTHON_STRING_CONSTANTS[2];
 string_literals_string2_2 = NOT_PYTHON_STRING_CONSTANTS[2];

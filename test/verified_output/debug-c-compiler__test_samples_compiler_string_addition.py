@@ -16,13 +16,16 @@ NpString string_addition_c;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 string_addition_a = NOT_PYTHON_STRING_CONSTANTS[1];
 string_addition_b = NOT_PYTHON_STRING_CONSTANTS[2];
 NpString _np_0;
 _np_0 = string_addition_a;
 NpString _np_1;
 _np_1 = string_addition_b;
+if (global_exception) {
+return 1;
+}
 string_addition_c = np_str_add(_np_0, _np_1);
 }
 // MAIN FUNCTION COMPILER SECTION

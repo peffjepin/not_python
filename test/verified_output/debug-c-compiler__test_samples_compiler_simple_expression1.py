@@ -14,7 +14,7 @@ NpInt simple_expression1_z;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 simple_expression1_x = 1;
 simple_expression1_y = 2;
 NpInt _np_0;

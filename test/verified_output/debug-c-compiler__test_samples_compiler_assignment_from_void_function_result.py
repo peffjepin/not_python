@@ -17,8 +17,11 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 assignment_from_void_function_result_void_fn.addr = _np_0;
+if (global_exception) {
+return 1;
+}
 assignment_from_void_function_result_x = ((NpNone (*)(NpContext))assignment_from_void_function_result_void_fn.addr)(assignment_from_void_function_result_void_fn.ctx);
 }
 // MAIN FUNCTION COMPILER SECTION

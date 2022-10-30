@@ -67,7 +67,7 @@ write_c_program(CompiledInstructions instructions, FILE* out)
 #endif
 
     write(writer.sections + SEC_FORWARD, "#include <not_python.h>\n");
-    write(writer.sections + SEC_INIT, "static void init_module(void) {\n");
+    write(writer.sections + SEC_INIT, "static int init_module(void) {\n");
     write(writer.sections + SEC_MAIN, "int main(void) {\ninit_module();\n");
     write_string_constants_table(
         instructions.str_constants, writer.sections + SEC_FORWARD
@@ -230,6 +230,11 @@ write_ident(Section* section, StorageIdent ident)
     if (ident.reference) write(section, "&");
 
     switch (ident.kind) {
+        case IDENT_NPTYPE_ZERO_INIT_LITERAL:
+            write(section, "(");
+            write_type_info(section, ident.info);
+            write(section, "){0}");
+            break;
         case IDENT_CSTR:
             write(section, ident.cstr);
             break;

@@ -19,8 +19,11 @@ return _np_1;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 function_call1_my_func.addr = _np_0;
+if (global_exception) {
+return 1;
+}
 function_call1_x = ((NpInt (*)(NpContext))function_call1_my_func.addr)(function_call1_my_func.ctx);
 }
 // MAIN FUNCTION COMPILER SECTION

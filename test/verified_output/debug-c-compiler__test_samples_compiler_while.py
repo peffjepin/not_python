@@ -12,7 +12,7 @@ NpInt while_x;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 while_x = 0;
 while(1) {
 NpInt _np_1;

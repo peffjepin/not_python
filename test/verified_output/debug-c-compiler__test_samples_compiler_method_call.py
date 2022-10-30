@@ -24,8 +24,11 @@ return _np_2;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 method_call_A_fn.addr = _np_0;
+if (global_exception) {
+return 1;
+}
 method_call_a = np_alloc(8);
 NpInt _np_3;
 _np_3 = 1;
@@ -37,6 +40,9 @@ NpContext _np_6;
 _np_6 = _np_5.ctx;
 _np_6.self = _np_4;
 _np_5.ctx = _np_6;
+if (global_exception) {
+return 1;
+}
 method_call_x = ((NpInt (*)(NpContext))_np_5.addr)(_np_5.ctx);
 }
 // MAIN FUNCTION COMPILER SECTION

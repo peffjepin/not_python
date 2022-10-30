@@ -13,7 +13,7 @@ typedef struct { NpInt x; NpInt y; } default_object_str_A;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 default_object_str_A* _np_1;
 _np_1 = np_alloc(16);
 NpInt _np_2;

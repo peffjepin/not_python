@@ -30,8 +30,11 @@ return _np_5;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 object_op_assignment_A___iadd__.addr = _np_0;
+if (global_exception) {
+return 1;
+}
 object_op_assignment_a = np_alloc(8);
 NpInt _np_6;
 _np_6 = 1;
@@ -43,6 +46,9 @@ NpContext _np_9;
 _np_9 = _np_8.ctx;
 _np_9.self = object_op_assignment_a;
 _np_8.ctx = _np_9;
+if (global_exception) {
+return 1;
+}
 object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext, NpInt))_np_8.addr)(_np_8.ctx, _np_7);
 }
 // MAIN FUNCTION COMPILER SECTION

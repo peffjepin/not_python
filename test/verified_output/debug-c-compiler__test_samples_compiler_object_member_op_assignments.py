@@ -28,8 +28,11 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 object_member_op_assignments_A___init__.addr = _np_0;
+if (global_exception) {
+return 1;
+}
 object_member_op_assignments_a = np_alloc(8);
 NpInt _np_5;
 _np_5 = 1;

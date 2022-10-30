@@ -15,7 +15,10 @@ object_initialization2_A* object_initialization2_a3;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
+if (global_exception) {
+return 1;
+}
 object_initialization2_a1 = np_alloc(16);
 NpInt _np_0;
 _np_0 = 1;
@@ -23,6 +26,9 @@ NpInt _np_1;
 _np_1 = 1;
 object_initialization2_a1->a = _np_0;
 object_initialization2_a1->b = _np_1;
+if (global_exception) {
+return 1;
+}
 object_initialization2_a2 = np_alloc(16);
 NpInt _np_2;
 _np_2 = 2;
@@ -30,6 +36,9 @@ NpInt _np_3;
 _np_3 = 1;
 object_initialization2_a2->a = _np_2;
 object_initialization2_a2->b = _np_3;
+if (global_exception) {
+return 1;
+}
 object_initialization2_a3 = np_alloc(16);
 NpInt _np_4;
 _np_4 = 3;

@@ -14,7 +14,7 @@ NpFloat untyped_top_level_assignment_z;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 untyped_top_level_assignment_x = 1;
 untyped_top_level_assignment_y = 2.000000;
 untyped_top_level_assignment_z = untyped_top_level_assignment_y;

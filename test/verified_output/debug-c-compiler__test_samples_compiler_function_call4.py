@@ -23,7 +23,7 @@ return _np_3;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 function_call4_my_function.addr = _np_0;
 NpInt _np_4;
 _np_4 = 1;
@@ -45,6 +45,9 @@ NpInt _np_12;
 _np_12 = 6;
 NpInt _np_13;
 _np_13 = _np_11 * _np_12;
+if (global_exception) {
+return 1;
+}
 function_call4_z = ((NpInt (*)(NpContext, NpInt, NpInt))function_call4_my_function.addr)(function_call4_my_function.ctx, _np_8, _np_13);
 }
 // MAIN FUNCTION COMPILER SECTION

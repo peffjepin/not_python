@@ -23,12 +23,15 @@ return _np_3;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 function_call8_my_function.addr = _np_0;
 NpFloat _np_4;
 _np_4 = 2.000000;
 NpInt _np_5;
 _np_5 = 1;
+if (global_exception) {
+return 1;
+}
 function_call8_z = ((NpFloat (*)(NpContext, NpInt, NpFloat))function_call8_my_function.addr)(function_call8_my_function.ctx, _np_5, _np_4);
 }
 // MAIN FUNCTION COMPILER SECTION

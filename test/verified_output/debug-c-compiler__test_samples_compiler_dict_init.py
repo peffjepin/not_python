@@ -12,12 +12,18 @@ NpDict* dict_init_d;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 NpInt _np_0;
 _np_0 = 1;
 NpInt _np_1;
 _np_1 = 2;
+if (global_exception) {
+return 1;
+}
 dict_init_d = np_dict_init(8, 8, np_void_int_eq);
+if (global_exception) {
+return 1;
+}
 np_dict_set_item(dict_init_d, &_np_0, &_np_1);
 }
 // MAIN FUNCTION COMPILER SECTION

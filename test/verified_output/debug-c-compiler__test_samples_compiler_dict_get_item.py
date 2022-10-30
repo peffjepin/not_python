@@ -14,25 +14,40 @@ NpInt dict_get_item_y;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 NpInt _np_0;
 _np_0 = 1;
 NpInt _np_1;
 _np_1 = 2;
+if (global_exception) {
+return 1;
+}
 dict_get_item_d = np_dict_init(8, 8, np_void_int_eq);
+if (global_exception) {
+return 1;
+}
 np_dict_set_item(dict_get_item_d, &_np_0, &_np_1);
 _np_0 = 3;
 _np_1 = 4;
+if (global_exception) {
+return 1;
+}
 np_dict_set_item(dict_get_item_d, &_np_0, &_np_1);
 NpDict* _np_2;
 _np_2 = dict_get_item_d;
 NpInt _np_3;
 _np_3 = 1;
+if (global_exception) {
+return 1;
+}
 np_dict_get_val(_np_2, &_np_3, &dict_get_item_x);
 NpDict* _np_4;
 _np_4 = dict_get_item_d;
 NpInt _np_5;
 _np_5 = 3;
+if (global_exception) {
+return 1;
+}
 np_dict_get_val(_np_4, &_np_5, &dict_get_item_y);
 }
 // MAIN FUNCTION COMPILER SECTION

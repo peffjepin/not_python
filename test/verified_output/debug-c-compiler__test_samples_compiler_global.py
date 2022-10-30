@@ -20,7 +20,7 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 global_x = 1;
 global_incx.addr = _np_0;
 }

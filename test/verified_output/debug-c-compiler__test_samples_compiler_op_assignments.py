@@ -12,7 +12,7 @@ NpInt op_assignments_x;
 // FUNCTION DEFINITIONS COMPILER SECTION
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 op_assignments_x = 10;
 NpInt _np_0;
 _np_0 = 1;

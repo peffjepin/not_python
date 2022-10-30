@@ -22,7 +22,7 @@ return 0;
 }
 
 // INIT MODULE FUNCTION COMPILER SECTION
-static void init_module(void) {
+static int init_module(void) {
 fnref_my_function.addr = _np_0;
 fnref_fnref = fnref_my_function;
 NpString _np_4;

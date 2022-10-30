@@ -1,0 +1,12 @@
+def fn():
+    l = [1, 2, 3]
+    x = l[4]
+    print(l[0])
+    print(l[1])
+    print(l[2])
+
+
+try:
+    fn()
+except IndexError:
+    print("this should be the only message")
