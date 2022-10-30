@@ -503,16 +503,20 @@ write_operation(Section* section, OperationInst operation_inst)
             write(section, ")");
             break;
         case OPERATION_C_CALL:
-            write_many(section, (const char*[]){operation_inst.c_fn_name, "(", NULL});
-            for (size_t i = 0; i < operation_inst.c_fn_argc; i++) {
+            write_many(
+                section, (const char*[]){operation_inst.c_function.name, "(", NULL}
+            );
+            for (size_t i = 0; i < operation_inst.c_function.argc; i++) {
                 if (i > 0) write(section, ", ");
-                write_ident(section, operation_inst.c_fn_argv[i]);
+                write_ident(section, operation_inst.c_function_args[i]);
             }
             write(section, ")");
             break;
         case OPERATION_C_CALL1:
-            write_many(section, (const char*[]){operation_inst.c_fn_name, "(", NULL});
-            write_ident(section, operation_inst.c_fn_arg);
+            write_many(
+                section, (const char*[]){operation_inst.c_function.name, "(", NULL}
+            );
+            write_ident(section, operation_inst.c_function_arg);
             write(section, ")");
             break;
         case OPERATION_GET_ATTR:
@@ -540,13 +544,23 @@ static void
 write_instruction(Writer* writer, SectionID s, Instruction inst)
 {
     switch (inst.kind) {
-        case INST_INIT_CLOSURE:
-            write(writer->sections + s, "__ctx__.closure = " NPLIB_ALLOC "(");
+        case INST_INIT_CLOSURE: {
             char num_buf[21];
             snprintf(num_buf, 21, "%zu", *inst.closure_size);
-            write(writer->sections + s, num_buf);
-            write(writer->sections + s, ");\n");
+
+            write_many(
+                writer->sections + s,
+                (const char*[]){
+                    "__ctx__.closure = ",
+                    NPLIB_FUNCTION_DATA[NPLIB_ALLOC].name,
+                    "(",
+                    num_buf,
+                    ");\n",
+                    NULL,
+                }
+            );
             break;
+        }
         case INST_ITER_NEXT:
             // iter.next_data = iter.next(iter.iter);
             write_ident_attr(writer->sections + s, inst.iter_next.iter, "next_data");
@@ -578,7 +592,15 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
             break;
         case INST_RETURN:
             if (inst.return_.should_free_closure)
-                write(writer->sections + s, NPLIB_FREE "(__ctx__.closure);\n");
+                write_many(
+                    writer->sections + s,
+                    (const char*[]){
+                        NPLIB_FUNCTION_DATA[NPLIB_FREE].name,
+                        "(__ctx__.closure);\n",
+                        NULL,
+                    }
+                );
+
             write(writer->sections + s, "return ");
             write_ident(writer->sections + s, inst.return_.rtval);
             write(writer->sections + s, ";\n");

@@ -12,6 +12,62 @@
 #include "syntax.h"
 #include "type_checker.h"
 
+NpLibFunctionData NPLIB_FUNCTION_DATA[] = {
+    [NPLIB_PRINT] = {.name = "builtin_print", .argc = -1, .unsafe = true},
+
+    [NPLIB_ALLOC] = {.name = "np_alloc", .argc = 1, .unsafe = true},
+    [NPLIB_REALLOC] = {.name = "np_realloc", .argc = 2, .unsafe = true},
+    [NPLIB_FREE] = {.name = "np_free", .argc = 1, .unsafe = false},
+
+    [NPLIB_LIST_APPEND] = {.name = "np_list_append", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_CLEAR] = {.name = "np_list_clear", .argc = 1, .unsafe = false},
+    [NPLIB_LIST_COUNT] = {.name = "np_list_count", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_EXTEND] = {.name = "np_list_extend", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_INDEX] = {.name = "np_list_index", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_INSERT] = {.name = "np_list_insert", .argc = 3, .unsafe = true},
+    [NPLIB_LIST_POP] = {.name = "np_list_pop", .argc = 3, .unsafe = true},
+    [NPLIB_LIST_REMOVE] = {.name = "np_list_remove", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_REVERSE] = {.name = "np_list_reverse", .argc = 1, .unsafe = false},
+    [NPLIB_LIST_SORT] = {.name = "np_list_sort", .argc = 2, .unsafe = false},
+    [NPLIB_LIST_COPY] = {.name = "np_list_copy", .argc = 1, .unsafe = true},
+    [NPLIB_LIST_GET_ITEM] = {.name = "np_list_get_item", .argc = 3, .unsafe = true},
+    [NPLIB_LIST_SET_ITEM] = {.name = "np_list_set_item", .argc = 3, .unsafe = true},
+    [NPLIB_LIST_ADD] = {.name = "np_list_add", .argc = 2, .unsafe = true},
+    [NPLIB_LIST_INIT] = {.name = "np_list_init", .argc = 4, .unsafe = true},
+    [NPLIB_LIST_ITER] = {.name = "np_list_iter", .argc = 1, .unsafe = true},
+
+    [NPLIB_DICT_CLEAR] = {.name = "np_dict_clear", .argc = 1, .unsafe = false},
+    [NPLIB_DICT_COPY] = {.name = "np_dict_copy", .argc = 1, .unsafe = false},
+    [NPLIB_DICT_ITEMS] = {.name = "np_dict_iter_items", .argc = 1, .unsafe = true},
+    [NPLIB_DICT_KEYS] = {.name = "np_dict_iter_keys", .argc = 1, .unsafe = true},
+    [NPLIB_DICT_VALUES] = {.name = "np_dict_iter_vals", .argc = 1, .unsafe = true},
+    [NPLIB_DICT_POP] = {.name = "np_dict_pop_val", .argc = 3, .unsafe = true},
+    [NPLIB_DICT_POPITEM] = {.name = "np_dict_popitem", .argc = -1, .unsafe = false},
+    [NPLIB_DICT_UPDATE] = {.name = "np_dict_update", .argc = 2, .unsafe = true},
+    [NPLIB_DICT_GET_ITEM] = {.name = "np_dict_get_val", .argc = 3, .unsafe = true},
+    [NPLIB_DICT_INIT] = {.name = "np_dict_init", .argc = 3, .unsafe = true},
+    [NPLIB_DICT_SET_ITEM] = {.name = "np_dict_set_item", .argc = 3, .unsafe = true},
+
+    [NPLIB_STR_ADD] = {.name = "np_str_add", .argc = 2, .unsafe = true},
+    [NPLIB_STR_EQ] = {.name = "np_str_eq", .argc = 2, .unsafe = false},
+    [NPLIB_STR_GT] = {.name = "np_str_gt", .argc = 2, .unsafe = false},
+    [NPLIB_STR_GTE] = {.name = "np_str_gte", .argc = 2, .unsafe = false},
+    [NPLIB_STR_LT] = {.name = "np_str_lt", .argc = 2, .unsafe = false},
+    [NPLIB_STR_LTE] = {.name = "np_str_lte", .argc = 2, .unsafe = false},
+    [NPLIB_STR_TO_CSTR] = {.name = "np_str_to_cstr", .argc = 1, .unsafe = true},
+    [NPLIB_STR_FMT] = {.name = "np_str_fmt", .argc = -1, .unsafe = true},
+
+    [NPLIB_INT_TO_STR] = {.name = "np_int_to_str", .argc = 1, .unsafe = true},
+    [NPLIB_FLOAT_TO_STR] = {.name = "np_float_to_str", .argc = 1, .unsafe = true},
+    [NPLIB_BOOL_TO_STR] = {.name = "np_bool_to_str", .argc = 1, .unsafe = true},
+
+    [NPLIB_GET_EXCEPTION] = {.name = "get_exception", .argc = 0, .unsafe = false},
+    [NPLIB_ASSERTION_ERROR] = {.name = "assertion_error", .argc = 1, .unsafe = false},
+
+    [NPLIB_FMOD] = {.name = "fmod", .argc = 2, .unsafe = false},
+    [NPLIB_POW] = {.name = "pow", .argc = 2, .unsafe = false},
+};
+
 #define SEQ_STACK_CAP 128
 
 typedef struct {
@@ -52,6 +108,8 @@ static void compile_statement(Compiler* compiler, Statement* stmt);
 static void compile_set_item(
     Compiler* compiler, StorageIdent container, StorageIdent key, StorageIdent value
 );
+static void compile_check_exceptions(Compiler* compiler);
+
 static void declare_scope_variables(Compiler* compiler, LexicalScope* scope);
 
 // For hinting to a function where the output should be stored
@@ -189,6 +247,8 @@ add_instruction(Compiler* compiler, Instruction inst)
         inst.declare_variable.info.type == NPTYPE_UNTYPED) {
         assert(0 && "trying to add untyped variable declaration");
     }
+    if (compiler->excepts_goto && UNSAFE_INST(inst)) compile_check_exceptions(compiler);
+
     seq_stack_append_instruction(&compiler->inst_seq_stack, inst);
 }
 
@@ -508,18 +568,15 @@ index_of_kwarg(Signature sig, SourceString kwd)
     return -1;
 }
 
-static const char* NPLIB_CONVERSION_FUNCTIONS[NPTYPE_COUNT][NPTYPE_COUNT] = {
-    [NPTYPE_INT] =
-        {
-            [NPTYPE_STRING] = "np_int_to_str",
-        },
+static NpLibFunction NPLIB_CONVERSION_FUNCTIONS[NPTYPE_COUNT][NPTYPE_COUNT] = {
+    [NPTYPE_INT] = {[NPTYPE_STRING] = NPLIB_INT_TO_STR},
     [NPTYPE_FLOAT] =
         {
-            [NPTYPE_STRING] = "np_float_to_str",
+            [NPTYPE_STRING] = NPLIB_FLOAT_TO_STR,
         },
     [NPTYPE_BOOL] =
         {
-            [NPTYPE_STRING] = "np_bool_to_str",
+            [NPTYPE_STRING] = NPLIB_BOOL_TO_STR,
         },
 };
 
@@ -623,9 +680,8 @@ render_default_object_string_representation(
                 .assignment.right =
                     (OperationInst){
                         .kind = OPERATION_C_CALL,
-                        .c_fn_name = NPLIB_STR_TO_CSTR,
-                        .c_fn_argc = 1,
-                        .c_fn_argv = arg_idents + argc + i - 1,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_STR_TO_CSTR],
+                        .c_function_args = arg_idents + argc + i - 1,
                     },
             }
         );
@@ -642,9 +698,10 @@ render_default_object_string_representation(
             .assignment.right =
                 (OperationInst){
                     .kind = OPERATION_C_CALL,
-                    .c_fn_name = NPLIB_STR_FMT,
-                    .c_fn_argc = argc,
-                    .c_fn_argv = arg_idents,
+                    .c_function.name = NPLIB_FUNCTION_DATA[NPLIB_STR_FMT].name,
+                    .c_function.unsafe = NPLIB_FUNCTION_DATA[NPLIB_STR_FMT].unsafe,
+                    .c_function.argc = argc,
+                    .c_function_args = arg_idents,
                 },
         }
     );
@@ -661,23 +718,26 @@ convert_to_string(Compiler* compiler, StorageIdent id)
         case NPTYPE_INT:
             operation = (OperationInst){
                 .kind = OPERATION_C_CALL1,
-                .c_fn_name = NPLIB_CONVERSION_FUNCTIONS[NPTYPE_INT][NPTYPE_STRING],
-                .c_fn_argc = 1,
-                .c_fn_arg = id};
+                .c_function =
+                    NPLIB_FUNCTION_DATA[NPLIB_CONVERSION_FUNCTIONS[NPTYPE_INT]
+                                                                  [NPTYPE_STRING]],
+                .c_function_arg = id};
             break;
         case NPTYPE_FLOAT:
             operation = (OperationInst){
                 .kind = OPERATION_C_CALL1,
-                .c_fn_name = NPLIB_CONVERSION_FUNCTIONS[NPTYPE_FLOAT][NPTYPE_STRING],
-                .c_fn_argc = 1,
-                .c_fn_arg = id};
+                .c_function =
+                    NPLIB_FUNCTION_DATA[NPLIB_CONVERSION_FUNCTIONS[NPTYPE_FLOAT]
+                                                                  [NPTYPE_STRING]],
+                .c_function_arg = id};
             break;
         case NPTYPE_BOOL:
             operation = (OperationInst){
                 .kind = OPERATION_C_CALL1,
-                .c_fn_name = NPLIB_CONVERSION_FUNCTIONS[NPTYPE_BOOL][NPTYPE_STRING],
-                .c_fn_argc = 1,
-                .c_fn_arg = id};
+                .c_function =
+                    NPLIB_FUNCTION_DATA[NPLIB_CONVERSION_FUNCTIONS[NPTYPE_BOOL]
+                                                                  [NPTYPE_STRING]],
+                .c_function_arg = id};
             break;
         case NPTYPE_OBJECT: {
             FunctionStatement* user_defined_str =
@@ -753,9 +813,10 @@ render_builtin_print(Compiler* compiler, StorageHint hint, Arguments* args)
             .assignment.right =
                 (OperationInst){
                     .kind = OPERATION_C_CALL,
-                    .c_fn_name = NPLIB_PRINT,
-                    .c_fn_argc = args_count,
-                    .c_fn_argv = argv,
+                    .c_function.name = NPLIB_FUNCTION_DATA[NPLIB_PRINT].name,
+                    .c_function.unsafe = NPLIB_FUNCTION_DATA[NPLIB_PRINT].unsafe,
+                    .c_function.argc = args_count,
+                    .c_function_args = argv,
                 },
         }
     );
@@ -819,9 +880,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_APPEND,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_APPEND],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -841,9 +901,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_LIST_CLEAR,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = list_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_CLEAR],
+                                .c_function_arg = list_ident,
                             },
                     }
                 );
@@ -861,9 +920,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_LIST_COPY,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = list_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_COPY],
+                                .c_function_arg = list_ident,
                             },
                     }
                 );
@@ -889,9 +947,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_COUNT,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_COUNT],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -918,9 +975,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_EXTEND,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_EXTEND],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -949,9 +1005,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_INDEX,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_INDEX],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -980,9 +1035,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_INSERT,
-                                .c_fn_argc = 3,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_INSERT],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1036,9 +1090,8 @@ render_list_builtin(
                         .operation =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_POP,
-                                .c_fn_argc = 3,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_POP],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1067,9 +1120,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_REMOVE,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_REMOVE],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1087,9 +1139,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_LIST_REVERSE,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = list_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_REVERSE],
+                                .c_function_arg = list_ident,
                             },
                     }
                 );
@@ -1147,9 +1198,8 @@ render_list_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_SORT,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_SORT],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1197,9 +1247,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_DICT_CLEAR,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = dict_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_CLEAR],
+                                .c_function_arg = dict_ident,
                             },
                     }
                 );
@@ -1217,9 +1266,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_DICT_COPY,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = dict_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_COPY],
+                                .c_function_arg = dict_ident,
                             },
                     }
                 );
@@ -1255,9 +1303,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_DICT_ITEMS,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = dict_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_ITEMS],
+                                .c_function_arg = dict_ident,
                             },
                     }
                 );
@@ -1285,9 +1332,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_DICT_KEYS,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = dict_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_KEYS],
+                                .c_function_arg = dict_ident,
                             },
                     }
                 );
@@ -1326,9 +1372,8 @@ render_dict_builtin(
                         .operation =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_DICT_POP,
-                                .c_fn_argc = 3,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_POP],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1364,9 +1409,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_DICT_UPDATE,
-                                .c_fn_argc = 2,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_UPDATE],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1394,9 +1438,8 @@ render_dict_builtin(
                         .assignment.right =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL1,
-                                .c_fn_name = NPLIB_DICT_VALUES,
-                                .c_fn_argc = 1,
-                                .c_fn_arg = dict_ident,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_VALUES],
+                                .c_function_arg = dict_ident,
                             },
                     }
                 );
@@ -1653,7 +1696,7 @@ render_operation(
     StorageIdent left = idents[0];
     StorageIdent right = idents[1];
     StorageIdent* argv;
-    const char* lib_function_name;
+    NpLibFunction lib_function;
 
     switch (op_type) {
         case OPERATOR_LOGICAL_NOT: {
@@ -1696,12 +1739,12 @@ render_operation(
         }
         case OPERATOR_PLUS: {
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_ADD;
-                goto lib_function;
+                lib_function = NPLIB_STR_ADD;
+                goto render_lib_function;
             }
             else if (left.info.type == NPTYPE_LIST) {
-                lib_function_name = NPLIB_LIST_ADD;
-                goto lib_function;
+                lib_function = NPLIB_LIST_ADD;
+                goto render_lib_function;
             }
             // break out to default
             break;
@@ -1715,47 +1758,47 @@ render_operation(
         case OPERATOR_MOD:
             if (resolved_info.type == NPTYPE_FLOAT) {
                 require_math_lib(compiler);
-                lib_function_name = NPLIB_FMOD;
-                goto lib_function;
+                lib_function = NPLIB_FMOD;
+                goto render_lib_function;
             }
             // break out to default
             break;
         case OPERATOR_POW:
             require_math_lib(compiler);
-            lib_function_name = NPLIB_POW;
-            goto lib_function;
+            lib_function = NPLIB_POW;
+            goto render_lib_function;
         case OPERATOR_EQUAL:
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_EQ;
-                goto lib_function;
+                lib_function = NPLIB_STR_EQ;
+                goto render_lib_function;
             }
             // break out to default
             break;
         case OPERATOR_GREATER:
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_GT;
-                goto lib_function;
+                lib_function = NPLIB_STR_GT;
+                goto render_lib_function;
             }
             // break out to default
             break;
         case OPERATOR_GREATER_EQUAL:
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_GTE;
-                goto lib_function;
+                lib_function = NPLIB_STR_GTE;
+                goto render_lib_function;
             }
             // break out to default
             break;
         case OPERATOR_LESS:
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_LT;
-                goto lib_function;
+                lib_function = NPLIB_STR_LT;
+                goto render_lib_function;
             }
             // break out to default
             break;
         case OPERATOR_LESS_EQUAL:
             if (left.info.type == NPTYPE_STRING) {
-                lib_function_name = NPLIB_STR_LTE;
-                goto lib_function;
+                lib_function = NPLIB_STR_LTE;
+                goto render_lib_function;
             }
             // break out to default
             break;
@@ -1786,9 +1829,8 @@ render_operation(
                         .operation =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_LIST_GET_ITEM,
-                                .c_fn_argc = 3,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_GET_ITEM],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1819,9 +1861,8 @@ render_operation(
                         .operation =
                             (OperationInst){
                                 .kind = OPERATION_C_CALL,
-                                .c_fn_name = NPLIB_DICT_GET_ITEM,
-                                .c_fn_argc = 3,
-                                .c_fn_argv = argv,
+                                .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_GET_ITEM],
+                                .c_function_args = argv,
                             },
                     }
                 );
@@ -1855,7 +1896,7 @@ render_operation(
     );
     return rtval;
 
-lib_function:
+render_lib_function:
     // lib function that accepts 2 args (left/right)
     argv = arena_alloc(compiler->arena, sizeof(OperationInst) * 2);
     argv[0] = left;
@@ -1868,9 +1909,8 @@ lib_function:
             .assignment.right =
                 (OperationInst){
                     .kind = OPERATION_C_CALL,
-                    .c_fn_name = lib_function_name,
-                    .c_fn_argc = 2,
-                    .c_fn_argv = argv,
+                    .c_function = NPLIB_FUNCTION_DATA[lib_function],
+                    .c_function_args = argv,
                 },
         }
     );
@@ -1944,9 +1984,8 @@ render_empty_enclosure(Compiler* compiler, StorageHint hint, Operand operand)
                     .assignment.right =
                         (OperationInst){
                             .kind = OPERATION_C_CALL,
-                            .c_fn_name = NPLIB_LIST_INIT,
-                            .c_fn_argc = 4,
-                            .c_fn_argv = argv,
+                            .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_INIT],
+                            .c_function_args = argv,
                         },
                 }
             );
@@ -1985,9 +2024,8 @@ render_empty_enclosure(Compiler* compiler, StorageHint hint, Operand operand)
                     .assignment.right =
                         (OperationInst){
                             .kind = OPERATION_C_CALL,
-                            .c_fn_name = NPLIB_DICT_INIT,
-                            .c_fn_argc = 3,
-                            .c_fn_argv = argv,
+                            .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_INIT],
+                            .c_function_args = argv,
                         },
                 }
             );
@@ -2046,9 +2084,8 @@ render_list_literal(Compiler* compiler, StorageHint hint, Operand operand)
                 .operation =
                     (OperationInst){
                         .kind = OPERATION_C_CALL,
-                        .c_fn_name = NPLIB_LIST_APPEND,
-                        .c_fn_argc = 2,
-                        .c_fn_argv = argv,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_APPEND],
+                        .c_function_args = argv,
                     },
             }
         );
@@ -2424,9 +2461,8 @@ render_object_creation(
             .assignment.right =
                 (OperationInst){
                     .kind = OPERATION_C_CALL1,
-                    .c_fn_name = NPLIB_ALLOC,
-                    .c_fn_argc = 1,
-                    .c_fn_arg =
+                    .c_function = NPLIB_FUNCTION_DATA[NPLIB_ALLOC],
+                    .c_function_arg =
                         (StorageIdent){
                             .kind = IDENT_INT_LITERAL,
                             .int_value = clsdef->nbytes,
@@ -3187,9 +3223,8 @@ compile_set_item(
                 .operation =
                     (OperationInst){
                         .kind = OPERATION_C_CALL,
-                        .c_fn_name = NPLIB_LIST_SET_ITEM,
-                        .c_fn_argc = 3,
-                        .c_fn_argv = argv,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_SET_ITEM],
+                        .c_function_args = argv,
                     },
             }
         );
@@ -3208,9 +3243,8 @@ compile_set_item(
                 .operation =
                     (OperationInst){
                         .kind = OPERATION_C_CALL,
-                        .c_fn_name = NPLIB_DICT_SET_ITEM,
-                        .c_fn_argc = 3,
-                        .c_fn_argv = argv,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_SET_ITEM],
+                        .c_function_args = argv,
                     },
             }
         );
@@ -3535,9 +3569,8 @@ convert_to_iterator(Compiler* compiler, StorageHint hint, StorageIdent iterable_
                 .assignment.right =
                     (OperationInst){
                         .kind = OPERATION_C_CALL1,
-                        .c_fn_name = NPLIB_LIST_ITER,
-                        .c_fn_argc = 1,
-                        .c_fn_arg = iterable_ident,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_LIST_ITER],
+                        .c_function_arg = iterable_ident,
                     },
             }
         );
@@ -3556,9 +3589,8 @@ convert_to_iterator(Compiler* compiler, StorageHint hint, StorageIdent iterable_
                 .assignment.right =
                     (OperationInst){
                         .kind = OPERATION_C_CALL1,
-                        .c_fn_name = NPLIB_DICT_KEYS,
-                        .c_fn_argc = 1,
-                        .c_fn_arg = iterable_ident,
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_DICT_KEYS],
+                        .c_function_arg = iterable_ident,
                     },
             }
         );
@@ -3960,32 +3992,26 @@ compile_while(Compiler* compiler, WhileStatement* while_stmt)
 }
 
 static void
-check_exceptions(Compiler* compiler)
+compile_check_exceptions(Compiler* compiler)
 {
-    // TODO: replace with callback system in the future
-    Instruction if_inst = {
+    Instruction inst = {
         .kind = INST_IF,
         .if_.condition_ident.kind = IDENT_CSTR,
-        .if_.condition_ident.cstr = "global_exception",
+        .if_.condition_ident.cstr = NPLIB_GLOBAL_EXCEPTION,
         .if_.condition_ident.info = EXCEPTION_TYPE,
     };
-    COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, if_inst.if_.body)
+    COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, inst.if_.body)
     {
         add_instruction(
             compiler, (Instruction){.kind = INST_GOTO, .label = compiler->excepts_goto}
         );
     }
-    add_instruction(compiler, if_inst);
+    add_instruction(compiler, inst);
 }
 
 static void
 compile_try(Compiler* compiler, TryStatement* try)
 {
-    // TODO: ensure fallthrough to finally
-    // TODO: if I supported closures this could somehow be packed very neatly
-    // into a callback system that would be convenient because you could
-    // easily interact with it from C but for now this seems a lot simpler
-
     const char* old_goto = compiler->excepts_goto;
     const char* finally_goto = UNIQUE_ID(compiler);
     compiler->excepts_goto = UNIQUE_ID(compiler);
@@ -4060,12 +4086,8 @@ compile_try(Compiler* compiler, TryStatement* try)
     }
 
     // try block
-    for (size_t i = 0; i < try->try_body.stmts_count; i++) {
+    for (size_t i = 0; i < try->try_body.stmts_count; i++)
         compile_statement(compiler, try->try_body.stmts[i]);
-        // FIXME: once exceptions are handled with closures and a callback
-        // system check exceptions wont be necessary
-        check_exceptions(compiler);
-    }
 
     // if an exception hasn't occurred goto finally
     Instruction if_inst = {
@@ -4099,9 +4121,8 @@ compile_try(Compiler* compiler, TryStatement* try)
             .assignment.right =
                 (OperationInst){
                     .kind = OPERATION_C_CALL,
-                    .c_fn_name = NPLIB_GET_EXCEPTION,
-                    .c_fn_argc = 0,
-                    .c_fn_argv = NULL,
+                    .c_function = NPLIB_FUNCTION_DATA[NPLIB_GET_EXCEPTION],
+                    .c_function_args = NULL,
                 }}
     );
 
@@ -4242,9 +4263,8 @@ compile_assert(Compiler* compiler, Expression* value)
                 .operation =
                     (OperationInst){
                         .kind = OPERATION_C_CALL1,
-                        .c_fn_name = NPLIB_ASSERTION_ERROR,
-                        .c_fn_argc = 1,
-                        .c_fn_arg =
+                        .c_function = NPLIB_FUNCTION_DATA[NPLIB_ASSERTION_ERROR],
+                        .c_function_arg =
                             (StorageIdent){
                                 .kind = IDENT_INT_LITERAL,
                                 .int_value = compiler->current_stmt_location.line,

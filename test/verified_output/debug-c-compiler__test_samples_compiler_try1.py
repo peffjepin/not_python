@@ -18,9 +18,6 @@ _np_2 = current_excepts;
 current_excepts = 0;
 current_excepts = current_excepts | 4;
 try1_x = 1;
-if (global_exception) {
-goto _np_1;
-}
 if (!global_exception) {
 goto _np_0;
 }

@@ -5,57 +5,76 @@
 
 #include "lexer.h"
 
-#define NPLIB_PRINT "builtin_print"
+#define NPLIB_GLOBAL_EXCEPTION "global_exception"
 
-#define NPLIB_ALLOC "np_alloc"
-#define NPLIB_FREE "np_free"
+typedef struct {
+    const char* name;
+    int argc;  // argc < 0 means variable args count not yet set
+    bool unsafe;
+} NpLibFunctionData;
 
-#define NPLIB_LIST_APPEND "np_list_append"
-#define NPLIB_LIST_CLEAR "np_list_clear"
-#define NPLIB_LIST_COUNT "np_list_count"
-#define NPLIB_LIST_EXTEND "np_list_extend"
-#define NPLIB_LIST_INDEX "np_list_index"
-#define NPLIB_LIST_INSERT "np_list_insert"
-#define NPLIB_LIST_POP "np_list_pop"
-#define NPLIB_LIST_REMOVE "np_list_remove"
-#define NPLIB_LIST_REVERSE "np_list_reverse"
-#define NPLIB_LIST_SORT "np_list_sort"
-#define NPLIB_LIST_COPY "np_list_copy"
-#define NPLIB_LIST_GET_ITEM "np_list_get_item"
-#define NPLIB_LIST_SET_ITEM "np_list_set_item"
-#define NPLIB_LIST_ADD "np_list_add"
-#define NPLIB_LIST_INIT "np_list_init"
-#define NPLIB_LIST_ITER "np_list_iter"
+typedef enum {
+    NPLIB_PRINT,
 
-#define NPLIB_DICT_CLEAR "np_dict_clear"
-#define NPLIB_DICT_COPY "np_dict_copy"
-#define NPLIB_DICT_GET "np_dict_get"
-#define NPLIB_DICT_ITEMS "np_dict_iter_items"
-#define NPLIB_DICT_KEYS "np_dict_iter_keys"
-#define NPLIB_DICT_VALUES "np_dict_iter_vals"
-#define NPLIB_DICT_POP "np_dict_pop_val"
-#define NPLIB_DICT_POPITEM "np_dict_popitem"
-#define NPLIB_DICT_UPDATE "np_dict_update"
-#define NPLIB_DICT_GET_ITEM "np_dict_get_val"
-#define NPLIB_DICT_INIT "np_dict_init"
-#define NPLIB_DICT_SET_ITEM "np_dict_set_item"
+    NPLIB_ALLOC,
+    NPLIB_REALLOC,
+    NPLIB_FREE,
 
-#define NPLIB_STR_ADD "np_str_add"
-#define NPLIB_STR_EQ "np_str_eq"
-#define NPLIB_STR_GT "np_str_gt"
-#define NPLIB_STR_GTE "np_str_gte"
-#define NPLIB_STR_LT "np_str_lt"
-#define NPLIB_STR_LTE "np_str_lte"
-#define NPLIB_STR_TO_CSTR "np_str_to_cstr"
-#define NPLIB_STR_FMT "np_str_fmt"
+    NPLIB_LIST_APPEND,
+    NPLIB_LIST_CLEAR,
+    NPLIB_LIST_COUNT,
+    NPLIB_LIST_EXTEND,
+    NPLIB_LIST_INDEX,
+    NPLIB_LIST_INSERT,
+    NPLIB_LIST_POP,
+    NPLIB_LIST_REMOVE,
+    NPLIB_LIST_REVERSE,
+    NPLIB_LIST_SORT,
+    NPLIB_LIST_COPY,
+    NPLIB_LIST_GET_ITEM,
+    NPLIB_LIST_SET_ITEM,
+    NPLIB_LIST_ADD,
+    NPLIB_LIST_INIT,
+    NPLIB_LIST_ITER,
+
+    NPLIB_DICT_CLEAR,
+    NPLIB_DICT_COPY,
+    NPLIB_DICT_ITEMS,
+    NPLIB_DICT_KEYS,
+    NPLIB_DICT_VALUES,
+    NPLIB_DICT_POP,
+    NPLIB_DICT_POPITEM,
+    NPLIB_DICT_UPDATE,
+    NPLIB_DICT_GET_ITEM,
+    NPLIB_DICT_INIT,
+    NPLIB_DICT_SET_ITEM,
+
+    NPLIB_STR_ADD,
+    NPLIB_STR_EQ,
+    NPLIB_STR_GT,
+    NPLIB_STR_GTE,
+    NPLIB_STR_LT,
+    NPLIB_STR_LTE,
+    NPLIB_STR_TO_CSTR,
+    NPLIB_STR_FMT,
+
+    NPLIB_INT_TO_STR,
+    NPLIB_FLOAT_TO_STR,
+    NPLIB_BOOL_TO_STR,
+
+    NPLIB_GET_EXCEPTION,
+    NPLIB_ASSERTION_ERROR,
+
+    NPLIB_FMOD,
+    NPLIB_POW,
+
+    NPLIB_FUNCTION_COUNT
+} NpLibFunction;
+
+extern NpLibFunctionData NPLIB_FUNCTION_DATA[NPLIB_FUNCTION_COUNT];
 
 #define NPLIB_CURRENT_EXCEPTS_CTYPE "uint64_t"
 #define NPLIB_CURRENT_EXCEPTS "current_excepts"
-#define NPLIB_GET_EXCEPTION "get_exception"
-#define NPLIB_ASSERTION_ERROR "assertion_error"
-
-#define NPLIB_FMOD "fmod"
-#define NPLIB_POW "pow"
 
 #define UNTYPED                                                                          \
     (TypeInfo) { .type = NPTYPE_UNTYPED }
@@ -137,13 +156,12 @@ typedef struct {
         };
         // C CALL
         struct {
-            const char* c_fn_name;
-            size_t c_fn_argc;
+            NpLibFunctionData c_function;
             union {
                 // C_CALL
-                StorageIdent* c_fn_argv;
+                StorageIdent* c_function_args;
                 // C_CALL1
-                StorageIdent c_fn_arg;
+                StorageIdent c_function_arg;
             };
         };
         // TODO: migrate attribute access to StorageIdent
@@ -243,6 +261,15 @@ struct Instruction {
         size_t* closure_size;
     };
 };
+
+#define UNSAFE_INST(inst)                                                                \
+    ((inst.kind == INST_OPERATION && (inst.operation.kind == OPERATION_FUNCTION_CALL ||  \
+                                      inst.operation.kind == OPERATION_C_CALL ||         \
+                                      inst.operation.kind == OPERATION_C_CALL1)) ||      \
+     (inst.kind == INST_ASSIGNMENT &&                                                    \
+      (inst.assignment.right.kind == OPERATION_FUNCTION_CALL ||                          \
+       inst.assignment.right.kind == OPERATION_C_CALL ||                                 \
+       inst.assignment.right.kind == OPERATION_C_CALL1)))
 
 #define NO_OP                                                                            \
     (Instruction) { 0 }
