@@ -52,6 +52,14 @@ get_exception(void)
     return exc;
 }
 
+void
+assertion_error(NpInt line, NpString source_code)
+{
+    set_exceptionf(
+        ASSERTION_ERROR, "AssertionError on line %i ->\n%s", line, source_code.data
+    );
+}
+
 #define SV_CHAR_AT(str, i) (str).data[(str).offset + i]
 
 NpBool

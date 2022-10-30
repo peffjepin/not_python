@@ -15,6 +15,7 @@ typedef bool NpBool;
 typedef uint8_t NpByte;
 typedef void* NpPointer;
 typedef void* NpNone;
+typedef struct NpString NpString;
 
 typedef enum {
     MEMORY_ERROR = 1u << 0,
@@ -42,8 +43,8 @@ Exception* get_exception(void);
 #define value_error() set_exception(VALUE_ERROR, "value error")
 // TODO: a good error message here will require saving metadata into executable
 // so will require some kind of `debug` option in the front end
-#define assertion_error(ln)                                                              \
-    set_exceptionf(ASSERTION_ERROR, "AssertionError on line: %i\n", ln)
+
+void assertion_error(NpInt line, NpString source_code);
 
 void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);
@@ -71,11 +72,11 @@ int np_float_sort_fn_rev(const void*, const void*);
 int np_bool_sort_fn_rev(const void*, const void*);
 int np_str_sort_fn_rev(const void*, const void*);
 
-typedef struct {
+struct NpString {
     char* data;
     size_t offset;
     size_t length;
-} NpString;
+};
 
 NpString np_str_add(NpString str1, NpString str2);
 NpString np_str_fmt(const char* fmt, ...);

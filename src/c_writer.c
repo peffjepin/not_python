@@ -511,7 +511,9 @@ write_operation(Section* section, OperationInst operation_inst)
             write_many(
                 section, (const char*[]){operation_inst.c_function.name, "(", NULL}
             );
-            for (size_t i = 0; i < operation_inst.c_function.argc; i++) {
+            if (operation_inst.c_function.argc < 0)
+                error("variable arg c function not given argc value");
+            for (int i = 0; i < operation_inst.c_function.argc; i++) {
                 if (i > 0) write(section, ", ");
                 write_ident(section, operation_inst.c_function_args[i]);
             }

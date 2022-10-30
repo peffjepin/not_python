@@ -8,6 +8,7 @@
 #include "syntax.h"
 
 #define SCANNER_BUF_CAPACITY 4096
+#define ASSERT_BUF_CAPACITY 1024
 
 typedef struct {
     FILE* srcfile;
@@ -21,16 +22,39 @@ typedef struct {
     unsigned int open_curly;
     unsigned int open_square;
     bool finished;
+    bool scanning_assert;
     char c;
     size_t buflen;
     char buf[SCANNER_BUF_CAPACITY];
+    size_t assert_buflen;
+    char assert_buf[ASSERT_BUF_CAPACITY];
 } Scanner;
 
 static inline void
 scanner_getc(Scanner* scanner)
 {
-    assert(scanner->buflen < SCANNER_BUF_CAPACITY && "scanner buffer overflow");
+    if (scanner->buflen == SCANNER_BUF_CAPACITY) error("scanner buffer overflow");
     scanner->c = fgetc(scanner->srcfile);
+    if (scanner->scanning_assert) {
+        if (scanner->assert_buflen == ASSERT_BUF_CAPACITY - 2)
+            error("assert buffer overflow");
+        switch (scanner->c) {
+            case '\n':
+                scanner->assert_buf[scanner->assert_buflen++] = '\\';
+                scanner->assert_buf[scanner->assert_buflen++] = 'n';
+                break;
+            case '\t':
+                scanner->assert_buf[scanner->assert_buflen++] = '\\';
+                scanner->assert_buf[scanner->assert_buflen++] = 't';
+                break;
+            case '\r':
+                scanner->assert_buf[scanner->assert_buflen++] = '\\';
+                scanner->assert_buf[scanner->assert_buflen++] = 'r';
+                break;
+            default:
+                scanner->assert_buf[scanner->assert_buflen++] = scanner->c;
+        }
+    }
     scanner->file_offset++;
     scanner->buf[scanner->buflen++] = scanner->c;
     scanner->loc.col++;
@@ -44,6 +68,21 @@ scanner_ungetc(Scanner* scanner)
     scanner->file_offset--;
     scanner->loc.col--;
     ungetc(scanner->buf[--scanner->buflen], scanner->srcfile);
+    if (scanner->scanning_assert) {
+        switch (scanner->c) {
+            case '\n':
+                scanner->assert_buflen -= 2;
+                break;
+            case '\t':
+                scanner->assert_buflen -= 2;
+                break;
+            case '\r':
+                scanner->assert_buflen -= 2;
+                break;
+            default:
+                scanner->assert_buflen -= 1;
+        }
+    }
 }
 
 static inline char
@@ -311,7 +350,29 @@ scan_token(Scanner* scanner)
     }
 
 push_token:
+    if (scanner->token.type == TOK_KEYWORD && scanner->token.kw == KW_ASSERT) {
+        memset(scanner->assert_buf, ' ', scanner->token.loc->col - 1);
+        memcpy(scanner->assert_buf + scanner->token.loc->col - 1, "assert", 6);
+        scanner->assert_buflen += scanner->token.loc->col + 5;
+        scanner->scanning_assert = true;
+    }
     tq_push(scanner->tq, scanner->token);
+}
+
+static SourceString
+get_assert_source_code(Scanner* scanner)
+{
+    while (memcmp(scanner->assert_buf + scanner->assert_buflen - 2, "\\n", 2) == 0)
+        // knock off any trailing newlines
+        scanner->assert_buflen -= 2;
+
+    scanner->assert_buf[scanner->assert_buflen] = '\0';
+    const char* source_code =
+        arena_copy(scanner->arena, scanner->assert_buf, scanner->assert_buflen + 1);
+    SourceString rtval = {.data = source_code, .length = scanner->assert_buflen};
+    scanner->assert_buflen = 0;
+    scanner->scanning_assert = false;
+    return rtval;
 }
 
 typedef enum {
@@ -2374,6 +2435,15 @@ parse_global(Parser* parser, Location loc)
     symbol_hm_put(&scope->hm, placeholder_local);
 }
 
+static AssertStatement*
+parse_assert(Parser* parser)
+{
+    AssertStatement* assert_ = arena_alloc(parser->arena, sizeof(AssertStatement));
+    assert_->expr = parse_expression(parser);
+    assert_->source_code = get_assert_source_code(parser->scanner);
+    return assert_;
+}
+
 static Statement*
 parse_statement(Parser* parser)
 {
@@ -2413,7 +2483,7 @@ parse_statement(Parser* parser)
             case KW_ASSERT:
                 discard_next_token(parser);
                 stmt->kind = STMT_ASSERT;
-                stmt->assert_expr = parse_expression(parser);
+                stmt->assert_ = parse_assert(parser);
                 return stmt;
             case KW_FOR: {
                 stmt->kind = STMT_FOR_LOOP;

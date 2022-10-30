@@ -62,7 +62,7 @@ NpLibFunctionData NPLIB_FUNCTION_DATA[] = {
     [NPLIB_BOOL_TO_STR] = {.name = "np_bool_to_str", .argc = 1, .unsafe = true},
 
     [NPLIB_GET_EXCEPTION] = {.name = "get_exception", .argc = 0, .unsafe = false},
-    [NPLIB_ASSERTION_ERROR] = {.name = "assertion_error", .argc = 1, .unsafe = false},
+    [NPLIB_ASSERTION_ERROR] = {.name = "assertion_error", .argc = 2, .unsafe = false},
 
     [NPLIB_FMOD] = {.name = "fmod", .argc = 2, .unsafe = false},
     [NPLIB_POW] = {.name = "pow", .argc = 2, .unsafe = false},
@@ -4045,6 +4045,7 @@ default_return_val_for_type(Compiler* compiler, TypeInfo info)
         case NPTYPE_UNTYPED:
             UNREACHABLE();
     }
+    UNREACHABLE();
 }
 
 static void
@@ -4365,12 +4366,21 @@ compile_try(Compiler* compiler, TryStatement* try)
 }
 
 static void
-compile_assert(Compiler* compiler, Expression* value)
+compile_assert(Compiler* compiler, AssertStatement* assert_)
 {
+    size_t str_index = str_hm_put(&compiler->str_hm, assert_->source_code);
+
+    StorageIdent* argv = arena_alloc(compiler->arena, sizeof(StorageIdent) * 2);
+    argv[0] = (StorageIdent){
+        .kind = IDENT_INT_LITERAL, .int_value = compiler->current_stmt_location.line};
+    argv[1] =
+        (StorageIdent){.kind = IDENT_STRING_LITERAL, .str_literal_index = str_index};
+
     Instruction if_inst = {
         .kind = INST_IF,
-        .if_.condition_ident =
-            convert_to_truthy(compiler, render_expression(compiler, NULL_HINT, value)),
+        .if_.condition_ident = convert_to_truthy(
+            compiler, render_expression(compiler, NULL_HINT, assert_->expr)
+        ),
         .if_.negate = true,
     };
     COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, if_inst.if_.body)
@@ -4381,14 +4391,12 @@ compile_assert(Compiler* compiler, Expression* value)
                 .kind = INST_OPERATION,
                 .operation =
                     (OperationInst){
-                        .kind = OPERATION_C_CALL1,
+                        .kind = OPERATION_C_CALL,
                         .c_function = NPLIB_FUNCTION_DATA[NPLIB_ASSERTION_ERROR],
-                        .c_function_arg =
-                            (StorageIdent){
-                                .kind = IDENT_INT_LITERAL,
-                                .int_value = compiler->current_stmt_location.line,
-                            },
-                    }}
+                        .c_function_args = argv,
+
+                    },
+            }
         );
     }
     add_instruction(compiler, if_inst);
@@ -4402,7 +4410,7 @@ compile_statement(Compiler* compiler, Statement* stmt)
 
     switch (stmt->kind) {
         case STMT_ASSERT:
-            compile_assert(compiler, stmt->assert_expr);
+            compile_assert(compiler, stmt->assert_);
             break;
         case STMT_FOR_LOOP:
             compile_for_loop(compiler, stmt->for_loop);

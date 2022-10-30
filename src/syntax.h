@@ -273,6 +273,11 @@ typedef struct {
     Block body;
 } ForLoopStatement;
 
+typedef struct {
+    Expression* expr;
+    SourceString source_code;
+} AssertStatement;
+
 typedef enum {
     NULL_STMT,
     STMT_EXPR,
@@ -308,7 +313,7 @@ struct Statement {
         AssignmentStatement* assignment;
         AnnotationStatement* annotation;
         Expression* return_expr;
-        Expression* assert_expr;
+        AssertStatement* assert_;
         Expression* expr;
     };
     Location loc;
