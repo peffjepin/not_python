@@ -1326,6 +1326,10 @@ parse_if_statement(Parser* parser, unsigned int indent)
     return conditional;
 }
 
+static void namespace_variable(
+    Parser* parser, Variable* variable, SourceString identifier
+);
+
 static TryStatement*
 parse_try_statement(Parser* parser, unsigned int indent)
 {
@@ -1387,7 +1391,15 @@ parse_try_statement(Parser* parser, unsigned int indent)
         // maybe parse as
         if (peek.type == TOK_KEYWORD && peek.kw == KW_AS) {
             discard_next_token(parser);
-            except.as = expect_token_type(parser, TOK_IDENTIFIER).value;
+            Token as_ident = expect_token_type(parser, TOK_IDENTIFIER);
+            except.as = as_ident.value;
+            Symbol sym = {
+                .kind = SYM_VARIABLE,
+                .variable = arena_alloc(parser->arena, sizeof(Variable)),
+                .identifier = as_ident.value,
+            };
+            *sym.variable = (Variable){.kind = VAR_SEMI_SCOPED};
+            symbol_hm_put(&scope_stack_peek(&parser->scope_stack)->hm, sym);
         }
         else {
             except.as.length = 0;

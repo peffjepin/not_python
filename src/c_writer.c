@@ -673,25 +673,34 @@ write_instruction(Writer* writer, SectionID s, Instruction inst)
             break;
         case INST_DECLARE_VARIABLE: {
             bool is_variable = inst.declare_variable.kind == IDENT_VAR;
-            if (is_variable && (inst.declare_variable.var->kind == VAR_ARGUMENT ||
-                                inst.declare_variable.var->kind == VAR_SELF ||
-                                inst.declare_variable.var->kind == VAR_CLOSURE))
-                break;
 
-            if (is_variable && inst.declare_variable.var->kind == VAR_CLOSURE_ARGUMENT) {
-                // closure argument variables must be copied from the c argument list into
-                // the closure
-                write_ident(writer->sections + s, inst.declare_variable);
-                write_many(
-                    writer->sections + s,
-                    (const char*[]){
-                        " = ",
-                        inst.declare_variable.var->compiled_name.data,
-                        ";\n",
-                        NULL,
-                    }
-                );
-                break;
+            if (is_variable) {
+                switch (inst.declare_variable.var->kind) {
+                    case VAR_ARGUMENT:
+                        return;
+                    case VAR_SELF:
+                        return;
+                    case VAR_CLOSURE:
+                        return;
+                    case VAR_SEMI_SCOPED:
+                        return;
+                    case VAR_REGULAR:
+                        break;
+                    case VAR_CLOSURE_ARGUMENT:
+                        // closure argument variables must be copied from the c argument
+                        // list into the closure
+                        write_ident(writer->sections + s, inst.declare_variable);
+                        write_many(
+                            writer->sections + s,
+                            (const char*[]){
+                                " = ",
+                                inst.declare_variable.var->compiled_name.data,
+                                ";\n",
+                                NULL,
+                            }
+                        );
+                        return;
+                }
             }
 
             Section* section =

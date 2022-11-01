@@ -333,8 +333,8 @@ struct Variable {
         VAR_CLOSURE_ARGUMENT
     } kind;
     union {
-        bool directly_in_scope;  // VAR_SEMI_SCOPED
-        size_t closure_offset;   // VAR_CLOSURE / VAR_CLOSURE_ARGUMENT
+        bool in_scope;          // VAR_SEMI_SCOPED
+        size_t closure_offset;  // VAR_CLOSURE / VAR_CLOSURE_ARGUMENT
     };
     SourceString identifier;
     SourceString compiled_name;

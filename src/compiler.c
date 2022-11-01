@@ -717,6 +717,13 @@ convert_to_string(Compiler* compiler, StorageIdent id)
     OperationInst operation;
 
     switch (id.info.type) {
+        case NPTYPE_EXCEPTION:
+            operation = (OperationInst){
+                .kind = OPERATION_GET_ATTR,
+                .object = id,
+                .attr = SOURCESTRING("msg"),
+            };
+            break;
         case NPTYPE_INT:
             operation = (OperationInst){
                 .kind = OPERATION_C_CALL1,
@@ -3588,16 +3595,16 @@ compile_return_statement(Compiler* compiler, Expression* value)
     );
 }
 
-static void
+static Variable*
 init_semi_scoped_variable(Compiler* compiler, SourceString identifier, TypeInfo type_info)
 {
     Symbol* sym = get_symbol(compiler, identifier);
-    if (sym->variable->kind != VAR_SEMI_SCOPED) return;
+    if (sym->variable->kind != VAR_SEMI_SCOPED) return sym->variable;
 
     sym->variable->compiled_name.data = UNIQUE_ID(compiler);
     sym->variable->compiled_name.length = strlen(sym->variable->compiled_name.data);
     sym->variable->type_info = type_info;
-    sym->variable->directly_in_scope = true;
+    sym->variable->in_scope = true;
 
     add_instruction(
         compiler,
@@ -3606,6 +3613,14 @@ init_semi_scoped_variable(Compiler* compiler, SourceString identifier, TypeInfo 
             .declare_variable = storage_ident_from_variable(sym->variable),
         }
     );
+    return sym->variable;
+}
+
+static void
+release_semi_scoped_variable(Variable* var)
+{
+    if (var->kind != VAR_SEMI_SCOPED) return;
+    var->in_scope = false;
 }
 
 static TypeInfo
@@ -3931,22 +3946,22 @@ compile_for_loop(Compiler* compiler, ForLoopStatement* for_loop)
             Symbol* sym = get_symbol(
                 compiler, for_loop->it->identifiers[0].group->identifiers[0].name
             );
-            sym->variable->directly_in_scope = false;
+            sym->variable->in_scope = false;
             sym = get_symbol(
                 compiler, for_loop->it->identifiers[0].group->identifiers[1].name
             );
-            sym->variable->directly_in_scope = false;
+            sym->variable->in_scope = false;
         }
         else {
             Symbol* sym = get_symbol(compiler, for_loop->it->identifiers[0].name);
-            sym->variable->directly_in_scope = false;
+            sym->variable->in_scope = false;
             sym = get_symbol(compiler, for_loop->it->identifiers[1].name);
-            sym->variable->directly_in_scope = false;
+            sym->variable->in_scope = false;
         }
     }
     else {
         Symbol* sym = get_symbol(compiler, for_loop->it->identifiers[0].name);
-        sym->variable->directly_in_scope = false;
+        sym->variable->in_scope = false;
     }
 
     add_instruction(compiler, loop_inst);
@@ -4324,8 +4339,21 @@ compile_try(Compiler* compiler, TryStatement* try)
     );
 
     for (size_t i = 0; i < try->excepts_count; i++) {
-        if (try->excepts[i].as.data)
-            UNIMPLEMENTED("capturing exception using `as` keyword is not implemented");
+        // init scoped variable identified by `as` keyword
+        Variable* as_var;
+        if (try->excepts[i].as.data) {
+            as_var =
+                init_semi_scoped_variable(compiler, try->excepts[i].as, EXCEPTION_TYPE);
+            add_instruction(
+                compiler,
+                (Instruction){
+                    .kind = INST_ASSIGNMENT,
+                    .assignment.left = storage_ident_from_variable(as_var),
+                    .assignment.right =
+                        (OperationInst){.kind = OPERATION_COPY, .copy = exception_ident},
+                }
+            );
+        }
 
         // or together all exception types for this except block
         add_instruction(
@@ -4409,6 +4437,8 @@ compile_try(Compiler* compiler, TryStatement* try)
             );
         }
         add_instruction(compiler, if_inst);
+
+        if (try->excepts[i].as.data) release_semi_scoped_variable(as_var);
     }
 
     // finally

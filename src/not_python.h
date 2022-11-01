@@ -17,35 +17,6 @@ typedef void* NpPointer;
 typedef void* NpNone;
 typedef struct NpString NpString;
 
-typedef enum {
-    MEMORY_ERROR = 1u << 0,
-    INDEX_ERROR = 1u << 1,
-    VALUE_ERROR = 1u << 2,
-    KEY_ERROR = 1u << 3,
-    ASSERTION_ERROR = 1u << 4,
-} ExceptionType;
-
-typedef struct {
-    ExceptionType type;
-    const char* msg;
-} Exception;
-
-extern Exception* global_exception;
-extern NpUnsigned current_excepts;
-void set_exception(ExceptionType type, const char* msg);
-void set_exceptionf(ExceptionType type, const char* fmt, ...);
-Exception* get_exception(void);
-
-// TODO: better exception messages
-#define key_error() set_exception(KEY_ERROR, "key not present")
-#define index_error() set_exception(INDEX_ERROR, "index out of range")
-#define memory_error() set_exception(MEMORY_ERROR, "out of memory")
-#define value_error() set_exception(VALUE_ERROR, "value error")
-// TODO: a good error message here will require saving metadata into executable
-// so will require some kind of `debug` option in the front end
-
-void assertion_error(NpInt line, NpString source_code);
-
 void* np_alloc(size_t bytes);
 void* np_realloc(void* ptr, size_t bytes);
 void np_free(void* ptr);
@@ -85,6 +56,44 @@ NpBool np_str_gt(NpString str1, NpString str2);
 NpBool np_str_gte(NpString str1, NpString str2);
 NpBool np_str_lt(NpString str1, NpString str2);
 NpBool np_str_lte(NpString str1, NpString str2);
+
+typedef enum {
+    MEMORY_ERROR = 1u << 0,
+    INDEX_ERROR = 1u << 1,
+    VALUE_ERROR = 1u << 2,
+    KEY_ERROR = 1u << 3,
+    ASSERTION_ERROR = 1u << 4,
+} ExceptionType;
+
+typedef struct {
+    ExceptionType type;
+    NpString msg;
+} Exception;
+
+extern Exception* global_exception;
+extern NpUnsigned current_excepts;
+void set_exception(ExceptionType type, NpString msg);
+void set_exceptionf(ExceptionType type, const char* fmt, ...);
+Exception* get_exception(void);
+
+// TODO: better exception messages
+#define key_error()                                                                      \
+    set_exception(                                                                       \
+        KEY_ERROR, (NpString){.data = "key not present", .length = 15, .offset = 0}      \
+    )
+#define index_error()                                                                    \
+    set_exception(                                                                       \
+        INDEX_ERROR, (NpString){.data = "index out of range", .length = 18, .offset = 0} \
+    )
+#define memory_error()                                                                   \
+    set_exception(                                                                       \
+        MEMORY_ERROR, (NpString){.data = "out of memory", .length = 13, .offset = 0}     \
+    )
+#define value_error()                                                                    \
+    set_exception(                                                                       \
+        VALUE_ERROR, (NpString){.data = "value error", .length = 11, .offset = 0}        \
+    )
+void assertion_error(NpInt line, NpString source_code);
 
 NpString np_int_to_str(NpInt num);
 NpString np_float_to_str(NpFloat num);

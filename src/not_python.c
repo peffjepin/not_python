@@ -14,7 +14,7 @@ uint64_t current_excepts = 0;
 Exception* global_exception = NULL;
 
 void
-set_exception(ExceptionType type, const char* msg)
+set_exception(ExceptionType type, NpString msg)
 {
     // TODO: don't overwrite existing exception
     if (current_excepts & type) {
@@ -25,7 +25,7 @@ set_exception(ExceptionType type, const char* msg)
     }
     else {
         // TODO: use diagnostics module
-        fprintf(stderr, "ERROR: %s\n", msg);
+        fprintf(stderr, "ERROR: %.*s\n", (int)msg.length, msg.data + msg.offset);
         exit(1);
     }
 }
@@ -33,15 +33,16 @@ set_exception(ExceptionType type, const char* msg)
 void
 set_exceptionf(ExceptionType type, const char* fmt, ...)
 {
-    char linebuffer[1024];
+    char linebuffer[1025];
     va_list args;
     va_start(args, fmt);
     size_t wrote = vsnprintf(linebuffer, 1024, fmt, args);
     va_end(args);
-    char* msg = np_alloc(sizeof(char) * wrote);
+    NpString msg = {
+        .data = np_alloc(sizeof(char) * wrote + 1), .offset = 0, .length = wrote};
     if (global_exception) return;
-    memcpy(msg, linebuffer, wrote);
-    set_exception(type, (const char*)msg);
+    memcpy(msg.data, linebuffer, wrote + 1);
+    set_exception(type, msg);
 }
 
 Exception*
