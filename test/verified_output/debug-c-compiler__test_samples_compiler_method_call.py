@@ -10,8 +10,8 @@ typedef struct { NpInt value; } method_call_A;
 // DECLARATIONS COMPILER SECTION
 method_call_A* method_call_a;
 NpInt method_call_x;
-NpFunction method_call_A_fn;
 NpInt _np_0(NpContext __ctx__);
+NpFunction method_call_A_fn;
 NpFunction _np_5;
 
 // FUNCTION DEFINITIONS COMPILER SECTION

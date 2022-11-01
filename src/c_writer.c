@@ -219,6 +219,7 @@ write_string_constants_table(StringHashmap strings, Section* forward)
         write(forward, "}");
     }
     write(forward, "};\n");
+    str_hm_free(&strings);
 }
 
 static void
@@ -241,14 +242,14 @@ write_ident(Section* section, StorageIdent ident)
         case IDENT_VAR:
             if (ident.var->kind == VAR_CLOSURE ||
                 ident.var->kind == VAR_CLOSURE_ARGUMENT) {
-                // *(type*)(__ctx__.closure + closure_offset)
-                write(section, "*(");
+                // (*(type*)(__ctx__.closure + closure_offset))
+                write(section, "(*(");
                 write_type_info(section, ident.var->type_info);
                 write(section, "*)(__ctx__.closure + ");
                 char numbuf[21];
                 snprintf(numbuf, 21, "%zu", ident.var->closure_offset);
                 write(section, numbuf);
-                write(section, ")");
+                write(section, "))");
             }
             else if (ident.var->kind == VAR_SELF) {
                 // (type)__ctx__.self

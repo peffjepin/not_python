@@ -407,9 +407,11 @@ write_type_info_into_buffer_human_readable(TypeInfo info, char* buffer, size_t r
                 *buffer++ = ' ';
                 remaining -= 2;
             }
-            remaining -= write_type_info_into_buffer_human_readable(
+            size_t written = write_type_info_into_buffer_human_readable(
                 info.sig->types[i], buffer, remaining
             );
+            remaining -= written;
+            buffer += written;
         }
         if (remaining > 2) {
             *buffer++ = ']';

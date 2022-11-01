@@ -8,8 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpInt global_x;
-NpFunction global_incx;
 NpNone _np_0(NpContext __ctx__);
+NpFunction global_incx;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {

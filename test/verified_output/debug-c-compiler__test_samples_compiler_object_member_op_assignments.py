@@ -9,8 +9,8 @@ typedef struct { NpInt value; } object_member_op_assignments_A;
 
 // DECLARATIONS COMPILER SECTION
 object_member_op_assignments_A* object_member_op_assignments_a;
-NpFunction object_member_op_assignments_A___init__;
 NpNone _np_0(NpContext __ctx__);
+NpFunction object_member_op_assignments_A___init__;
 NpFunction _np_6;
 
 // FUNCTION DEFINITIONS COMPILER SECTION

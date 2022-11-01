@@ -165,6 +165,9 @@ static inline bool
 handle_single_char_tokens(Scanner* scanner)
 {
     switch (scanner->c) {
+        case '@':
+            scanner->token.type = TOK_DECORATOR;
+            return true;
         case '\n':
             file_index_index_line(scanner->index, scanner->file_offset);
             scanner->token.type = TOK_NEWLINE;
@@ -2546,6 +2549,17 @@ parse_statement(Parser* parser)
     if (peek.type == TOK_EOF) {
         discard_next_token(parser);
         stmt->kind = STMT_EOF;
+        return stmt;
+    }
+    if (peek.type == TOK_DECORATOR) {
+        discard_next_token(parser);
+        Expression* decorator = parse_expression(parser);
+        Statement* stmt = parse_statement(parser);
+        if (stmt->kind != STMT_FUNCTION)
+            syntax_error(
+                *parser->scanner->index, stmt->loc, 1, "expecting function definition"
+            );
+        stmt->func->decorator = decorator;
         return stmt;
     }
 

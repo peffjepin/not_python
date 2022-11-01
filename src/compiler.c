@@ -103,7 +103,6 @@ typedef struct {
     arena_snprintf(compiler->arena, 16, "_np_%zu", compiler->unique_vars_counter++)
 
 static size_t str_hm_put(StringHashmap* hm, SourceString element);
-static void str_hm_free(StringHashmap* hm);
 
 static void compile_statement(Compiler* compiler, Statement* stmt);
 static void compile_set_item(
@@ -2977,7 +2976,8 @@ iterate_scopes_and_update_closure_variables(size_t* closure_size, LexicalScope* 
 {
     for (size_t i = 0; i < scope->hm.elements_count; i++) {
         Symbol* sym = scope->hm.elements + i;
-        if (sym->kind == SYM_VARIABLE && sym->variable->kind == VAR_CLOSURE) {
+        if (sym->kind == SYM_VARIABLE && (sym->variable->kind == VAR_CLOSURE ||
+                                          sym->variable->kind == VAR_CLOSURE_ARGUMENT)) {
             sym->variable->closure_offset = *closure_size;
             *closure_size += type_info_sizeof(sym->variable->type_info);
         }
@@ -2989,55 +2989,24 @@ iterate_scopes_and_update_closure_variables(size_t* closure_size, LexicalScope* 
 static void
 compile_function(Compiler* compiler, FunctionStatement* func)
 {
+    Symbol* function_symbol = get_symbol(compiler, func->name);
     scope_stack_push(&compiler->scope_stack, func->scope);
 
-    const char* function_name = UNIQUE_ID(compiler);
+    const char* internal_function_name = UNIQUE_ID(compiler);
+    const char* np_function_name =
+        (func->decorator) ? UNIQUE_ID(compiler) : func->ns_ident.data;
+
     StorageIdent fn_variable = {
         .info = (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &func->sig},
         .kind = IDENT_CSTR,
-        .cstr = func->ns_ident.data,
+        .cstr = np_function_name,
     };
-    add_instruction(
-        compiler,
-        (Instruction){
-            .kind = INST_DECLARE_VARIABLE,
-            .declare_variable = fn_variable,
-        }
-    );
-    add_instruction(
-        compiler,
-        (Instruction){
-            .kind = INST_OPERATION,
-            .operation =
-                (OperationInst){
-                    .kind = OPERATION_SET_ATTR,
-                    .object = fn_variable,
-                    .attr = SOURCESTRING("addr"),
-                    .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = function_name},
-                }}
-    );
-    if (func->scope->kind == SCOPE_CLOSURE_CHILD)
-        // copy parent context for closure children so they have access to the closure
-        add_instruction(
-            compiler,
-            (Instruction){
-                .kind = INST_OPERATION,
-                .operation =
-                    (OperationInst){
-                        .kind = OPERATION_SET_ATTR,
-                        .object = fn_variable,
-                        .attr = SOURCESTRING("ctx"),
-                        .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = "__ctx__"},
-                    }}
-        );
-
     Instruction fndef_inst = {
         .kind = INST_DEFINE_FUNCTION,
-        .define_function.function_name = function_name,
+        .define_function.function_name = internal_function_name,
         .define_function.signature = func->sig,
         .define_function.var_ident = fn_variable,
     };
-
     size_t* closure_size;
 
     COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, fndef_inst.define_function.body)
@@ -3071,10 +3040,108 @@ compile_function(Compiler* compiler, FunctionStatement* func)
     }
 
     add_instruction(compiler, fndef_inst);
+    add_instruction(
+        compiler,
+        (Instruction){
+            .kind = INST_DECLARE_VARIABLE,
+            .declare_variable = fn_variable,
+        }
+    );
+    add_instruction(
+        compiler,
+        (Instruction){
+            .kind = INST_OPERATION,
+            .operation =
+                (OperationInst){
+                    .kind = OPERATION_SET_ATTR,
+                    .object = fn_variable,
+                    .attr = SOURCESTRING("addr"),
+                    .value = (StorageIdent
+                    ){.kind = IDENT_CSTR, .cstr = internal_function_name},
+                },
+        }
+    );
+    if (func->scope->kind == SCOPE_CLOSURE_CHILD)
+        // copy parent context for closure children so they have access to the closure
+        add_instruction(
+            compiler,
+            (Instruction){
+                .kind = INST_OPERATION,
+                .operation =
+                    (OperationInst){
+                        .kind = OPERATION_SET_ATTR,
+                        .object = fn_variable,
+                        .attr = SOURCESTRING("ctx"),
+                        .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = "__ctx__"},
+                    }}
+        );
 
     if (func->scope->kind == SCOPE_CLOSURE_PARENT)
         // now that all types have been resolved we can assign closure offsets
         iterate_scopes_and_update_closure_variables(closure_size, func->scope);
+
+    if (func->decorator) {
+        StorageIdent decorator_ident =
+            render_expression(compiler, NULL_HINT, func->decorator);
+
+        // ensure decorator expression resolved to the expected type
+        if (decorator_ident.info.type != NPTYPE_FUNCTION ||
+            decorator_ident.info.sig->params_count != 1 ||
+            !compare_types(
+                decorator_ident.info.sig->types[0],
+                (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &func->sig}
+            )) {
+            type_errorf(
+                compiler->file_index,
+                compiler->current_stmt_location,
+                "expecting decorator expression to accept a single param of type `%s`",
+                errfmt_type_info((TypeInfo){.type = NPTYPE_FUNCTION, .sig = &func->sig})
+            );
+        }
+
+        // The symbol identified by this function may actually be a different type than
+        // the type identified by the functions signature, since the decorator function
+        // can actually return anything. So we need to change this function symbol into
+        // a regular variable symbol with type info determined by the decorators return
+        // type
+        function_symbol->kind = SYM_VARIABLE;
+        function_symbol->variable = arena_alloc(compiler->arena, sizeof(Variable));
+        *function_symbol->variable = (Variable){
+            .kind = VAR_REGULAR,
+            .compiled_name = func->ns_ident,
+            .type_info = decorator_ident.info.sig->return_type,
+        };
+
+        // transform ->
+        //  @decorator
+        //  def fn(...)
+        //
+        // into ->
+        //  # the actual function is compiled internally
+        //  def _internal_(...):
+        //      ...
+        //  # the symbol is assigned like so
+        //  fn = decorator(_internal_)
+        StorageIdent* argv = arena_alloc(compiler->arena, sizeof(StorageIdent));
+        argv[0] = fn_variable;
+        add_instruction(
+            compiler,
+            (Instruction){
+                .kind = INST_DECL_ASSIGNMENT,
+                .assignment.left =
+                    (StorageIdent){
+                        .var = function_symbol->variable,
+                        .kind = IDENT_VAR,
+                    },
+                .assignment.right =
+                    (OperationInst){
+                        .kind = OPERATION_FUNCTION_CALL,
+                        .function = decorator_ident,
+                        .args = argv,
+                    },
+            }
+        );
+    }
 
     scope_stack_pop(&compiler->scope_stack);
 }
@@ -4551,7 +4618,7 @@ str_hm_put(StringHashmap* hm, SourceString element)
     }
 }
 
-static void
+void
 str_hm_free(StringHashmap* hm)
 {
     free(hm->elements);

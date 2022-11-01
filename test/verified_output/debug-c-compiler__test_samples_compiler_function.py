@@ -7,8 +7,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // TYPEDEFS COMPILER SECTION
 
 // DECLARATIONS COMPILER SECTION
-NpFunction function_function;
 NpFloat _np_0(NpContext __ctx__, NpInt x, NpInt y);
+NpFunction function_function;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpFloat _np_0(NpContext __ctx__, NpInt x, NpInt y) {

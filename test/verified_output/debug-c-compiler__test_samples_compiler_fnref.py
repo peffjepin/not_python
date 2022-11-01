@@ -9,8 +9,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpFunction fnref_fnref;
-NpFunction fnref_my_function;
 NpNone _np_0(NpContext __ctx__, NpString value);
+NpFunction fnref_my_function;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__, NpString value) {

@@ -8,8 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpFloat function_call3_z;
-NpFunction function_call3_my_func;
 NpFloat _np_0(NpContext __ctx__, NpFloat x, NpFloat y);
+NpFunction function_call3_my_func;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpFloat _np_0(NpContext __ctx__, NpFloat x, NpFloat y) {

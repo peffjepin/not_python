@@ -25,6 +25,7 @@ typedef enum {
     TOK_IDENTIFIER,
     TOK_DOT,
     TOK_ARROW,
+    TOK_DECORATOR,
     TOK_EOF,
 } TokenType;
 

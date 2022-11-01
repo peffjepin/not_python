@@ -8,8 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpNone assignment_from_void_function_result_x;
-NpFunction assignment_from_void_function_result_void_fn;
 NpNone _np_0(NpContext __ctx__);
+NpFunction assignment_from_void_function_result_void_fn;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {

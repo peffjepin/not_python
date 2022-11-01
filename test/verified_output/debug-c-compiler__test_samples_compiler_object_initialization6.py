@@ -9,8 +9,8 @@ typedef struct { NpInt x; NpInt y; } object_initialization6_A;
 
 // DECLARATIONS COMPILER SECTION
 object_initialization6_A* object_initialization6_a;
-NpFunction object_initialization6_A___init__;
 NpNone _np_0(NpContext __ctx__);
+NpFunction object_initialization6_A___init__;
 NpFunction _np_5;
 
 // FUNCTION DEFINITIONS COMPILER SECTION

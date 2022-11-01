@@ -7,8 +7,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 // TYPEDEFS COMPILER SECTION
 
 // DECLARATIONS COMPILER SECTION
-NpFunction explicit_return_none_fn;
 NpNone _np_0(NpContext __ctx__);
+NpFunction explicit_return_none_fn;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpNone _np_0(NpContext __ctx__) {

@@ -8,8 +8,8 @@ NpString NOT_PYTHON_STRING_CONSTANTS[] = {
 
 // DECLARATIONS COMPILER SECTION
 NpInt function_call7_a;
-NpFunction function_call7_my_function;
 NpInt _np_0(NpContext __ctx__, NpInt x, NpInt y, NpInt z, NpInt w);
+NpFunction function_call7_my_function;
 
 // FUNCTION DEFINITIONS COMPILER SECTION
 NpInt _np_0(NpContext __ctx__, NpInt x, NpInt y, NpInt z, NpInt w) {

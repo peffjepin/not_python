@@ -284,6 +284,8 @@ typedef struct {
     int* lookup;
 } StringHashmap;
 
+void str_hm_free(StringHashmap* hm);
+
 typedef struct {
     bool libs[LIB_COUNT];
 } Requirements;

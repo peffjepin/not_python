@@ -237,6 +237,7 @@ typedef struct {
     Signature sig;
     bool is_method;
     Block body;
+    Expression* decorator;
     LexicalScope* scope;
 } FunctionStatement;
 
