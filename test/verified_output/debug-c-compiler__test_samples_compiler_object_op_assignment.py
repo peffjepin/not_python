@@ -34,10 +34,10 @@ return _np_5;
 static int init_module(void) {
 object_op_assignment_A___iadd__.__addr__ = _np_0;
 object_op_assignment_A___iadd__.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
+object_op_assignment_a = np_alloc(8);
 if (global_exception) {
 return 1;
 }
-object_op_assignment_a = np_alloc(8);
 NpInt _np_6;
 _np_6 = 1;
 object_op_assignment_a->value = _np_6;
@@ -48,10 +48,10 @@ NpContext _np_9;
 _np_9 = _np_8.__ctx__;
 _np_9.self = object_op_assignment_a;
 _np_8.__ctx__ = _np_9;
+object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext, NpInt))_np_8.__addr__)(_np_8.__ctx__, _np_7);
 if (global_exception) {
 return 1;
 }
-object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext, NpInt))_np_8.__addr__)(_np_8.__ctx__, _np_7);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

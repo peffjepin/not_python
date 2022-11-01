@@ -247,9 +247,8 @@ add_instruction(Compiler* compiler, Instruction inst)
         inst.declare_variable.info.type == NPTYPE_UNTYPED) {
         assert(0 && "trying to add untyped variable declaration");
     }
-    if (UNSAFE_INST(inst)) compile_check_exceptions(compiler);
-
     seq_stack_append_instruction(&compiler->inst_seq_stack, inst);
+    if (UNSAFE_INST(inst)) compile_check_exceptions(compiler);
 }
 
 #define COMPILER_ACCUMULATE_INSTRUCTIONS(compiler, dest)                                 \
@@ -3619,9 +3618,13 @@ compile_return_statement(Compiler* compiler, Expression* value)
         compiler,
         (Instruction){
             .kind = INST_RETURN,
-            .return_.rtval = render_expression(
-                compiler, (StorageHint){.info = scope->func->sig.return_type}, value
-            ),
+            .return_.rtval =
+                (value) ? render_expression(
+                              compiler,
+                              (StorageHint){.info = scope->func->sig.return_type},
+                              value
+                          )
+                        : compiler->none_ident,
             .return_.should_free_closure =
                 scope->kind == SCOPE_CLOSURE_PARENT &&
                 scope->func->sig.return_type.type != NPTYPE_FUNCTION,
@@ -4245,6 +4248,8 @@ compile_check_exceptions(Compiler* compiler)
 static void
 compile_try(Compiler* compiler, TryStatement* try)
 {
+    // TODO: test a new excepting occurring while handling another exception within try
+
     const char* old_goto = compiler->excepts_goto;
     const char* finally_goto = UNIQUE_ID(compiler);
     LexicalScope* old_try_scope = compiler->try_scope;

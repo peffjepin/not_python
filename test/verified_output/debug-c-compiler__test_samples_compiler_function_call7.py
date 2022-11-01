@@ -51,10 +51,10 @@ NpInt _np_14;
 _np_14 = _np_12 + _np_13;
 NpInt _np_15;
 _np_15 = 3;
+function_call7_a = ((NpInt (*)(NpContext, NpInt, NpInt, NpInt, NpInt))function_call7_my_function.__addr__)(function_call7_my_function.__ctx__, _np_8, _np_9, _np_15, _np_14);
 if (global_exception) {
 return 1;
 }
-function_call7_a = ((NpInt (*)(NpContext, NpInt, NpInt, NpInt, NpInt))function_call7_my_function.__addr__)(function_call7_my_function.__ctx__, _np_8, _np_9, _np_15, _np_14);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

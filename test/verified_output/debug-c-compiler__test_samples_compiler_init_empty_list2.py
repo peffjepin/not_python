@@ -13,10 +13,10 @@ NpList* init_empty_list2_l;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static int init_module(void) {
+init_empty_list2_l = np_list_init(8, np_int_sort_fn, np_int_sort_fn_rev, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
-init_empty_list2_l = np_list_init(8, np_int_sort_fn, np_int_sort_fn_rev, np_void_int_eq);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

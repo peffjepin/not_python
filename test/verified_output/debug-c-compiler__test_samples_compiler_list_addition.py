@@ -21,16 +21,19 @@ if (global_exception) {
 return 1;
 }
 np_list_append(_np_1, &_np_0);
+if (global_exception) {
+return 1;
+}
 _np_0 = 2;
+np_list_append(_np_1, &_np_0);
 if (global_exception) {
 return 1;
 }
-np_list_append(_np_1, &_np_0);
 _np_0 = 3;
+np_list_append(_np_1, &_np_0);
 if (global_exception) {
 return 1;
 }
-np_list_append(_np_1, &_np_0);
 NpInt _np_2;
 _np_2 = 4;
 NpList* _np_3;
@@ -39,20 +42,23 @@ if (global_exception) {
 return 1;
 }
 np_list_append(_np_3, &_np_2);
+if (global_exception) {
+return 1;
+}
 _np_2 = 5;
-if (global_exception) {
-return 1;
-}
 np_list_append(_np_3, &_np_2);
-_np_2 = 6;
 if (global_exception) {
 return 1;
 }
+_np_2 = 6;
 np_list_append(_np_3, &_np_2);
 if (global_exception) {
 return 1;
 }
 list_addition_l = np_list_add(_np_1, _np_3);
+if (global_exception) {
+return 1;
+}
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

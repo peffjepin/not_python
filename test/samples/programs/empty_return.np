@@ -1,0 +1,6 @@
+def fn():
+    # implicit None
+    return
+
+
+fn()

@@ -17,18 +17,21 @@ NpInt _np_0;
 _np_0 = 1;
 NpInt _np_1;
 _np_1 = 2;
-if (global_exception) {
-return 1;
-}
 dict_for_each_d = np_dict_init(8, 8, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
 np_dict_set_item(dict_for_each_d, &_np_0, &_np_1);
+if (global_exception) {
+return 1;
+}
 NpDict* _np_3;
 _np_3 = dict_for_each_d;
 NpIter _np_4;
 _np_4 = np_dict_iter_keys(_np_3);
+if (global_exception) {
+return 1;
+}
 NpInt _np_5;
 while(1) {
 _np_4.next_data = _np_4.next(_np_4.iter);

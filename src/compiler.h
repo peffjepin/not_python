@@ -267,7 +267,11 @@ struct Instruction {
     ((inst.kind == INST_OPERATION && (inst.operation.kind == OPERATION_FUNCTION_CALL ||  \
                                       inst.operation.kind == OPERATION_C_CALL ||         \
                                       inst.operation.kind == OPERATION_C_CALL1)) ||      \
-     (inst.kind == INST_ASSIGNMENT &&                                                    \
+     ((inst.kind == INST_ASSIGNMENT) &&                                                  \
+      (inst.assignment.right.kind == OPERATION_FUNCTION_CALL ||                          \
+       inst.assignment.right.kind == OPERATION_C_CALL ||                                 \
+       inst.assignment.right.kind == OPERATION_C_CALL1)) ||                              \
+     (inst.kind == INST_DECL_ASSIGNMENT &&                                               \
       (inst.assignment.right.kind == OPERATION_FUNCTION_CALL ||                          \
        inst.assignment.right.kind == OPERATION_C_CALL ||                                 \
        inst.assignment.right.kind == OPERATION_C_CALL1)))

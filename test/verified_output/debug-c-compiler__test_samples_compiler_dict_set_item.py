@@ -15,30 +15,30 @@ NpDict* dict_set_item_d;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static int init_module(void) {
+dict_set_item_d = np_dict_init(8, 24, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
-dict_set_item_d = np_dict_init(8, 24, np_void_int_eq);
 NpDict* _np_0;
 _np_0 = dict_set_item_d;
 NpInt _np_1;
 _np_1 = 10;
 NpString _np_2;
 _np_2 = NOT_PYTHON_STRING_CONSTANTS[1];
+np_dict_set_item(_np_0, &_np_1, &_np_2);
 if (global_exception) {
 return 1;
 }
-np_dict_set_item(_np_0, &_np_1, &_np_2);
 NpDict* _np_3;
 _np_3 = dict_set_item_d;
 NpInt _np_4;
 _np_4 = 20;
 NpString _np_5;
 _np_5 = NOT_PYTHON_STRING_CONSTANTS[2];
+np_dict_set_item(_np_3, &_np_4, &_np_5);
 if (global_exception) {
 return 1;
 }
-np_dict_set_item(_np_3, &_np_4, &_np_5);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

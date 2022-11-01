@@ -16,6 +16,9 @@ typedef struct { NpInt x; NpInt y; } default_object_str_A;
 static int init_module(void) {
 default_object_str_A* _np_1;
 _np_1 = np_alloc(16);
+if (global_exception) {
+return 1;
+}
 NpInt _np_2;
 _np_2 = 1;
 NpInt _np_3;
@@ -28,18 +31,36 @@ NpInt _np_5;
 _np_5 = _np_1->x;
 NpString _np_6;
 _np_6 = np_int_to_str(_np_5);
+if (global_exception) {
+return 1;
+}
 char* _np_7;
 _np_7 = np_str_to_cstr(_np_6);
+if (global_exception) {
+return 1;
+}
 NpInt _np_8;
 _np_8 = _np_1->y;
 NpString _np_9;
 _np_9 = np_int_to_str(_np_8);
+if (global_exception) {
+return 1;
+}
 char* _np_10;
 _np_10 = np_str_to_cstr(_np_9);
+if (global_exception) {
+return 1;
+}
 NpString _np_11;
 _np_11 = np_str_fmt(_np_4, _np_7, _np_10);
+if (global_exception) {
+return 1;
+}
 NpNone _np_0;
 _np_0 = builtin_print(1, _np_11);
+if (global_exception) {
+return 1;
+}
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

@@ -47,10 +47,10 @@ NpInt _np_12;
 _np_12 = 6;
 NpInt _np_13;
 _np_13 = _np_11 * _np_12;
+function_call4_z = ((NpInt (*)(NpContext, NpInt, NpInt))function_call4_my_function.__addr__)(function_call4_my_function.__ctx__, _np_8, _np_13);
 if (global_exception) {
 return 1;
 }
-function_call4_z = ((NpInt (*)(NpContext, NpInt, NpInt))function_call4_my_function.__addr__)(function_call4_my_function.__ctx__, _np_8, _np_13);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

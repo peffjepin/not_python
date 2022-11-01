@@ -15,28 +15,31 @@ NpList* list_for_each_my_list;
 static int init_module(void) {
 NpInt _np_0;
 _np_0 = 1;
-if (global_exception) {
-return 1;
-}
 list_for_each_my_list = np_list_init(8, np_int_sort_fn, np_int_sort_fn_rev, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
 np_list_append(list_for_each_my_list, &_np_0);
+if (global_exception) {
+return 1;
+}
 _np_0 = 2;
+np_list_append(list_for_each_my_list, &_np_0);
 if (global_exception) {
 return 1;
 }
-np_list_append(list_for_each_my_list, &_np_0);
 _np_0 = 3;
+np_list_append(list_for_each_my_list, &_np_0);
 if (global_exception) {
 return 1;
 }
-np_list_append(list_for_each_my_list, &_np_0);
 NpList* _np_2;
 _np_2 = list_for_each_my_list;
 NpIter _np_3;
 _np_3 = np_list_iter(_np_2);
+if (global_exception) {
+return 1;
+}
 NpInt _np_4;
 while(1) {
 _np_3.next_data = _np_3.next(_np_3.iter);
@@ -50,8 +53,14 @@ NpInt _np_7;
 _np_7 = _np_4;
 NpString _np_8;
 _np_8 = np_int_to_str(_np_7);
+if (global_exception) {
+return 1;
+}
 NpNone _np_6;
 _np_6 = builtin_print(1, _np_8);
+if (global_exception) {
+return 1;
+}
 _np_1:
 }
 }

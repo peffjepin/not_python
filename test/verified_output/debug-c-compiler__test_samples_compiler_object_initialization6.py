@@ -33,10 +33,10 @@ return 0;
 static int init_module(void) {
 object_initialization6_A___init__.__addr__ = _np_0;
 object_initialization6_A___init__.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
+object_initialization6_a = np_alloc(16);
 if (global_exception) {
 return 1;
 }
-object_initialization6_a = np_alloc(16);
 _np_5 = object_initialization6_A___init__;
 NpContext _np_6;
 _np_6 = _np_5.__ctx__;
@@ -44,6 +44,9 @@ _np_6.self = object_initialization6_a;
 _np_5.__ctx__ = _np_6;
 NpNone _np_7;
 _np_7 = ((NpNone (*)(NpContext))_np_5.__addr__)(_np_5.__ctx__);
+if (global_exception) {
+return 1;
+}
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

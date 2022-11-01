@@ -17,6 +17,9 @@ NpString _np_1;
 _np_1 = NOT_PYTHON_STRING_CONSTANTS[1];
 NpNone _np_0;
 _np_0 = builtin_print(1, _np_1);
+if (global_exception) {
+return 1;
+}
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

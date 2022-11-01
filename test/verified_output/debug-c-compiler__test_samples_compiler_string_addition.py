@@ -23,10 +23,10 @@ NpString _np_0;
 _np_0 = string_addition_a;
 NpString _np_1;
 _np_1 = string_addition_b;
+string_addition_c = np_str_add(_np_0, _np_1);
 if (global_exception) {
 return 1;
 }
-string_addition_c = np_str_add(_np_0, _np_1);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

@@ -18,32 +18,35 @@ NpInt _np_0;
 _np_0 = 1;
 NpInt _np_1;
 _np_1 = 2;
-if (global_exception) {
-return 1;
-}
 dict_update_d1 = np_dict_init(8, 8, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
 np_dict_set_item(dict_update_d1, &_np_0, &_np_1);
+if (global_exception) {
+return 1;
+}
 NpInt _np_2;
 _np_2 = 2;
 NpInt _np_3;
 _np_3 = 3;
-if (global_exception) {
-return 1;
-}
 dict_update_d2 = np_dict_init(8, 8, np_void_int_eq);
 if (global_exception) {
 return 1;
 }
 np_dict_set_item(dict_update_d2, &_np_2, &_np_3);
+if (global_exception) {
+return 1;
+}
 NpDict* _np_4;
 _np_4 = dict_update_d1;
 NpDict* _np_6;
 _np_6 = dict_update_d2;
 NpNone _np_5;
 _np_5 = np_dict_update(_np_4, _np_6);
+if (global_exception) {
+return 1;
+}
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

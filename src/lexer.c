@@ -2492,7 +2492,10 @@ parse_statement(Parser* parser)
             case KW_RETURN: {
                 discard_next_token(parser);
                 stmt->kind = STMT_RETURN;
-                stmt->return_expr = parse_expression(parser);
+                peek = peek_next_token(parser);
+                stmt->return_expr = (peek.type == TOK_NEWLINE || peek.type == TOK_EOF)
+                                        ? NULL
+                                        : parse_expression(parser);
                 return stmt;
             }
             case KW_ASSERT:

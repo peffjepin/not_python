@@ -31,10 +31,10 @@ NpInt _np_4;
 _np_4 = 2;
 NpInt _np_5;
 _np_5 = 3;
+function_call5_z = ((NpInt (*)(NpContext, NpInt, NpInt))function_call5_my_function.__addr__)(function_call5_my_function.__ctx__, _np_4, _np_5);
 if (global_exception) {
 return 1;
 }
-function_call5_z = ((NpInt (*)(NpContext, NpInt, NpInt))function_call5_my_function.__addr__)(function_call5_my_function.__ctx__, _np_4, _np_5);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

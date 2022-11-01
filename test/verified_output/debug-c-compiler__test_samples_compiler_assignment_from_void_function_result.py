@@ -21,10 +21,10 @@ return 0;
 static int init_module(void) {
 assignment_from_void_function_result_void_fn.__addr__ = _np_0;
 assignment_from_void_function_result_void_fn.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
+assignment_from_void_function_result_x = ((NpNone (*)(NpContext))assignment_from_void_function_result_void_fn.__addr__)(assignment_from_void_function_result_void_fn.__ctx__);
 if (global_exception) {
 return 1;
 }
-assignment_from_void_function_result_x = ((NpNone (*)(NpContext))assignment_from_void_function_result_void_fn.__addr__)(assignment_from_void_function_result_void_fn.__ctx__);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

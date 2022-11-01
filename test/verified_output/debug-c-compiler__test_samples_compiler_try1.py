@@ -24,6 +24,9 @@ goto _np_0;
 _np_1:
 Exception* _np_3;
 _np_3 = get_exception();
+if (global_exception) {
+goto _np_1;
+}
 NpUnsigned _np_4;
 _np_4 = 0;
 _np_4 = _np_4 | 4;

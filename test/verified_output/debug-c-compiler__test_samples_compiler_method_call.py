@@ -28,10 +28,10 @@ return _np_2;
 static int init_module(void) {
 method_call_A_fn.__addr__ = _np_0;
 method_call_A_fn.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
+method_call_a = np_alloc(8);
 if (global_exception) {
 return 1;
 }
-method_call_a = np_alloc(8);
 NpInt _np_3;
 _np_3 = 1;
 method_call_a->value = _np_3;
@@ -42,10 +42,10 @@ NpContext _np_6;
 _np_6 = _np_5.__ctx__;
 _np_6.self = _np_4;
 _np_5.__ctx__ = _np_6;
+method_call_x = ((NpInt (*)(NpContext))_np_5.__addr__)(_np_5.__ctx__);
 if (global_exception) {
 return 1;
 }
-method_call_x = ((NpInt (*)(NpContext))_np_5.__addr__)(_np_5.__ctx__);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

@@ -31,10 +31,10 @@ NpFloat _np_4;
 _np_4 = 2.000000;
 NpInt _np_5;
 _np_5 = 1;
+function_call8_z = ((NpFloat (*)(NpContext, NpInt, NpFloat))function_call8_my_function.__addr__)(function_call8_my_function.__ctx__, _np_5, _np_4);
 if (global_exception) {
 return 1;
 }
-function_call8_z = ((NpFloat (*)(NpContext, NpInt, NpFloat))function_call8_my_function.__addr__)(function_call8_my_function.__ctx__, _np_5, _np_4);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

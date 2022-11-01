@@ -23,10 +23,10 @@ return _np_1;
 static int init_module(void) {
 function_call1_my_func.__addr__ = _np_0;
 function_call1_my_func.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
+function_call1_x = ((NpInt (*)(NpContext))function_call1_my_func.__addr__)(function_call1_my_func.__ctx__);
 if (global_exception) {
 return 1;
 }
-function_call1_x = ((NpInt (*)(NpContext))function_call1_my_func.__addr__)(function_call1_my_func.__ctx__);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

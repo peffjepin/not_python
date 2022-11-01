@@ -313,7 +313,7 @@ struct Statement {
         FunctionStatement* func;
         AssignmentStatement* assignment;
         AnnotationStatement* annotation;
-        Expression* return_expr;
+        Expression* return_expr;  // maybe NULL
         AssertStatement* assert_;
         Expression* expr;
     };

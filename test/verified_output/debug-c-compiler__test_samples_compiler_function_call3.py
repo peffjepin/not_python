@@ -33,12 +33,18 @@ NpFloat _np_6;
 _np_6 = 3.000000;
 NpFloat _np_4;
 _np_4 = ((NpFloat (*)(NpContext, NpFloat, NpFloat))function_call3_my_func.__addr__)(function_call3_my_func.__ctx__, _np_5, _np_6);
+if (global_exception) {
+return 1;
+}
 NpFloat _np_8;
 _np_8 = 2.000000;
 NpFloat _np_9;
 _np_9 = 3.000000;
 NpFloat _np_7;
 _np_7 = ((NpFloat (*)(NpContext, NpFloat, NpFloat))function_call3_my_func.__addr__)(function_call3_my_func.__ctx__, _np_8, _np_9);
+if (global_exception) {
+return 1;
+}
 NpInt _np_10;
 _np_10 = 2;
 NpFloat _np_11;
