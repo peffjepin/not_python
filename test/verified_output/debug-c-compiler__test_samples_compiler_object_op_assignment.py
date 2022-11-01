@@ -2,7 +2,8 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-{.data="", .length=0}};
+{.data="", .length=0},
+{.data="__iadd__", .length=8}};
 
 // TYPEDEFS COMPILER SECTION
 typedef struct { NpInt value; } object_op_assignment_A;
@@ -31,7 +32,8 @@ return _np_5;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static int init_module(void) {
-object_op_assignment_A___iadd__.addr = _np_0;
+object_op_assignment_A___iadd__.__addr__ = _np_0;
+object_op_assignment_A___iadd__.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
 if (global_exception) {
 return 1;
 }
@@ -43,13 +45,13 @@ NpInt _np_7;
 _np_7 = 1;
 _np_8 = object_op_assignment_A___iadd__;
 NpContext _np_9;
-_np_9 = _np_8.ctx;
+_np_9 = _np_8.__ctx__;
 _np_9.self = object_op_assignment_a;
-_np_8.ctx = _np_9;
+_np_8.__ctx__ = _np_9;
 if (global_exception) {
 return 1;
 }
-object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext, NpInt))_np_8.addr)(_np_8.ctx, _np_7);
+object_op_assignment_a = ((object_op_assignment_A* (*)(NpContext, NpInt))_np_8.__addr__)(_np_8.__ctx__, _np_7);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

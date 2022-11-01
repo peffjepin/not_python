@@ -2,7 +2,8 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-{.data="", .length=0}};
+{.data="", .length=0},
+{.data="fn", .length=2}};
 
 // TYPEDEFS COMPILER SECTION
 typedef struct { NpInt value; } method_call_A;
@@ -25,7 +26,8 @@ return _np_2;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static int init_module(void) {
-method_call_A_fn.addr = _np_0;
+method_call_A_fn.__addr__ = _np_0;
+method_call_A_fn.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
 if (global_exception) {
 return 1;
 }
@@ -37,13 +39,13 @@ method_call_A* _np_4;
 _np_4 = method_call_a;
 _np_5 = method_call_A_fn;
 NpContext _np_6;
-_np_6 = _np_5.ctx;
+_np_6 = _np_5.__ctx__;
 _np_6.self = _np_4;
-_np_5.ctx = _np_6;
+_np_5.__ctx__ = _np_6;
 if (global_exception) {
 return 1;
 }
-method_call_x = ((NpInt (*)(NpContext))_np_5.addr)(_np_5.ctx);
+method_call_x = ((NpInt (*)(NpContext))_np_5.__addr__)(_np_5.__ctx__);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

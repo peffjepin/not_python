@@ -214,8 +214,9 @@ typedef struct {
 extern const NpContext global_context;
 
 typedef struct {
-    NpPointer addr;
-    NpContext ctx;
+    NpPointer __addr__;
+    NpContext __ctx__;
+    NpString __name__;
 } NpFunction;
 
 void* builtin_print(size_t argc, ...);

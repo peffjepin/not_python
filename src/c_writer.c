@@ -485,7 +485,7 @@ write_operation(Section* section, OperationInst operation_inst)
             );
             break;
         case OPERATION_FUNCTION_CALL:
-            // cast func.addr to correct type -> ((cast_type)function.addr)
+            // cast func.__addr__ to correct type -> ((cast_type)function.addr)
             // cast type -> return_type (*) (NpContext, param_type_0, ...)
             write(section, "((");
             write_type_info(section, operation_inst.function.info.sig->return_type);
@@ -496,12 +496,12 @@ write_operation(Section* section, OperationInst operation_inst)
             }
             write(section, "))");
             write_ident(section, operation_inst.function);
-            write(section, ".addr)");
+            write(section, ".__addr__)");
 
-            // write call -> (function.ctx, ...)
+            // write call -> (function.__ctx__, ...)
             write(section, "(");
             write_ident(section, operation_inst.function);
-            write(section, ".ctx");
+            write(section, ".__ctx__");
             for (size_t i = 0; i < operation_inst.function.info.sig->params_count; i++) {
                 write(section, ", ");
                 write_ident(section, operation_inst.args[i]);

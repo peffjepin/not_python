@@ -523,7 +523,7 @@ bind_self_to_function_object(Compiler* compiler, StorageIdent self, StorageIdent
                 (OperationInst){
                     .kind = OPERATION_GET_ATTR,
                     .object = func,
-                    .attr = SOURCESTRING("ctx"),
+                    .attr = SOURCESTRING("__ctx__"),
                 }}
     );
     add_instruction(
@@ -546,7 +546,7 @@ bind_self_to_function_object(Compiler* compiler, StorageIdent self, StorageIdent
                 (OperationInst){
                     .kind = OPERATION_SET_ATTR,
                     .object = func,
-                    .attr = SOURCESTRING("ctx"),
+                    .attr = SOURCESTRING("__ctx__"),
                     .value = ctx_object,
                 }}
     );
@@ -1508,7 +1508,7 @@ convert_to_truthy(Compiler* compiler, StorageIdent id)
                         (OperationInst){
                             .kind = OPERATION_GET_ATTR,
                             .object = id,
-                            .attr = SOURCESTRING("addr"),
+                            .attr = SOURCESTRING("__addr__"),
                         },
                 }
             );
@@ -2650,6 +2650,22 @@ render_get_attr_operation(
                 get_class_member_type_info(compiler, object.info.cls, attr, &sym)
             );
             break;
+        case NPTYPE_FUNCTION:
+            if (SOURCESTRING_EQ(attr, SOURCESTRING("__ctx__")))
+                check_storage_type_info(compiler, &rtval, CONTEXT_TYPE);
+            else if (SOURCESTRING_EQ(attr, SOURCESTRING("__name__")))
+                check_storage_type_info(compiler, &rtval, STRING_TYPE);
+            else if (SOURCESTRING_EQ(attr, SOURCESTRING("__addr__")))
+                check_storage_type_info(compiler, &rtval, POINTER_TYPE);
+            else
+                // TODO: attribute error
+                type_errorf(
+                    compiler->file_index,
+                    compiler->current_operation_location,
+                    "Function type has no attribute `%s`",
+                    attr.data
+                );
+            break;
         default:
             type_errorf(
                 compiler->file_index,
@@ -3062,9 +3078,27 @@ compile_function(Compiler* compiler, FunctionStatement* func)
                 (OperationInst){
                     .kind = OPERATION_SET_ATTR,
                     .object = fn_variable,
-                    .attr = SOURCESTRING("addr"),
+                    .attr = SOURCESTRING("__addr__"),
                     .value = (StorageIdent
                     ){.kind = IDENT_CSTR, .cstr = internal_function_name},
+                },
+        }
+    );
+    add_instruction(
+        compiler,
+        (Instruction){
+            .kind = INST_OPERATION,
+            .operation =
+                (OperationInst){
+                    .kind = OPERATION_SET_ATTR,
+                    .object = fn_variable,
+                    .attr = SOURCESTRING("__name__"),
+                    .value =
+                        (StorageIdent){
+                            .kind = IDENT_STRING_LITERAL,
+                            .str_literal_index =
+                                str_hm_put(&compiler->str_hm, func->name),
+                        },
                 },
         }
     );
@@ -3078,7 +3112,7 @@ compile_function(Compiler* compiler, FunctionStatement* func)
                     (OperationInst){
                         .kind = OPERATION_SET_ATTR,
                         .object = fn_variable,
-                        .attr = SOURCESTRING("ctx"),
+                        .attr = SOURCESTRING("__ctx__"),
                         .value = (StorageIdent){.kind = IDENT_CSTR, .cstr = "__ctx__"},
                     }}
         );
@@ -4641,7 +4675,7 @@ str_hm_put(StringHashmap* hm, SourceString element)
         }
         SourceString existing = hm->elements[index];
         if (SOURCESTRING_EQ(element, existing)) return (size_t)index;
-        if (probe == hm->capacity * 2)
+        if (probe == hm->capacity * 2 - 1)
             probe = 0;
         else
             probe++;

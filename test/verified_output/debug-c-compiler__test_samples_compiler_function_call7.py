@@ -2,7 +2,8 @@
 // FORWARD COMPILER SECTION
 #include <not_python.h>
 NpString NOT_PYTHON_STRING_CONSTANTS[] = {
-{.data="", .length=0}};
+{.data="", .length=0},
+{.data="my_function", .length=11}};
 
 // TYPEDEFS COMPILER SECTION
 
@@ -32,7 +33,8 @@ return _np_7;
 
 // INIT MODULE FUNCTION COMPILER SECTION
 static int init_module(void) {
-function_call7_my_function.addr = _np_0;
+function_call7_my_function.__addr__ = _np_0;
+function_call7_my_function.__name__ = NOT_PYTHON_STRING_CONSTANTS[1];
 NpInt _np_8;
 _np_8 = 1;
 NpInt _np_9;
@@ -52,7 +54,7 @@ _np_15 = 3;
 if (global_exception) {
 return 1;
 }
-function_call7_a = ((NpInt (*)(NpContext, NpInt, NpInt, NpInt, NpInt))function_call7_my_function.addr)(function_call7_my_function.ctx, _np_8, _np_9, _np_15, _np_14);
+function_call7_a = ((NpInt (*)(NpContext, NpInt, NpInt, NpInt, NpInt))function_call7_my_function.__addr__)(function_call7_my_function.__ctx__, _np_8, _np_9, _np_15, _np_14);
 }
 // MAIN FUNCTION COMPILER SECTION
 int main(void) {

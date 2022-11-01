@@ -1,0 +1,9 @@
+def my_function():
+    pass
+
+
+print(my_function.__name__)
+
+f = my_function
+
+print(f.__name__)
