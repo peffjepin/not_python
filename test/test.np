@@ -1,0 +1,37 @@
+def test(test_function: Function[[], None]):
+    try:
+        test_function()
+    except AssertionError as exc:
+        print("FAILED:", test_function.__name__)
+        print(exc)
+        return
+
+    print("PASSED:", test_function.__name__)
+
+
+@test
+def test_list_init_empty():
+    l: List[int] = []
+    assert not l
+
+
+@test
+def test_list_init_with_items():
+    l = [1, 2]
+    assert l
+
+
+@test
+def test_list_get_item():
+    l = [1, 2]
+    assert l[0] == 1
+    assert l[1] == 2
+
+
+@test
+def test_list_set_item():
+    l = [1, 2]
+    l[0] = 3
+    l[1] = 4
+    assert l[0] == 3
+    assert l[1] == 4

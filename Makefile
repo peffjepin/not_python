@@ -89,6 +89,9 @@ uninstall:
 
 test: debug 
 	./scripts/test.py 
+	@echo ""
+	@echo "running test/test.np"
+	./npc test/test.np -o testmain --run
 
 test_update: debug
 	./scripts/test.py --interactive
