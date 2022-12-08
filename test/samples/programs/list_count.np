@@ -1,7 +1,0 @@
-l = [1, 1, 1, 2, 2, 3]
-c1 = l.count(1)
-c2 = l.count(2)
-c3 = l.count(3)
-print(c1, c2, c3)
-strl = ["abc", "abc", "cba"]
-print(strl.count("abc"))

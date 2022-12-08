@@ -1,9 +1,0 @@
-class A:
-    x: int
-    y: int
-
-    def add_them(self) -> int:
-        return self.x + self.y
-
-
-print(A(1, 2).add_them())

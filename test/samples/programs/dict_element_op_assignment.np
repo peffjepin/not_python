@@ -1,3 +1,0 @@
-d = {1: "one"}
-d[1] += " two three"
-print(d[1])

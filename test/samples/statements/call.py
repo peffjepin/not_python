@@ -1,7 +1,0 @@
-my_function(my_arg)
-multiple_args(1, 2, 3, 4)
-kwargs(arg1=1, arg2=2)
-mixed(1, 2, arg3=3, arg4=4)
-expression_args(1 + 2 + 3, 3**9)
-expression_kwargs(x=1 + 2, y=3 + 4)
-expression_mixed(1+2, y=3+4)

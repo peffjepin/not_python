@@ -1,5 +1,0 @@
-d1 = {1: 2, 3:4}
-d2 = {1:10, 2: 3}
-d1.update(d2)
-for k,v in d1.items():
-    print(k,v)

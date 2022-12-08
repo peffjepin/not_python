@@ -1,9 +1,0 @@
-class A:
-    x: int
-    y: int
-    z: int = 3
-    w: int = 4
-
-
-a = A(1, 2)
-print(a.x, a.y, a.z, a.w)

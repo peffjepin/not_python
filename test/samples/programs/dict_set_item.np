@@ -1,6 +1,0 @@
-d: Dict[int, str] = {}
-
-d[10] = "ten"
-d[20] = "twenty"
-
-print(d[10], d[20])

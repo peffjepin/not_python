@@ -1,6 +1,0 @@
-d = {1:2, 3:4}
-for k1, v1 in d.items():
-    print(k1, v1)
-d.clear()
-for k2, v2 in d.items():
-    print(k2, v2)

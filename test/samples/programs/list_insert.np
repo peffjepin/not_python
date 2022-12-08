@@ -1,4 +1,0 @@
-l = [1, 2, 3]
-l.insert(1, 10)
-for x in l:
-    print(x)

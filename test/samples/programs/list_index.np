@@ -1,3 +1,0 @@
-l = [1, 2, 3]
-i = l.index(3)
-print(i)

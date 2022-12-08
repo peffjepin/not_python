@@ -1,5 +1,0 @@
-def fn(value: int) -> int:
-    return value
-
-
-ref: Function[[], str] = fn

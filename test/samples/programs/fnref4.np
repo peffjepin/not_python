@@ -1,7 +1,0 @@
-def f(v1: int, v2: int, v3: int) -> int:
-    return v1 + v2 + v3
-
-
-fref: Function[[int, int, int], int] = f
-
-print(fref(1, 2, 3))

@@ -1,5 +1,0 @@
-class A:
-    x: int
-
-a = A(1)
-print(a.x)
