@@ -149,6 +149,9 @@ static const bool SPECIAL_OPERATOR_RULES[OPERATORS_MAX] = {
     [OPERATOR_BITWISE_NOT] = true,
 };
 
+// TODO: this table is ~870k (136 * 20 * 20 * 16) at the time of writing and aught to be
+//       replaced with something more efficient in the future
+//       this alone would reduce the current size of the npc executable by > 50%
 static const TypeInfo
     OPERATION_TYPE_RESOLUTION_TABLE[OPERATORS_MAX][NPTYPE_COUNT][NPTYPE_COUNT] = {
         [OPERATOR_PLUS] =
@@ -217,10 +220,12 @@ static const TypeInfo
                 [NPTYPE_INT] =
                     {
                         [NPTYPE_INT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
                 [NPTYPE_FLOAT] =
                     {
                         [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_POW] =
@@ -241,12 +246,12 @@ static const TypeInfo
                 [NPTYPE_INT] =
                     {
                         [NPTYPE_INT] = TYPE_INFO_INT,
-                        [NPTYPE_FLOAT] = TYPE_INFO_INT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
                 [NPTYPE_FLOAT] =
                     {
-                        [NPTYPE_INT] = TYPE_INFO_INT,
-                        [NPTYPE_FLOAT] = TYPE_INFO_INT,
+                        [NPTYPE_INT] = TYPE_INFO_FLOAT,
+                        [NPTYPE_FLOAT] = TYPE_INFO_FLOAT,
                     },
             },
         [OPERATOR_EQUAL] =

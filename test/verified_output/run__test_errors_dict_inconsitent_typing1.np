@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/dict/inconsitent_typing1.np:1:1
+[0m[0mexpecting type `str` but got type `int`[0m
+[0m  1| d: Dict[str, str] = {1: 2}
+[0m
+exitcode=1

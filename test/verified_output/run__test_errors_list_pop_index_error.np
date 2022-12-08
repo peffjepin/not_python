@@ -1,0 +1,4 @@
+ERROR: index out of range
+[0;31mERROR: `./testmain` exited with exitcode: 1[0m
+
+exitcode=1

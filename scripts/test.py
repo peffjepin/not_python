@@ -15,10 +15,10 @@ import hashlib
 import subprocess
 import dataclasses
 
-ROOT = pathlib.Path(__file__).parent.parent
-TMP = ROOT / "test_tmp"
-CHECKSUMS_FILE = ROOT / "test/checksums.dict"
-VERIFIED_OUTPUT = ROOT / "test/verified_output"
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent
+TMP = PROJECT_ROOT / "test_tmp"
+CHECKSUMS_FILE = PROJECT_ROOT / "test/checksums.dict"
+VERIFIED_OUTPUT = PROJECT_ROOT / "test/verified_output"
 VERIFIED_OUTPUT.mkdir(parents=True, exist_ok=True)
 LINE_LENGTH = 80
 POLL = 1 / 1000
@@ -27,11 +27,13 @@ counter = itertools.count(1)
 TERMINAL_RED = "\033[0;31m"
 TERMINAL_GREEN = "\033[0;32m"
 TERMINAL_YELLOW = "\033[0;33m"
+TERMINAL_MAGENTA = "\033[0;35m"
+TERMINAL_CYAN = "\033[0;36m"
 TERMINAL_RESET = "\033[0m"
 
 
 def resolve_path_relative_to_root(sample_file):
-    return pathlib.Path(sample_file).absolute().resolve().relative_to(ROOT)
+    return pathlib.Path(sample_file).absolute().resolve().relative_to(PROJECT_ROOT)
 
 
 @dataclasses.dataclass
@@ -41,19 +43,18 @@ class Result:
     passed: int = 0
     failed: int = 0
     updated: int = 0
-    color: bool = False
+    is_final_result: bool = False
 
     def __str__(self):
+        label_color = TERMINAL_RED if self.failed else TERMINAL_YELLOW if self.updated else TERMINAL_GREEN
         lines = [
-            "=" * LINE_LENGTH,
-            f"[{self.test_label}]: Ran {self.total_cases} tests: "
-            f"{TERMINAL_GREEN if self.color else ''}{self.passed} passed{TERMINAL_RESET if self.color else ''}, "
-            f"{TERMINAL_RED if self.color else ''}{self.failed} failed{TERMINAL_RESET if self.color else ''}, "
-            f"{TERMINAL_YELLOW if self.color else ''}{self.updated} updated{TERMINAL_RESET if self.color else ''}",
+            f"[{label_color}{self.test_label}{TERMINAL_RESET}]: Ran {self.total_cases} tests: "
+            f"{TERMINAL_GREEN if self.is_final_result else ''}{self.passed} passed{TERMINAL_RESET if self.is_final_result else ''}, "
+            f"{TERMINAL_RED if self.is_final_result else ''}{self.failed} failed{TERMINAL_RESET if self.is_final_result else ''}"
         ]
         if self.updated:
             lines.append(
-                f"{self.updated} test cases had their verified results updated"
+                f"    {self.updated} test cases had their verified results updated"
             )
         lines.append("")
         return "\n".join(lines)
@@ -76,7 +77,7 @@ class VerifiedChecksums:
     @staticmethod
     def _clean_key(test_key: str):
         return (
-            test_key.replace(str(ROOT.absolute()) + os.sep, "")
+            test_key.replace(str(PROJECT_ROOT.absolute()) + os.sep, "")
             .replace("/", "_")
             .replace(" ", "__")
         )
@@ -124,7 +125,7 @@ def verify_new_entry_with_user(test_key, checksum, output):
     print("NO VERIFIED OUTPUT PRESENT FOR THIS SAMPLE:")
     print_labeled_separator(test_key)
 
-    file = ROOT / test_key.split()[-1]
+    file = PROJECT_ROOT / test_key.split()[-1]
     if file.exists():
         for i, line in enumerate(file.read_text().splitlines()):
             print(f"{i+1}: ", line)
@@ -143,7 +144,7 @@ def print_failing_test_case(test_key, output):
 
     print("FAILED TEST CASE:")
     print_labeled_separator(test_key)
-    file = ROOT / test_key.split()[-1]
+    file = PROJECT_ROOT / test_key.split()[-1]
     if file.exists():
         print(file.read_text())
 
@@ -220,11 +221,12 @@ class TestRunner:
         return self.completed == len(self.test_cases)
 
     def _collect_result(self, test_case: TestCase):
+        self.result.total_cases += 1
         try:
             md5 = hashlib.md5()
             raw = test_case.sp.stdout.read()
             output = raw.decode("utf-8").replace(
-                str(ROOT.absolute()) + os.sep, ""
+                str(PROJECT_ROOT.absolute()) + os.sep, ""
             )
             md5.update(output.encode("utf-8"))
             md5.update(str(test_case.sp.returncode).encode("utf-8"))
@@ -289,30 +291,25 @@ class TestRunner:
 
 
 class CompilerIterdirGroup:
-
-    FLAGS_TO_DEFAULT_DIR = {
-        "--debug-tokens": ROOT / "test/samples/tokenization",
-        "--debug-scopes": ROOT / "test/samples/scoping",
-        "--debug-statements": ROOT / "test/samples/statements",
-        "--debug-c-compiler": ROOT / "test/samples/compiler",
-        "--run": ROOT / "test/samples/programs",
-    }
-
     def __init__(
         self,
-        label: str,
+        directory: pathlib.Path,
         cli_flags: str,
         args: types.SimpleNamespace,
         opts: Options,
     ):
-        self.runner = TestRunner(label, opts)
+        assert directory.is_dir(), str(directory)
+        self.runner = TestRunner(directory.relative_to(PROJECT_ROOT), opts)
         self.npc = str(pathlib.Path(args.npc).absolute())
         self.cli_flags = cli_flags
+        self.directory = directory
+        """
         self.directory = (
             pathlib.Path(args.directory)
             if args.directory
             else self.FLAGS_TO_DEFAULT_DIR[cli_flags]
         )
+        """
 
     def begin(self):
         for fp in self.directory.iterdir():
@@ -320,7 +317,7 @@ class CompilerIterdirGroup:
             cwd.mkdir(parents=True)
             self.runner.run(
                 cwd=cwd,
-                test_key=f"{self.cli_flags.strip('-')} {fp.relative_to(ROOT)}",
+                test_key=f"{self.cli_flags.strip('-')} {fp.relative_to(PROJECT_ROOT)}",
                 command=f"{self.npc} -o testmain {self.cli_flags} {str(fp.absolute())}",
             )
 
@@ -335,46 +332,59 @@ class CompilerIterdirGroup:
 
 def init_test_groups(args, opts):
     tests = []
+    outer_dirs = (PROJECT_ROOT / "test/features", PROJECT_ROOT / "test/errors")
+    for d in outer_dirs:
+        for test_dir in d.iterdir():
+            tests.append(CompilerIterdirGroup(
+                test_dir, "--run", args, opts))
+    """
     if args.programs:
-        tests.append(CompilerIterdirGroup("programs", "--run", args, opts))
+        tests.append(CompilerIterdirGroup(
+            PROJECT_ROOT/"test/samples/programs", "--run", args, opts))
     if args.debug_tokens:
         tests.append(
-            CompilerIterdirGroup("debug tokens", "--debug-tokens", args, opts)
+            CompilerIterdirGroup(
+                PROJECT_ROOT/"test/samples/tokenization", "--debug-tokens", args, opts)
         )
     if args.debug_statements:
         tests.append(
             CompilerIterdirGroup(
-                "debug statments", "--debug-statements", args, opts
+                PROJECT_ROOT/"test/samples/statements", "--debug-statements", args, opts
             )
         )
     if args.debug_scopes:
         tests.append(
-            CompilerIterdirGroup("debug scopes", "--debug-scopes", args, opts)
+            CompilerIterdirGroup(PROJECT_ROOT/"test/samples/scoping",
+                                 "--debug-scopes", args, opts)
         )
     if args.debug_compiler:
         tests.append(
             CompilerIterdirGroup(
-                "debug C compiler", "--debug-c-compiler", args, opts
+                PROJECT_ROOT/"test/samples/compiler", "--debug-c-compiler", args, opts
             )
         )
     if not tests:
-        tests.append(CompilerIterdirGroup("programs", "--run", args, opts))
+        tests.append(CompilerIterdirGroup(
+            PROJECT_ROOT/"test/samples/programs", "--run", args, opts))
         tests.append(
-            CompilerIterdirGroup("debug tokens", "--debug-tokens", args, opts)
+            CompilerIterdirGroup(
+                PROJECT_ROOT/"test/samples/tokenization", "--debug-tokens", args, opts)
         )
         tests.append(
             CompilerIterdirGroup(
-                "debug statments", "--debug-statements", args, opts
+                PROJECT_ROOT/"test/samples/statements", "--debug-statements", args, opts
             )
         )
         tests.append(
-            CompilerIterdirGroup("debug scopes", "--debug-scopes", args, opts)
+            CompilerIterdirGroup(PROJECT_ROOT/"test/samples/scoping",
+                                 "--debug-scopes", args, opts)
         )
         tests.append(
             CompilerIterdirGroup(
-                "debug C compiler", "--debug-c-compiler", args, opts
+                PROJECT_ROOT/"test/samples/compiler", "--debug-c-compiler", args, opts
             )
         )
+    """
     return tests
 
 
@@ -454,13 +464,13 @@ def main():
         sync=args.sync
     )
     tests = init_test_groups(args, opts)
-    accumulative_result = Result("total", color=True)
+    accumulative_result = Result("total", is_final_result=True)
 
     if args.build:
         start = time.time()
         p = subprocess.run(
             shlex.split("make debug"),
-            cwd=ROOT,
+            cwd=PROJECT_ROOT,
             stdout=sys.stdout,
             stderr=sys.stderr
         )
@@ -497,7 +507,7 @@ def main():
         finally:
             print("testing took:", f"{round(time.time() - start, 2)}s")
             if args.preserve_test_dir:
-                dst = ROOT/"testdir"
+                dst = PROJECT_ROOT/"testdir"
                 if dst.exists():
                     shutil.rmtree(dst, ignore_errors=True)
                 shutil.copytree(TMP, dst)

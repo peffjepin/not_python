@@ -36,6 +36,7 @@ typedef enum {
     NPLIB_LIST_ADD,
     NPLIB_LIST_INIT,
     NPLIB_LIST_ITER,
+    NPLIB_LIST_MULT,
 
     NPLIB_DICT_CLEAR,
     NPLIB_DICT_COPY,
@@ -50,6 +51,7 @@ typedef enum {
     NPLIB_DICT_SET_ITEM,
 
     NPLIB_STR_ADD,
+    NPLIB_STR_MUL,
     NPLIB_STR_EQ,
     NPLIB_STR_GT,
     NPLIB_STR_GTE,
@@ -110,6 +112,7 @@ typedef struct {
     enum {
         IDENT_CSTR,
         IDENT_VAR,
+        IDENT_FUNCTION,
         IDENT_STRING_LITERAL,
         IDENT_INT_LITERAL,
         IDENT_FLOAT_LITERAL,
@@ -120,6 +123,8 @@ typedef struct {
         const char* cstr;
         // VAR
         Variable* var;
+        // FUNCTION
+        FunctionStatement* func;
         // STRING LITERAL
         size_t str_literal_index;
         // INT LITERAL

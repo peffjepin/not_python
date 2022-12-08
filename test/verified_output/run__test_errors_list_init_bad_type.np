@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/init_bad_type.np:1:1
+[0m[0mexpecting type `int` but got type `str`[0m
+[0m  1| l: List[int] = ["int"]
+[0m
+exitcode=1

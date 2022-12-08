@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/iteration/for_not_iterable.np:1:1
+[0m[0miterators currently implemented only for lists and dicts, got `int`[0m
+[0m  1| for x in 1:
+[0m
+exitcode=1

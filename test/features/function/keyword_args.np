@@ -1,0 +1,5 @@
+def fn(x: int, y: int, z: int = 1) -> int:
+    return x + y + z
+
+
+x = fn(y=2, z=3, x=4)

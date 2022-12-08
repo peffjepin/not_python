@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/untyped.np:1:1
+[0m[0mempty containers must have their type annotated when initialized:
+[0m[0m  1| l = []
+[0m
+exitcode=1

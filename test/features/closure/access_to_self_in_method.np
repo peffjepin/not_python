@@ -1,0 +1,7 @@
+class A:
+    value: int
+
+    def __init__(self):
+        def inner():
+            self.value = 10
+        inner()

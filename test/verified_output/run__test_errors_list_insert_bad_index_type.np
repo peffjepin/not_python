@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/insert_bad_index_type.np:2:9
+[0m[0mexpecting type `int` but got type `str`[0m
+[0m  2| l.insert("one", 2)
+[0m
+exitcode=1

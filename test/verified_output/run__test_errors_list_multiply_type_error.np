@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/multiply_type_error.np:1:12
+[0m[0munsupported operand types for `*`: `List[int]` and `float`[0m
+[0m  1| l = [1, 2] * 2.2
+[0m
+exitcode=1

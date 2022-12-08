@@ -1,0 +1,4 @@
+x = 1
+l = ["one"]
+for x in l:
+    print(x)

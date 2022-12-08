@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/dict/copy_type_error.np:3:12
+[0m[0mexpecting type `Dict[str, str]` but got type `Dict[int, int]`[0m
+[0m  3| d2 = d.copy()
+[0m
+exitcode=1

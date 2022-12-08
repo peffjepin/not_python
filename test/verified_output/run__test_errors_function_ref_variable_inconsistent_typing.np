@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/function/ref_variable_inconsistent_typing.np:11:1
+[0m[0mexpecting type `Function[[int], int]` but got type `Function[[float], float]`[0m
+[0m  11| f = fn2
+[0m
+exitcode=1

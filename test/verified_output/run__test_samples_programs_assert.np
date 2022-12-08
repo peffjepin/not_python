@@ -1,5 +1,0 @@
-ERROR: AssertionError on line 2 ->
-assert 0
-[0;31mERROR: `./testmain` exited with exitcode: 1[0m
-
-exitcode=1

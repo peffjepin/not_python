@@ -35,6 +35,7 @@ NpLibFunctionData NPLIB_FUNCTION_DATA[] = {
     [NPLIB_LIST_ADD] = {.name = "np_list_add", .argc = 2, .unsafe = true},
     [NPLIB_LIST_INIT] = {.name = "np_list_init", .argc = 4, .unsafe = true},
     [NPLIB_LIST_ITER] = {.name = "np_list_iter", .argc = 1, .unsafe = true},
+    [NPLIB_LIST_MULT] = {.name = "np_list_mult", .argc = 2, .unsafe = true},
 
     [NPLIB_DICT_CLEAR] = {.name = "np_dict_clear", .argc = 1, .unsafe = false},
     [NPLIB_DICT_COPY] = {.name = "np_dict_copy", .argc = 1, .unsafe = false},
@@ -49,6 +50,7 @@ NpLibFunctionData NPLIB_FUNCTION_DATA[] = {
     [NPLIB_DICT_SET_ITEM] = {.name = "np_dict_set_item", .argc = 3, .unsafe = true},
 
     [NPLIB_STR_ADD] = {.name = "np_str_add", .argc = 2, .unsafe = true},
+    [NPLIB_STR_MUL] = {.name = "np_str_mul", .argc = 2, .unsafe = true},
     [NPLIB_STR_EQ] = {.name = "np_str_eq", .argc = 2, .unsafe = false},
     [NPLIB_STR_GT] = {.name = "np_str_gt", .argc = 2, .unsafe = false},
     [NPLIB_STR_GTE] = {.name = "np_str_gte", .argc = 2, .unsafe = false},
@@ -317,8 +319,8 @@ static StorageIdent
 storage_ident_from_fndef(FunctionStatement* fndef)
 {
     return (StorageIdent){
-        .kind = IDENT_CSTR,
-        .cstr = fndef->ns_ident.data,
+        .kind = IDENT_FUNCTION,
+        .func = fndef,
         .info = (TypeInfo){.type = NPTYPE_FUNCTION, .sig = &fndef->sig},
     };
 }
@@ -335,6 +337,8 @@ set_storage_type_info(Compiler* compiler, StorageIdent* ident, TypeInfo info)
 
     switch (ident->kind) {
         case IDENT_CSTR:
+            break;
+        case IDENT_FUNCTION:
             break;
         case IDENT_INT_LITERAL:
             break;
@@ -877,7 +881,9 @@ render_list_builtin(
                 StorageIdent* argv =
                     arena_alloc(compiler->arena, sizeof(StorageIdent) * 2);
                 argv[0] = list_ident;
-                argv[1] = render_expression(compiler, NULL_HINT, args->values[0]);
+                argv[1] = render_expression(
+                    compiler, (StorageHint){.info = list_content_type}, args->values[0]
+                );
                 argv[1].reference = true;
 
                 add_instruction(
@@ -1081,15 +1087,6 @@ render_list_builtin(
                     }
                 );
                 argv[2].reference = true;
-
-                if (req_decl)
-                    add_instruction(
-                        compiler,
-                        (Instruction){
-                            .kind = INST_DECLARE_VARIABLE,
-                            .declare_variable = rtval,
-                        }
-                    );
 
                 add_instruction(
                     compiler,
@@ -1707,6 +1704,28 @@ render_operation(
     NpLibFunction lib_function;
 
     switch (op_type) {
+        case OPERATOR_MULT:
+            if (left.info.type == NPTYPE_LIST) {
+                lib_function = NPLIB_LIST_MULT;
+                goto render_lib_function;
+            }
+            if (right.info.type == NPTYPE_LIST) {
+                left = idents[1];
+                right = idents[0];
+                lib_function = NPLIB_LIST_MULT;
+                goto render_lib_function;
+            }
+            if (left.info.type == NPTYPE_STRING) {
+                lib_function = NPLIB_STR_MUL;
+                goto render_lib_function;
+            }
+            if (right.info.type == NPTYPE_STRING) {
+                left = idents[1];
+                right = idents[0];
+                lib_function = NPLIB_STR_MUL;
+                goto render_lib_function;
+            }
+            break;
         case OPERATOR_LOGICAL_NOT: {
             add_instruction(
                 compiler,
@@ -1716,7 +1735,7 @@ render_operation(
                     .assignment.right =
                         (OperationInst){
                             .kind = OPERATION_INTRINSIC,
-                            .op = OPERATOR_BITWISE_NOT,
+                            .op = OPERATOR_LOGICAL_NOT,
                             .right = convert_to_truthy(compiler, idents[1]),
                         },
                 }
@@ -2316,9 +2335,7 @@ render_type_hinted_signature_args_to_variables(
             compiler->file_index,
             compiler->current_operation_location,
             "callable `%s` derives it's type from a type hint and does not "
-            "take "
-            "keyword "
-            "arguments keyword arguments",
+            "take keyword arguments",
             callable_name
         );
     }
@@ -2338,7 +2355,20 @@ render_callable_args_to_variables(
     Compiler* compiler, Arguments* args, Signature sig, const char* callable_name
 )
 {
-    if (sig.params_count == 0) return NULL;
+    if (!callable_name) callable_name = "ANONYMOUS";
+    if (args->values_count > sig.params_count)
+        type_errorf(
+            compiler->file_index,
+            compiler->current_operation_location,
+            "callable `%s` accepts %zu arguments but %zu were given",
+            callable_name,
+            sig.params_count,
+            args->values_count
+        );
+
+    if (sig.params_count == 0) {
+        return NULL;
+    }
     if (!sig.params) {
         // Signature coming from a type hint, only accepts positional args
         return render_type_hinted_signature_args_to_variables(
@@ -2390,9 +2420,10 @@ render_callable_args_to_variables(
             type_errorf(
                 compiler->file_index,
                 compiler->current_operation_location,
-                "callable `%s` missing required param `%s`",
+                "callable `%s` missing required param `%s: %s`",
                 callable_name,
-                sig.params[i].data
+                sig.params[i].data,
+                errfmt_type_info(sig.types[i])
             );
         }
     }
@@ -2551,6 +2582,12 @@ render_call_operation(
     StorageIdent rtval = storage_ident_from_hint(compiler, hint);
     check_storage_type_info(compiler, &rtval, fn_ident.info.sig->return_type);
 
+    const char* callable_name = NULL;
+    if (fn_ident.kind == IDENT_VAR)
+        callable_name = fn_ident.var->identifier.data;
+    else if (fn_ident.kind == IDENT_FUNCTION)
+        callable_name = fn_ident.func->name.data;
+
     add_instruction(
         compiler,
         (Instruction){
@@ -2561,11 +2598,7 @@ render_call_operation(
                     .kind = OPERATION_FUNCTION_CALL,
                     .function = fn_ident,
                     .args = render_callable_args_to_variables(
-                        compiler,
-                        args,
-                        *fn_ident.info.sig,
-                        (fn_ident.kind == IDENT_VAR) ? fn_ident.var->identifier.data
-                                                     : NULL
+                        compiler, args, *fn_ident.info.sig, callable_name
                     ),
                 },
         }
@@ -3636,7 +3669,11 @@ static Variable*
 init_semi_scoped_variable(Compiler* compiler, SourceString identifier, TypeInfo type_info)
 {
     Symbol* sym = get_symbol(compiler, identifier);
-    if (sym->variable->kind != VAR_SEMI_SCOPED) return sym->variable;
+    if (sym->variable->kind != VAR_SEMI_SCOPED) {
+        StorageIdent var_ident = storage_ident_from_variable(sym->variable);
+        check_storage_type_info(compiler, &var_ident, type_info);
+        return sym->variable;
+    }
 
     sym->variable->compiled_name.data = UNIQUE_ID(compiler);
     sym->variable->compiled_name.length = strlen(sym->variable->compiled_name.data);

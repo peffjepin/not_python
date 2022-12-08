@@ -1,0 +1,10 @@
+def fn1() -> int:
+    return 1
+
+
+def fn2() -> int:
+    return 2
+
+
+l = [fn1, fn2]
+l[0](1)

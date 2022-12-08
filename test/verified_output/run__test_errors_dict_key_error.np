@@ -1,0 +1,4 @@
+ERROR: key not present
+[0;31mERROR: `./testmain` exited with exitcode: 1[0m
+
+exitcode=1

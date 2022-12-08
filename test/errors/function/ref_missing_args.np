@@ -1,0 +1,6 @@
+def fn(x: int) -> int:
+    return x
+
+
+f = fn
+x = f()

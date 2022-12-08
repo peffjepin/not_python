@@ -1,0 +1,8 @@
+not True
+False is True
+False is False
+False == False
+False == True
+
+b = False
+b = True

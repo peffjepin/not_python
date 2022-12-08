@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/function/unknown_keyword_argument.np:5:7
+[0m[0mcallable `fn` was given an unexpected keyword argument `z`[0m
+[0m  5| x = fn(z=1)
+[0m
+exitcode=1

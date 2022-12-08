@@ -1,5 +1,0 @@
-[0;31mTypeError: test/samples/programs/fnref3.np:1:5
-[0m[0munable to resolve the type for token `print`[0m
-[0m  1| f = print
-[0m
-exitcode=1

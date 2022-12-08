@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/function/ref_too_many_args.np:6:2
+[0m[0mcallable `f` accepts 0 arguments but 1 were given[0m
+[0m  6| f(1)
+[0m
+exitcode=1

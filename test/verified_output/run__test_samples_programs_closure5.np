@@ -1,5 +1,0 @@
-[0;31mNameError: test/samples/programs/closure5.np:7:6
-[0m[0mfunction not found: outer[0m
-[0m  7| outer()
-[0m
-exitcode=1

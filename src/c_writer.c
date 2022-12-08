@@ -231,6 +231,9 @@ write_ident(Section* section, StorageIdent ident)
     if (ident.reference) write(section, "&");
 
     switch (ident.kind) {
+        case IDENT_FUNCTION:
+            write(section, ident.func->ns_ident.data);
+            break;
         case IDENT_NPTYPE_ZERO_INIT_LITERAL:
             write(section, "(");
             write_type_info(section, ident.info);
@@ -412,7 +415,7 @@ write_intrinsic(Section* section, StorageIdent left, Operator op, StorageIdent r
             break;
         default:
             errorf(
-                "unexpected instrinsic: %s %s %s",
+                "unexpected intrinsic: %s %s %s",
                 errfmt_type_info(left.info),
                 op_to_cstr(op),
                 errfmt_type_info(right.info)

@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/append_bad_type.np:2:9
+[0m[0mexpecting type `int` but got type `str`[0m
+[0m  2| l.append("four")
+[0m
+exitcode=1

@@ -1,0 +1,4 @@
+def fn() -> int:
+    return 4
+
+x = fn()

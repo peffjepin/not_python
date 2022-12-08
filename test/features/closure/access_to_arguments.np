@@ -1,0 +1,4 @@
+def outer(param1: str):
+    def inner():
+        print(param1)
+    inner()

@@ -1,0 +1,5 @@
+def fn(x: int) -> int:
+    return x
+
+
+fn("hello")

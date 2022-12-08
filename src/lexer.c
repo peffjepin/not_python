@@ -394,6 +394,8 @@ typedef struct {
     IndentationStack indent_stack;
     LexicalScopeStack scope_stack;
 
+    bool in_loop;
+
     const char* file_namespace;
     size_t file_namespace_length;
 
@@ -1253,7 +1255,9 @@ parse_for_loop(Parser* parser, unsigned int indent)
     expect_keyword(parser, KW_IN);
     for_loop->iterable = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
+    parser->in_loop = true;
     for_loop->body = parse_block(parser, indent);
+    parser->in_loop = false;
     return for_loop;
 }
 
@@ -1264,7 +1268,9 @@ parse_while_loop(Parser* parser, unsigned int indent)
     WhileStatement* while_loop = arena_alloc(parser->arena, sizeof(WhileStatement));
     while_loop->condition = parse_expression(parser);
     expect_token_type(parser, TOK_COLON);
+    parser->in_loop = true;
     while_loop->body = parse_block(parser, indent);
+    parser->in_loop = false;
     return while_loop;
 }
 
@@ -2480,12 +2486,24 @@ parse_statement(Parser* parser)
                 return parse_statement(parser);
             }
             case KW_BREAK:
-                // TODO: make sure that we're currently parsing some kind of loop
+                if (!parser->in_loop)
+                    syntax_error(
+                        *parser->scanner->index,
+                        stmt->loc,
+                        0,
+                        "break statement only applicable within for/while loop"
+                    );
                 discard_next_token(parser);
                 stmt->kind = STMT_BREAK;
                 return stmt;
             case KW_CONTINUE:
-                // TODO: make sure that we're currently parsing some kind of loop
+                if (!parser->in_loop)
+                    syntax_error(
+                        *parser->scanner->index,
+                        stmt->loc,
+                        0,
+                        "break statement only applicable within for/while loop"
+                    );
                 discard_next_token(parser);
                 stmt->kind = STMT_CONTINUE;
                 return stmt;

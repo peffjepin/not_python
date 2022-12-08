@@ -1,0 +1,12 @@
+def fn1(x: int) -> int:
+    return x
+
+
+def fn2(x: float) -> float:
+    return x
+
+
+f = fn1
+f(1)
+f = fn2
+f(1.0)

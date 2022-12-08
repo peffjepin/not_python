@@ -1,0 +1,4 @@
+d = {1: "one", 2: "two"}
+
+for k, v in d.items():
+    print(k, v)

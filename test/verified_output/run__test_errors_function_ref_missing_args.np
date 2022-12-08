@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/function/ref_missing_args.np:6:6
+[0m[0mcallable `f` missing required param `x: int`[0m
+[0m  6| x = f()
+[0m
+exitcode=1

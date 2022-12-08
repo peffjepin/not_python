@@ -1,0 +1,5 @@
+[0;31mSyntaxError: test/errors/iteration/break_outside_loop.np:1:1
+[0m[0mbreak statement only applicable within for/while loop:
+[0m[0m  1| break
+[0m
+exitcode=1

@@ -1,0 +1,2 @@
+l = [1]
+l2: List[str] = l.copy()

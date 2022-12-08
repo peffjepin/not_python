@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/function/container_of_refs_invalid_args.np:10:5
+[0m[0mcallable `ANONYMOUS` accepts 0 arguments but 1 were given[0m
+[0m  10| l[0](1)
+[0m
+exitcode=1

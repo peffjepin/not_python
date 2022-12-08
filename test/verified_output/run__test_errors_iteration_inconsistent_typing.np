@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/iteration/inconsistent_typing.np:3:1
+[0m[0mexpecting type `int` but got type `str`[0m
+[0m  3| for x in l:
+[0m
+exitcode=1

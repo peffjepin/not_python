@@ -1,5 +1,0 @@
-[0;31mTypeError: test/samples/programs/fnref2.np:4:1
-[0m[0mfunction references must have their type annotated:
-[0m[0m  4| f = my_func
-[0m
-exitcode=1

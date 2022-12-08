@@ -50,6 +50,7 @@ struct NpString {
 };
 
 NpString np_str_add(NpString str1, NpString str2);
+NpString np_str_mul(NpString str, NpInt n);
 NpString np_str_fmt(const char* fmt, ...);
 NpBool np_str_eq(NpString str1, NpString str2);
 NpBool np_str_gt(NpString str1, NpString str2);
@@ -196,6 +197,7 @@ NpNone np_list_remove(NpList* list, void* item);
 NpInt np_list_count(NpList* list, void* item);
 NpNone np_list_insert(NpList* list, NpInt index, void* item);
 NpIter np_list_iter(NpList* list);
+NpList* np_list_mult(NpList* list, NpInt n);
 
 #define LIST_INIT(type, sort, rev_sort, cmp)                                             \
     np_list_init(sizeof(type), sort, rev_sort, cmp)

@@ -1,0 +1,12 @@
+def fn1(x: int) -> int:
+    return x + 1
+
+
+def fn2(x: int) -> int:
+    return x + 2
+
+
+f = fn1
+f(1)
+f = fn2
+f(2)

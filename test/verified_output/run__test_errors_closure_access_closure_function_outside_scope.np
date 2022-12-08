@@ -1,0 +1,5 @@
+[0;31mNameError: test/errors/closure/access_closure_function_outside_scope.np:7:6
+[0m[0mfunction not found: inner[0m
+[0m  7| inner()
+[0m
+exitcode=1

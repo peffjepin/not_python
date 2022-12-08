@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/count_bad_type.np:2:8
+[0m[0mexpecting type `int` but got type `str`[0m
+[0m  2| l.count("one")
+[0m
+exitcode=1

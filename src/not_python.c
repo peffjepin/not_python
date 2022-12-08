@@ -146,6 +146,20 @@ np_str_add(NpString str1, NpString str2)
 }
 
 NpString
+np_str_mul(NpString str, NpInt n)
+{
+    if (n == 0) return (NpString){.data = "", .length = 0};
+    if (n == 1) return str;
+
+    NpString new_str = {
+        .data = np_alloc(sizeof(char) * str.length * n + 1), .length = str.length * n};
+    if (global_exception) return (NpString){.data = "", .length = 0};
+    for (NpInt i = 0; i < n; i++)
+        memcpy(new_str.data + str.length * i, str.data + str.offset, str.length);
+    return new_str;
+}
+
+NpString
 np_str_fmt(const char* fmt, ...)
 {
     va_list args;
@@ -464,6 +478,26 @@ np_list_insert(NpList* list, NpInt index, void* item)
     );
     LIST_COPY_FROM_ITEM(list, index, item);
     return NULL;
+}
+
+NpList*
+np_list_mult(NpList* list, NpInt n)
+{
+    // TODO: add initial capacity param to np_list_init and use it here
+
+    NpList* new_list = np_alloc(sizeof(NpList));
+    if (global_exception) return NULL;
+    memcpy(new_list, list, sizeof(NpList));
+    new_list->count *= n;
+    new_list->capacity *= n;
+    new_list->capacity =
+        (new_list->capacity < LIST_MIN_CAPACITY) ? LIST_MIN_CAPACITY : new_list->capacity;
+    new_list->data = np_alloc(new_list->element_size * new_list->capacity);
+    if (global_exception) return NULL;
+    size_t data_size = list->element_size * list->count;
+    for (NpInt i = 0; i < n; i++)
+        memcpy(new_list->data + data_size * i, list->data, data_size);
+    return new_list;
 }
 
 void*

@@ -1,0 +1,5 @@
+def fn():
+    pass
+
+
+n = fn.__name__

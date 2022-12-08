@@ -1,0 +1,13 @@
+def fn1() -> int:
+    return 1
+
+
+def fn2() -> int:
+    return 2
+
+
+def fn3() -> int:
+    return 3
+
+
+l = [fn1, fn2, fn3]

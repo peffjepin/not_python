@@ -1,0 +1,5 @@
+[0;31mTypeError: test/errors/list/copy_bad_type.np:2:23
+[0m[0mexpecting type `List[str]` but got type `List[int]`[0m
+[0m  2| l2: List[str] = l.copy()
+[0m
+exitcode=1

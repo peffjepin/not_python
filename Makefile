@@ -1,4 +1,4 @@
-.PHONY: clean debug release regenerate test test_update run_test_symbol_hashmap
+.PHONY: clean debug release regenerate test test_update 
 
 INSTALL_DIR ?= /usr
 
@@ -39,7 +39,6 @@ clean:
 	-rm -rf backup
 	-rm -rf npc_build
 	-rm -rf testdir
-	-rm test_symbol_hashmap
 	-rm npc
 	-rm testmain
 
@@ -88,15 +87,8 @@ uninstall:
 	-rm $(INSTALL_DIR)/include/np_hash.h
 	-rm $(INSTALL_DIR)/bin/npc
 
-test: debug run_test_symbol_hashmap
+test: debug 
 	./scripts/test.py 
 
 test_update: debug
 	./scripts/test.py --interactive
-
-test_symbol_hashmap: build/np_hash_db.o build/arena_db.o build/hashmap_db.o build/diagnostics_db.o test/test_symbol_hashmap.c
-	$(CC) $(DEBUG_CFLAGS) -o $@ $^
-
-run_test_symbol_hashmap: test_symbol_hashmap
-	./$^
-	@echo "PASS"

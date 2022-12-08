@@ -1,0 +1,6 @@
+l1 = [1]
+l2 = ["one"]
+for x in l1:
+    print(x)
+for x in l2:
+    print(x)

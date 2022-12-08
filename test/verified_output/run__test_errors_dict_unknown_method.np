@@ -1,0 +1,5 @@
+[0;31mNameError: test/errors/dict/unknown_method.np:3:20
+[0m[0munrecognized dict builtin: not_a_real_method[0m
+[0m  3| d.not_a_real_method()
+[0m
+exitcode=1
